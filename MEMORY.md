@@ -1,0 +1,109 @@
+# MEMORY.md — Project State (Living Document)
+
+**Purpose:** Persistent context for Claude Code (and any AI-IDE) across sessions. The agent reads this on session start and updates it after meaningful work. Prevents every session from starting cold.
+
+**Update rules:**
+- Keep under 200 lines. If it grows past that, the `memory-curator` skill archives older entries to `/docs/memory-archive/YYYY-MM.md`.
+- Update at end of every meaningful session (`memory-curator` skill).
+- Use the structure below. Don't add new top-level sections without an ADR.
+- Don't store secrets, credentials, or PII here.
+
+**Last updated:** 2026-05-17 by claude-onboarding-session
+
+---
+
+## Project at a glance
+
+biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package productised from CDSCO-RegAI. Python engine (framework-free) plus a FastAPI REST sidecar plus thin native SDKs (Node/PHP/Go, v0.1.1+) — one source of truth, polyglot consumption. Layers Indian/EU/US recognisers and DPDP/GDPR/HIPAA/CCPA regime adapters on top of Presidio (depended on, never forked). MIT, public PyPI from v0.1.0 alpha.
+
+**Status:** Pre-development. Bootstrap complete (BILTIQ-000 staged, awaiting commit). No production code yet. Source to port: `/home/atc/Desktop/cdcso/CDSCO-RegAI` (branch `main`).
+**Deployment:** Library → public PyPI. Server → native install preferred (`pip install biltiq-privacy-server`), Docker offered (`biltiq/privacy-server:0.1.0`). Both REST endpoints identical.
+**Compliance mode:** `on_prem_preferred` — must match `AGENT_RULES.md` § Compliance.
+**Primary stakeholders:** @harish — owns CDSCO-RegAI (first consumer), ATC CommandCenter, ManthanQuant.
+
+---
+
+## Current focus (this week)
+
+- **Active sprint:** Pre-implementation — bootstrap and skeleton.
+- **Top 3 tasks in flight:**
+  1. BILTIQ-000 — bootstrap BiltIQ engineering structure — @harish — files staged, awaits `git init` + first commit.
+  2. BILTIQ-001 — `pyproject.toml` + monorepo `packages/` skeleton — not started.
+  3. BILTIQ-002 — port `core/pii_patterns.py` from CDSCO-RegAI — not started.
+- **Top 3 risks:**
+  1. CDSCO-RegAI source files have FastAPI/SQLAlchemy/pydantic-settings glue that must be stripped during port. Risk: subtle behaviour change. Mitigation: copy CDSCO-RegAI's 19 unit tests verbatim alongside each port; tests must stay green.
+  2. spaCy `en_core_web_sm` bundled adds ~15 MB to wheel. Acceptable v0.1.0; revisit at v0.2.0 if wheel size becomes a complaint.
+  3. age binary install path differs by OS. `scripts/install-age.sh` must detect Linux/macOS/Windows; verify on each before v0.1.0 tag.
+
+---
+
+## Recent decisions (last 30 days)
+
+_(no decisions recorded)_
+
+## Recently completed
+
+- 2026-05-17 — BILTIQ-000: BiltIQ engineering structure bootstrapped — 51 canonical files created — pending first commit.
+
+---
+
+## Known issues & gotchas
+
+- **CDSCO-RegAI port discipline:** The 10 source files in `SESSION_PROMPT.md` §3 carry framework glue (FastAPI, SQLAlchemy, pydantic-settings, hardcoded vLLM URLs). The library equivalents must take secrets/config as constructor args and return plain dicts/dataclasses. No global settings module.
+- **Banned vocabulary:** `cutting-edge`, `revolutionary`, `empowering`, `seamless`, `future-ready` (and the expanded list in `docs/architecture/anti-patterns.md`). Applies to README, regime docs, commit messages, code comments.
+- **Indian recognisers (the v0.1.0 differentiator):** Aadhaar, PAN, ABHA, GSTIN, Voter ID, IFSC, phone. Patterns live in CDSCO-RegAI's `presidio_engine.py`. Do not regress accuracy when porting.
+
+---
+
+## Open questions
+
+_(no open questions)_
+
+## Code areas under active change
+
+(none yet — pre-implementation)
+
+---
+
+## Conventions specific to this repo
+
+- Library package: `packages/python-core/biltiq_privacy/` — framework-free, no FastAPI.
+- Server package: `packages/python-server/biltiq_privacy_server/` — FastAPI, depends on `biltiq_privacy`.
+- Native SDK packages (v0.1.1+): `packages/{node,php,go}/`.
+- Regime IDs use legal-section format: `DPDP-1`, `GDPR-Art17`, `HIPAA-§164.514`, `CCPA-§1798.140`.
+- HMAC secrets are constructor arguments. No global settings module. No reading from env inside the library — consumers wire env→constructor.
+- Pure functions and small classes. Return plain dicts / `@dataclass` objects. No framework-specific return types in library code.
+
+---
+
+## Glossary deltas
+
+(none yet — see `docs/GLOSSARY.md`)
+
+---
+
+## Session log (last 5 sessions)
+
+### 2026-05-17 ~07:51 IST — claude-onboarding-session
+- Worked on: BILTIQ-000 (repo onboarding).
+- Did: Ran `/biltiq-engineering:repo-onboarding`. State: fresh. Bootstrapped 51 canonical files. Resolved 10 architectural decisions covering compliance, Python versions, PyPI, versioning, spaCy, monorepo structure (C-as-SDKs), sidecar protocol (REST/FastAPI), fork policy (no fork), deployment (native + Docker), and brief §2 rule 5 FastAPI carve-out.
+- Discovered: User's polyglot consumption requirement was not in the brief — surfaced mid-session and resolved with C-as-SDKs + Docker-and-native deployment. Brief's §9 6 hand-off questions all answered.
+- Next session should: Run `git init && git add -A && git commit -m "BILTIQ-000: bootstrap repo with biltiq-engineering structure"`. Then start BILTIQ-001 — write `pyproject.toml` for `packages/python-core/` and `packages/python-server/`, create the directory skeleton, no implementation yet.
+
+---
+
+## Active task
+
+_(no task state recorded yet)_
+
+## Today's activity
+
+_(no activity recorded today)_
+
+## Open blockers
+
+_(no open blockers)_
+
+## Archive
+
+Older entries (>30 days) live in `/docs/memory-archive/YYYY-MM.md`.

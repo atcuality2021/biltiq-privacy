@@ -1,0 +1,136 @@
+# Stack — Libraries, Wrappers, and Utilities
+
+**Purpose:** The catalog of what already exists in this repo. Read this **before writing any new utility, client, or wrapper** — Anti-Pattern #1 (Duplication) and #2 (Abstraction Bypass) defenses.
+
+**Update rules:**
+- Every new utility / wrapper added to the repo gets an entry here in the same PR.
+- Every wrapper that becomes deprecated moves to `## Deprecated` with the replacement noted.
+- Reviewed monthly alongside `overview.md`.
+
+> **Note:** This repo is a **library + sidecar**, not a service. Many "typical" stack rows (DB, vector store, object storage, cache, queue) are intentionally absent — the library is stateless and consumers handle persistence. Do not add them without an ADR.
+
+---
+
+## Languages & runtimes
+
+- **Python 3.11, 3.12, 3.13, 3.14** — `requires-python = ">=3.11"`. CI matrix covers all four.
+- Node 20+ (only in `packages/node/`, v0.1.1+).
+- PHP 8.2+ (only in `packages/php/`, v0.1.1+).
+- Go 1.22+ (only in `packages/go/`, v0.1.1+).
+
+---
+
+## Library framework: NONE (intentional)
+
+The library core (`packages/python-core/biltiq_privacy/`) is framework-free. No FastAPI, no Starlette, no Pydantic-Settings, no SQLAlchemy. Pure functions and small classes. **This is a hard rule; PRs adding framework deps to the library are auto-blocked in code review without an overriding ADR.**
+
+---
+
+## Server framework (sidecar only — `packages/python-server/`)
+
+- **FastAPI ≥ 0.110** — REST sidecar exposing `/anonymize`, `/validate`, `/healthz`, `/openapi.json`.
+- **uvicorn ≥ 0.27** — ASGI runtime; CLI `biltiq-privacy-server serve`.
+- **pydantic v2** — request/response models. Use `model_validate` / `model_dump`, not `.parse_obj` / `.dict`.
+
+---
+
+## PII detection engine
+
+- **presidio-analyzer ≥ 2.2, < 3** — depended on, never forked. Vendored in `vendor/presidio/` for airgap CI.
+- **presidio-anonymizer ≥ 2.2, < 3** — same.
+- **spacy ≥ 3.7** + **en_core_web_sm** — NER model bundled via pyproject dep on `en-core-web-sm`.
+
+Extension points used:
+- `presidio_analyzer.PatternRecognizer` — for the 7 Indian recognisers (Aadhaar, PAN, ABHA, GSTIN, Voter, IFSC, phone) and future EU/US/UK packs.
+- `presidio_analyzer.EntityRecognizer` — base class for any ML/contextual recogniser (v0.4.0+).
+- `presidio_anonymizer.operators.Operator` — for our HMAC-token pseudonymiser.
+
+---
+
+## Encryption (v0.5.0+)
+
+- **age (system binary)** — wrapped via `subprocess.Popen` for streaming `pg_dump | age` pipelines. Pin: age ≥ 1.2.0. Install via `scripts/install-age.sh`.
+
+---
+
+## Internal modules — use these, do not duplicate
+
+| What | Module | Purpose |
+|---|---|---|
+| Residual-scan regex set | `biltiq_privacy.core.pii_patterns` | Single source of truth for Aadhaar / PAN / phone / email / ABHA regexes. |
+| Logging redaction | `biltiq_privacy.core.log_filter.RedactionFilter` | `logging.Filter` subclass — scrubs `record.msg`, `record.args`, `extra=` fields. |
+| HMAC pseudonymisation | `biltiq_privacy.core.doc_hasher.hmac_pseudonymise(text, *, key)` | Key as kwarg, no global state. |
+| Pseudonymiser (text → tokens) | `biltiq_privacy.core.pseudonymiser.Pseudonymiser` | Replaces detected entities with deterministic HMAC tokens. |
+| Generaliser (k-anonymity) | `biltiq_privacy.core.generaliser` | 20-year age brackets + state→region rollups. |
+| Audit hash-chain | `biltiq_privacy.core.audit_chain.AuditChain` | Pure hashing; consumers persist rows. |
+| Detector ABC | `biltiq_privacy.detectors.base.Detector` | Implement to add a new detection backend. |
+| Default detector | `biltiq_privacy.detectors.presidio_backend.PresidioDetector` | Wraps `AnalyzerEngine`. |
+| Regime ABC | `biltiq_privacy.regimes.base.Regime` | Implement to add a new regulatory framework. |
+| Recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=["india"])` | Convenience factory; assembles a `RecognizerRegistry`. |
+
+[PROJECT: add new internal modules here in the same PR they're created.]
+
+---
+
+## Shared utilities
+
+| What | Module | Use when |
+|---|---|---|
+| UTC timestamp | `datetime.now(timezone.utc)` | Any timestamp. Do not `datetime.utcnow()` (deprecated). Consider a future `core.time` wrapper if usage proliferates. |
+| Path manipulation | `pathlib.Path` | All filesystem paths. No `os.path`. |
+| Logging | `logging.getLogger(__name__)` with `RedactionFilter` attached | All logging. No `print()` in library code. |
+| Data classes | `@dataclass(slots=True, frozen=True)` for return types | Default for any return value in the library. |
+| Type hints | `from __future__ import annotations` at top of every module | Strict mypy in CI. |
+
+---
+
+## Test fixtures
+
+| Fixture | Module | Provides |
+|---|---|---|
+| `hmac_key` | `tests/conftest.py` | Deterministic 32-byte key for tests. Never the production key. |
+| `sample_indian_pii` | `tests/fixtures/india.py` | Synthetic Aadhaar / PAN / ABHA / phone strings — known-fake values. |
+| `presidio_engine_indian` | `tests/fixtures/presidio.py` | `AnalyzerEngine` pre-loaded with the 7 Indian recognisers. |
+| `audit_chain` | `tests/fixtures/audit.py` | Fresh `AuditChain` with a deterministic seed. |
+| `fastapi_client` | `packages/python-server/tests/conftest.py` | `TestClient` against the FastAPI app — no real network. |
+
+Tests must:
+- Run with no network access (mark `pytest -m "not network"` as default).
+- Use synthetic PII only — never real identifiers, never copied from real documents.
+- Hit ≥ 90% line coverage on `core/` and `recognisers/`.
+
+---
+
+## Deprecated
+
+(none yet — repo is pre-implementation.)
+
+| Deprecated | Replacement | Removal target |
+|---|---|---|
+
+---
+
+## When to add a new wrapper
+
+Add a wrapper when:
+- The same external library is used in 3+ files with the same setup boilerplate.
+- The external library has cross-cutting concerns (logging, retry, auth) that should be centralised.
+- A behaviour would change project-wide if the library were swapped (good test: "could we move from `presidio-analyzer` to a custom engine without rewriting every caller?" — `Detector` ABC already isolates this).
+
+When you add one:
+1. Implement under `packages/python-core/biltiq_privacy/<category>/`.
+2. List it in this file in the same PR.
+3. The `code-reviewer` skill checks for new wrappers and flags missing entries here.
+
+---
+
+## Polyglot SDK stack (v0.1.1+)
+
+Each native SDK in `packages/{node,php,go}/` is **deliberately thin**:
+
+- HTTP client only (`fetch`, `Guzzle`, `net/http`).
+- Configuration: `BILTIQ_PRIVACY_URL` env var (default `http://localhost:8088`) + auth header.
+- Surface: one method per sidecar endpoint, language-idiomatic names.
+- No business logic. Regime checks, recognisers, generalisation all happen in the Python sidecar.
+
+SDKs are generated from `packages/python-server/openapi.json` via `openapi-generator` for the initial scaffold; hand-polished for ergonomics. Generator config lives at `scripts/sdk-gen/`.
