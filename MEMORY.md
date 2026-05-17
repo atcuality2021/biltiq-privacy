@@ -57,6 +57,7 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 - **YAML `#`-after-space comment gotcha:** GitHub Actions workflow `name:` fields containing `Anti-Pattern #N — ...` get truncated by YAML's comment rule to `Anti-Pattern`. Quote any `name:` value containing `#`. Discovered during BILTIQ-001 when `biltiq-gates.yml` was silently failing parse since BILTIQ-000 bootstrap.
 - **GitHub Actions workflow validation is branch-scoped:** push events validate workflows against the default branch only. A fix to a broken workflow on a feature branch will not unstick CI until the fix merges to `main`. The 5 `biltiq-gates.yml` jobs in PR #1 are still inert until merge.
 - **`${PROJECT_ROOT}` is uv-only:** does not expand under pip; do not use in `[project.dependencies]` if pip must work.
+- **`gh pr edit` is broken on `gh < 2.59`** (this machine: 2.46.0, apt-installed, root-owned). The internal GraphQL query touches `repository.pullRequest.projectCards`, which GitHub has deprecated, and the call returns an error. Workaround (no sudo required): use the REST API directly — `gh api --method PATCH /repos/<owner>/<repo>/pulls/<n> --input <(jq -Rs '{body: .}' < body.md)`. System fix is `sudo apt upgrade gh` or installing a newer `gh` to `~/.local/bin/`. Discovered during BILTIQ-001 Step 6 when rewriting PR #1's body.
 
 ---
 
