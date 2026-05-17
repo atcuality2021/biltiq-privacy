@@ -67,6 +67,7 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 - **Process change (engineering-plugin backlog):** Build skill should run a "design ↔ diff inventory" check before completion — diff `git diff --name-only` against `design.html`'s files-to-touch list and fail on unexplained deltas. Surfaced by F2.
 - **Process change (engineering-plugin backlog):** plan-reviewer (or a pre-commit lint) should flag YAML `name:` fields containing unquoted `#`. Surfaced by the BILTIQ-000 hotfix.
 - **Process change (engineering-plugin backlog):** Reviewer slice protocol: per-slice constraint lists should be generated from a `docs/architecture/review-slices.yaml`, not hand-written by the dispatcher. Surfaced by BILTIQ-001 Step 4 5-reviewer dispatch.
+- **Process change (engineering-plugin backlog):** Repo bootstrap should pin a minimum `gh` CLI version (≥ 2.59), or BiltIQ skills should replace `gh pr edit` calls with the REST-API form (`gh api PATCH /repos/.../pulls/N`). Surfaced by BILTIQ-001 Step 6 Ship when `gh pr edit` failed on the projectCards GraphQL deprecation. See gotcha in Known issues above.
 
 ## Code areas under active change
 
@@ -93,11 +94,11 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Session log (last 5 sessions)
 
-### 2026-05-17 ~10:00–13:00 IST — BILTIQ-001 Attack Loop (Plan → Ship)
-- Worked on: BILTIQ-001 (pyproject + monorepo skeleton + dual install paths).
-- Did: Spec + design + plan + reflect (`.html`); ADR-0001 (dual install paths) + ADR-0002 (en-core-web-sm 3.8.0). 13 commits on `feature/biltiq-001-pyproject-skeleton`. Step 4 parallel review (5 slices, 27 files) caught 4 findings (F1 unfilled reflect, F2 missing docs deltas in files-to-touch, F3 AC10 wording, F4 ADR-0001 unworkable URL shape) — all fixed in `1711c1b` + `c9b7cc5`. Step 5 test verdict: ready for ship (8/8 install combos green, all 10 ACs verified). Step 6: PR #1 opened against `main`, 9/9 CI cells green in 55s, CHANGELOG + MEMORY updated. Bundled BILTIQ-000 hotfix (biltiq-gates.yml `#`-in-name truncation + heredoc extraction).
-- Discovered: (a) `[project.dependencies]` with `file://${PROJECT_ROOT}/...` URLs is unworkable under pip — `${PROJECT_ROOT}` is uv-only AND pip installs file-URL deps non-editably. (b) GitHub Actions validates workflows against the default branch, so the `biltiq-gates.yml` hotfix is inert on the feature branch and will only register after merge. (c) YAML's `#`-after-space rule silently truncates unquoted `name:` values.
-- Next session should: Wait for human review on PR #1 then `/biltiq-engineering:reflect BILTIQ-001` if a final reflect pass is wanted, then merge. After merge: verify all 5 `biltiq-gates.yml` jobs instantiate. Then start BILTIQ-002 — port `core/pii_patterns.py` from CDSCO-RegAI into `packages/python-core/biltiq_privacy/`.
+### 2026-05-17 ~10:00–14:30 IST — BILTIQ-001 Attack Loop (Plan → Reflect ratify)
+- Worked on: BILTIQ-001 (pyproject + monorepo skeleton + dual install paths). All 7 Attack-Loop steps complete; PR #1 awaiting human review.
+- Did: Spec + design + plan + reflect (`.html`); ADR-0001 (dual install paths) + ADR-0002 (en-core-web-sm 3.8.0). 16 commits on `feature/biltiq-001-pyproject-skeleton`. Step 4 parallel review (5 slices, 27 files) caught 4 doc findings, all fixed in `1711c1b` + `c9b7cc5`. Step 5: 8/8 install combos green, all 10 ACs verified. Step 6: PR #1 opened (9/9 CI green in 55s), CHANGELOG + MEMORY updated (`4eeaede`), PR body rewritten via `gh api PATCH` to match template, gh-tooling gotcha recorded (`62b5ee6`). Step 7: reflect.html extended with the actual Step 5/6/7 timeline + the gh-deprecation as a "we missed" row + a 5th process-change proposal; estimate-actuals JSONL row written to `.biltiq/estimates-history.jsonl` (forward-compat — BILTIQ-022 writer not yet in repo). Bundled BILTIQ-000 hotfix (biltiq-gates.yml `#`-in-name truncation + heredoc extraction).
+- Discovered: (a) `[project.dependencies]` with `file://${PROJECT_ROOT}/...` URLs is unworkable under pip — `${PROJECT_ROOT}` is uv-only AND pip installs file-URL deps non-editably. (b) GitHub Actions validates workflows against the default branch, so the `biltiq-gates.yml` hotfix is inert on the feature branch and will only register after merge. (c) YAML's `#`-after-space rule silently truncates unquoted `name:` values. (d) `gh pr edit` is broken on `gh < 2.59` because the internal GraphQL query touches the deprecated `projectCards` field; workaround: `gh api PATCH /repos/.../pulls/<n>`.
+- Next session should: Wait for human review on PR #1 → merge → confirm all 5 `biltiq-gates.yml` jobs instantiate post-merge. Then start BILTIQ-002 — port `core/pii_patterns.py` from CDSCO-RegAI into `packages/python-core/biltiq_privacy/`.
 
 ### 2026-05-17 ~07:51 IST — claude-onboarding-session
 - Worked on: BILTIQ-000 (repo onboarding).

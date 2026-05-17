@@ -197,6 +197,12 @@
           <td>BILTIQ-001's ship-gate clause "existing biltiq-gates.yml jobs still green" was unsatisfiable until fixed.</td>
           <td>Two commits on this branch (<code>adf0b28</code>, <code>0edaca5</code>) — extracted the heredoc into <code>scripts/check-banned-vocab.py</code> with a 7-case <code>--self-test</code> mode, then quoted the three job names. Carved out as <code>BILTIQ-000 hotfix:</code> commits so BILTIQ-001's narrative stays atomic.</td>
         </tr>
+        <tr>
+          <td><code>gh pr edit</code> fails on <code>gh &lt; 2.59</code> because the internal GraphQL query touches the now-deprecated <code>repository.pullRequest.projectCards</code> field. This machine has 2.46.0 from apt (Ubuntu default). The Ship-step task to rewrite PR #1's body to template shape hit this immediately — first call failed with the deprecation message; retry returned exit 1.</td>
+          <td>Step 6 Ship — rewriting PR #1 body to match <code>.github/PULL_REQUEST_TEMPLATE.md</code></td>
+          <td>Blocks any agent or automation step that uses <code>gh pr edit</code>. Same root cause likely affects <code>gh issue edit</code> + any <code>gh</code> subcommand that mutates a PR field. Not anticipated by design.html § Risks because the broken tool was assumed to work.</td>
+          <td>Worked around in-session by switching to the REST API: <code>gh api --method PATCH /repos/&lt;owner&gt;/&lt;repo&gt;/pulls/&lt;n&gt; --input &lt;(jq -Rs '{body: .}' &lt; body.md)</code>. Documented in MEMORY.md § Known issues (<code>62b5ee6</code>) so future sessions skip <code>gh pr edit</code>. System fix is <code>sudo apt upgrade gh</code> or installing newer gh to <code>~/.local/bin/</code>; not landed because system upgrade is out-of-repo blast radius.</td>
+        </tr>
       </tbody>
     </table>
     <p style="margin-top: 0.75rem; color: var(--color-muted);">Note: the biltiq-gates.yml hotfix on the feature branch did NOT make the workflow run on feature-branch pushes — GitHub validates workflows against the default branch (<code>main</code>) at registration time, and the broken file is still on main. The fix lands on main when PR #1 merges; the next push to main re-validates and the workflow's 5 jobs will instantiate.</p>
@@ -250,12 +256,32 @@
         <div class="tl-label">Step 4 (Review) — 5 parallel reviewers; aggregate <em>needs revision</em> on 3 doc findings in slice E</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time">2026-05-17 13:00</div>
-        <div class="tl-label">Step 7.5 — F1/F2/F3/F4 doc fixes; this reflect.html written</div>
+        <div class="tl-time">2026-05-17 13:16</div>
+        <div class="tl-label">Step 7.5 shipped — F1/F2/F3/F4 doc fixes (<code>1711c1b</code>); this reflect.html written</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 13:18</div>
+        <div class="tl-label">Step 7.5b — ADR-0001 References footer AC10 quote cosmetic sync (<code>c9b7cc5</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 ~13:30</div>
+        <div class="tl-label">Step 4 (Review re-run) — verdict: <em>approved</em>. Step 5 (Test) — verdict: <em>ready for ship</em>. All 10 ACs verified with concrete evidence; <code>scripts/check-boundaries.sh</code> + <code>scripts/check-banned-vocab.py --self-test</code> both green.</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 13:52</div>
+        <div class="tl-label">Step 6 (Ship) shipped — CHANGELOG.md + MEMORY.md updates (<code>4eeaede</code>); PR #1 body rewritten via <code>gh api PATCH</code> to follow the <code>.github/PULL_REQUEST_TEMPLATE.md</code> shape. <code>gh pr edit</code> failed mid-step — see "What We Missed" below.</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 14:16</div>
+        <div class="tl-label">Step 6 (Ship) — gh tooling gotcha documented in MEMORY.md § Known issues (<code>62b5ee6</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 ~14:25</div>
+        <div class="tl-label">Step 7 (Reflect ratify) — this extension of reflect.html with Step 5/6 timeline, the gh-tooling discovery as a "we missed" row, a 5th process-change proposal, and an estimate-actuals row appended to <code>.biltiq/estimates-history.jsonl</code></div>
       </div>
       <div class="tl-item">
         <div class="tl-time">— pending —</div>
-        <div class="tl-label">Step 4 (Review) re-run after Step 7.5; if approved → Step 5 (Test) + Step 6 (Ship); merge PR #1 → v0.1.0-scaffold lands on main</div>
+        <div class="tl-label">PR #1 human review + approval → merge → branch deletion → v0.1.0-scaffold lands on main</div>
       </div>
     </div>
   </section>
@@ -267,6 +293,7 @@
       <li><input class="check" type="checkbox" disabled><span><strong>Build skill should run a final "design ↔ diff inventory" check before completion.</strong> F2 (Files-to-Touch under-counted by 3 docs deltas) was a mechanical reconciliation issue — comparing <code>git diff --name-only main...HEAD</code> against design.html's enumerated file list. Could be a one-step shell-callable check that fails the build if the diff contains files not in the inventory (with an explicit "documentation-only deltas are OK if recorded under § Documentation deltas" carve-out). Saves a review round-trip on every multi-step task.</span></li>
       <li><input class="check" type="checkbox" disabled><span><strong>plan-reviewer (or a new lint) should flag YAML <code>name:</code> fields containing unquoted <code>#</code>.</strong> The biltiq-gates.yml bug was YAML correctly parsing <code>name: Anti-Pattern #7 — ...</code> as <code>name: Anti-Pattern</code> (rest stripped as comment). GitHub Actions' validator silently rejects the result. A repo-level pre-commit hook running <code>yamllint</code> with the <code>truthy</code>/<code>comments-indentation</code> rules <em>plus</em> a custom rule for "name field truncated by inline #" would catch this category. Worth a small follow-up task to add to the BiltIQ template's <code>.pre-commit-config.yaml</code>.</span></li>
       <li><input class="check" type="checkbox" disabled><span><strong>Reviewer slice protocol: per-slice constraint lists should be generated, not hand-written.</strong> The 5 reviewer prompts in this Step 4 review each had a slice-specific constraint section pasted in by the dispatcher. Worked fine, but is reusable scaffolding — a slice-spec file (<code>docs/architecture/review-slices.yaml</code>) could declare slice membership + per-slice critical-constraint anchors, and the review skill could compose prompts deterministically. Out of BILTIQ-001 scope; flagging for the engineering plugin roadmap.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>Repo bootstrap should pin a minimum <code>gh</code> CLI version (≥ 2.59).</strong> <code>gh pr edit</code> on older <code>gh</code> calls the deprecated <code>repository.pullRequest.projectCards</code> GraphQL field and fails. The Ship skill assumes <code>gh pr edit</code> works; a fresh contributor on Ubuntu's apt-default gh (2.46.0 on Ubuntu 24.04 LTS) silently hits this. Two fix shapes: (a) add a <code>gh --version</code> check to the SessionStart hook or a pre-flight script with a clear error message + upgrade path; (b) replace <code>gh pr edit</code> calls in BiltIQ skills with the REST-API form (<code>gh api PATCH /repos/.../pulls/N</code>) which works on every gh version. Surfaced by BILTIQ-001 Step 6 Ship.</span></li>
     </ul>
   </section>
 
@@ -286,6 +313,7 @@
       <li><strong>pip canonical command has 3 editable targets</strong> — less ergonomic than single-target. ADR-0001 § Tech debt accepted records the rationale and rules out the alternatives. Re-visit if hatchling/pip improve their <code>file://</code> editable-install semantics.</li>
       <li><strong>biltiq-gates.yml will not run on this PR</strong> — fix lands on <code>main</code> only via PR #1 merge. Verify after merge that the next push to main re-validates the workflow and all 5 jobs instantiate. If any jobs report real failures (vs the prior 0-second parse-failure shells), those are follow-ups.</li>
       <li><strong>Process changes proposed (Section above)</strong> — not BILTIQ-001 scope; surfaced for the engineering-plugin backlog.</li>
+      <li><strong><code>gh pr edit</code> workaround documented but not auto-applied.</strong> MEMORY.md § Known issues records the <code>gh api PATCH</code> form for future sessions. System fix (upgrade gh to ≥ 2.59) is out-of-repo blast radius and deferred to whoever next provisions the dev environment. Track for removal when this machine's <code>gh --version</code> reports ≥ 2.59.</li>
     </ul>
   </section>
 
@@ -305,6 +333,12 @@
           <td>title, meta, metrics, what-went-well, what-went-wrong, what-we-missed, timeline, process-changes, cleanup-confirmation, tech-debt</td>
           <td>Replaced template placeholders with the actual BILTIQ-001 reflection: 5 metrics with at-spec / over / under bands, 5 patterns-to-repeat, 4 review findings + 3 build-time surprises with fixes, 13-step timeline keyed to commit hashes, 4 proposed process improvements, cleanup confirmation, 4 tech-debt items. Caught by Step 4 (Review) finding F1.</td>
           <td>BILTIQ-001 — Step 4 review finding F1</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>timeline, what-we-missed, process-changes, tech-debt</td>
+          <td>Step 7 (Reflect) ratify pass: timeline extended with Steps 5/6/7 commits and timestamps (replaced the "pending — re-Review" placeholder with the actual sequence through commit <code>62b5ee6</code>); added a 4th "we missed" row for the <code>gh pr edit</code> projectCards GraphQL deprecation that blocked PR-body rewriting at Step 6; added a 5th process-change proposal for pinning a minimum <code>gh</code> CLI version in repo bootstrap; added a 5th tech-debt entry for the gh workaround being documentation-only. Also appended an estimate-actuals row to <code>.biltiq/estimates-history.jsonl</code> as forward-compat data for the BILTIQ-022 estimation calibration loop.</td>
+          <td>BILTIQ-001 — Step 7 Reflect skill</td>
         </tr>
       </tbody>
     </table>
