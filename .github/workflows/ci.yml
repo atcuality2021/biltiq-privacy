@@ -1,0 +1,98 @@
+# biltiq-privacy build / test / lint matrix.
+# Additive to biltiq-gates.yml -- this workflow covers package-level concerns
+# (install, lint, type-check, import-test on the 4-Python matrix); biltiq-gates
+# stays responsible for repo-level rules (residue files, banned vocabulary,
+# on-prem compliance, root-level mypy --strict).
+#
+# Security note: ${{ ... }} expansions in run: blocks only reference matrix
+# variables (controlled by this workflow's own literal arrays), never user-
+# supplied data (github.event.*, github.head_ref, etc.). Matches the safe
+# pattern documented in biltiq-gates.yml.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  matrix-build:
+    name: ${{ matrix.package }} / py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+        package: [python-core, python-server]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          # 3.14 was released in late 2025; setup-python still tags it under
+          # the prerelease channel in some installer manifests until the
+          # downloads stabilise. allow-prereleases is a no-op once it's
+          # promoted to the stable channel, so this is safe to leave on.
+          allow-prereleases: ${{ matrix.python-version == '3.14' }}
+          cache: 'pip'
+          # Explicit dependency-path so the cache key composes hashes of
+          # every pyproject.toml under packages/ + the root metapackage.
+          # Cache invalidates on any pin change, which is what we want.
+          cache-dependency-path: |
+            pyproject.toml
+            packages/*/pyproject.toml
+
+      - name: Show interpreter details
+        run: |
+          python --version
+          python -c "import sys; print(sys.executable)"
+          pip --version
+
+      - name: Install both packages editably + dev tools
+        # python-server depends on biltiq-privacy. Installing both packages
+        # together resolves the sibling locally (v0.1.0 is not yet on PyPI).
+        # The python-core matrix cell installs both as well -- harmless
+        # duplication that keeps the install step uniform and CI-cacheable.
+        run: |
+          pip install -e packages/python-core -e packages/python-server
+          pip install pytest pytest-cov mypy ruff
+
+      - name: Show installed biltiq packages
+        run: pip list | grep -i biltiq || true
+
+      - name: ruff check packages/${{ matrix.package }}
+        run: ruff check packages/${{ matrix.package }}
+
+      - name: mypy --strict (package-specific)
+        env:
+          PKG: ${{ matrix.package }}
+        # Each package's pyproject.toml carries its own [tool.mypy] config
+        # (strict = true, files = ["<package_name>"], python_version pinned
+        # to 3.11 as the floor). The CLI strict flag here is belt-and-braces.
+        # PKG goes through an env var per workflow-injection best practice,
+        # even though matrix values are workflow-internal and not user-supplied.
+        run: |
+          if [ "${PKG}" = "python-core" ]; then
+            mypy --strict packages/python-core/biltiq_privacy
+          else
+            mypy --strict packages/python-server/biltiq_privacy_server
+          fi
+
+      - name: pytest packages/${{ matrix.package }}/tests/
+        run: pytest packages/${{ matrix.package }}/tests/
+
+  boundary-check:
+    name: library/server boundary (AC9)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run scripts/check-boundaries.sh
+        # The script greps every .py file under packages/python-core/ for
+        # imports of fastapi, starlette, or uvicorn. No Python interpreter
+        # needed; a single grep walk on a small tree completes in under a
+        # second. Self-tested (positive + 3 negatives) at BILTIQ-001 Step 5.
+        run: bash scripts/check-boundaries.sh
