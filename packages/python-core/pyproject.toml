@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: MIT
+# biltiq-privacy — privacy / anonymisation / compliance engine.
+# Pinned dependencies are the source of truth here; mirror changes in
+# docs/architecture/approved-versions.md in the same PR.
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "biltiq-privacy"
+version = "0.1.0"
+description = "Privacy, anonymisation, and regulatory-compliance engine for India / EU / US / UK PII. Library-grade, framework-free."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "BiltIQ", email = "engineering@biltiq.ai" },
+]
+keywords = ["privacy", "pii", "anonymisation", "dpdp", "gdpr", "hipaa", "ccpa", "presidio"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "presidio-analyzer>=2.2,<3",
+    "presidio-anonymizer>=2.2,<3",
+    "spacy>=3.7,<4",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz",
+    "rapidfuzz>=3.0,<4",
+]
+
+[project.urls]
+Homepage = "https://github.com/atcuality2021/biltiq-privacy"
+Repository = "https://github.com/atcuality2021/biltiq-privacy"
+Issues = "https://github.com/atcuality2021/biltiq-privacy/issues"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+]
+
+# Hatchling needs the explicit URL allowance for the en-core-web-sm pin.
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["biltiq_privacy"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DTZ"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["biltiq_privacy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
