@@ -61,7 +61,7 @@ Each package's own `pyproject.toml` (`packages/python-core/pyproject.toml`, `pac
 
 ## References
 
-- [`docs/specs/BILTIQ-001/spec.html`](../specs/BILTIQ-001/spec.html) — AC10 ("Running `pip install -e .` at the repo root installs both packages").
+- [`docs/specs/BILTIQ-001/spec.html`](../specs/BILTIQ-001/spec.html) — AC10 ("Running `pip install -e packages/python-core -e packages/python-server -e .` at the repo root installs both packages editably in one shell command. The equivalent uv path is `uv sync`. Both paths are first-class.").
 - [`docs/specs/BILTIQ-001/design.html`](../specs/BILTIQ-001/design.html) § Approach + Alternatives + ADRs Needed.
 - [`docs/architecture/approved-versions.md`](../architecture/approved-versions.md) § Hard dependency pins.
 - [`docs/architecture/overview.md`](../architecture/overview.md) § Monorepo layout.
