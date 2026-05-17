@@ -190,7 +190,19 @@
       </tbody>
     </table>
 
-    <p style="margin-top: 0.75rem;"><strong>Not touched (intentionally):</strong> <code>.github/workflows/biltiq-gates.yml</code> stays as-is — its existing residue, banned-vocab, mypy-on-root, and on-prem-compliance checks complement the new <code>ci.yml</code> rather than overlap. <code>AGENT_RULES.md</code>, <code>MEMORY.md</code>, all of <code>docs/architecture/*</code>, <code>LICENSE</code>, <code>.gitignore</code> — already correct for this task.</p>
+    <h3>Documentation deltas <span class="tag tag-modified">EDIT</span></h3>
+    <p>These docs were edited or created as part of BILTIQ-001 but sit outside the code surface enumerated above. Added retroactively at Step 7.5 (Review fix F2) so the design ↔ diff inventory stays synchronised.</p>
+    <table>
+      <thead><tr><th>File</th><th>Change</th><th>Step</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/adr/0001-dual-install-paths.md</code></td><td><strong>CREATE</strong> — Records the dual contributor install paths decision (pip canonical + uv opt-in), the four alternatives rejected, consequences, and accepted tech debt. Explicitly listed in § ADRs Needed Before Build below. (Install-shape paragraphs subsequently revised at Step 7.5 — F4 — to match the plain-name + workspace-source implementation reality after Step 4's resolver-template-variable findings.)</td><td>Step 1</td></tr>
+        <tr><td><code>docs/adr/0002-en-core-web-sm-3-8-0.md</code></td><td><strong>CREATE</strong> — Records the en-core-web-sm 3.7.1 → 3.8.0 bump triggered by Risk #1 firing on Python 3.13 during Step 2 verification (blis 0.7.11 cp313 wheel gap). Not flagged in original design; added as an emergent ADR per AGENT_RULES.md "non-trivial decisions need an ADR" rule.</td><td>Step 1.5 (Step 2 escalation)</td></tr>
+        <tr><td><code>docs/architecture/approved-versions.md</code></td><td><strong>EDIT</strong> — Two changes: (a) en-core-web-sm URL pin bumped 3.7.1 → 3.8.0 in § Hard dependency pins (Step 1.5 / ADR-0002). (b) New § "Transient resolver constraints (uv path only)" added with table row documenting <code>spacy&lt;3.8.14</code> constraint and concrete removal trigger (Step 4 / Risk #1 second firing on uv 3.14).</td><td>Steps 1.5 + 4</td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top: 0.75rem;"><strong>Not touched (intentionally):</strong> <code>AGENT_RULES.md</code>, <code>MEMORY.md</code>, <code>docs/architecture/overview.md</code>, <code>docs/architecture/stack.md</code>, <code>LICENSE</code>, <code>.gitignore</code> — already correct for this task.</p>
+    <p><strong>Touched but for a separate concern (bundled BILTIQ-000 hotfix):</strong> <code>.github/workflows/biltiq-gates.yml</code> was modified to fix a parse failure (unquoted <code>name: Anti-Pattern #N</code> fields were silently truncated by YAML's <code>#</code>-comment rule; python heredoc extracted to <code>scripts/check-banned-vocab.py</code> for testability). Bundled into this PR because BILTIQ-001's ship-gate requires the workflow to actually run. Carved out as a separate commit so the BILTIQ-001 narrative stays atomic.</p>
   </section>
 
   <section id="data-model">
@@ -348,6 +360,12 @@ biltiq_privacy_server.__version__   # "0.1.0"
           <td>Risks #1, Approach (resolver constraint note)</td>
           <td>Risk #1 fired a second time during Step 4, this time on the uv path at Python 3.14: spaCy 3.8.14 (latest as of 2026-05-17) lacks cp314 wheels. pip's resolver backtracked to 3.8.13 automatically; uv's resolver does not backtrack across the wheel gap and failed the install. Added <code>[tool.uv] constraint-dependencies = ["spacy&lt;3.8.14"]</code> in the root <code>pyproject.toml</code> — narrow, uv-only, transient. pip path is unaffected (pip ignores <code>[tool.uv]</code>). Constraint removal criteria recorded in <code>docs/architecture/approved-versions.md</code> § Transient resolver constraints. No new ADR — tactical pin adjustment, not architectural; ADR-0002 already covers the broader en-core-web-sm/spaCy wheel availability theme.</td>
           <td>BILTIQ-001 — Step 4 uv 3.14 resolver gap</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Files-to-Touch</td>
+          <td>Step 4 (Review) parallel reviewer slice E flagged F2: the Files-to-Touch inventory under-counted the shipped surface by three documentation files that the design's own change-history rows already reference. Added a new "Documentation deltas" subsection listing <code>docs/adr/0001-dual-install-paths.md</code>, <code>docs/adr/0002-en-core-web-sm-3-8-0.md</code>, and the <code>docs/architecture/approved-versions.md</code> edit so the design ↔ diff inventory matches. Also surfaced the BILTIQ-000 hotfix bundle (<code>biltiq-gates.yml</code>) explicitly under "Touched but for a separate concern" so the PR's full surface is enumerated.</td>
+          <td>BILTIQ-001 — Step 4 review finding F2</td>
         </tr>
       </tbody>
     </table>

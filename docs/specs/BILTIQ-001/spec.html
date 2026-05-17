@@ -151,7 +151,7 @@
       </li>
       <li class="ac-item">
         <span class="ac-badge ac-open">OPEN</span>
-        <span class="ac-label"><strong>AC10</strong> — Running <code>pip install -e .</code> at the repo root installs both <code>biltiq-privacy</code> and <code>biltiq-privacy-server</code> in one command (hatch workspace pattern). Contributor onboarding works.</span>
+        <span class="ac-label"><strong>AC10</strong> — Running <code>pip install -e packages/python-core -e packages/python-server -e .</code> at the repo root installs both <code>biltiq-privacy</code> and <code>biltiq-privacy-server</code> editably in <em>one shell command</em>. The equivalent uv path is <code>uv sync</code>. Both paths are first-class. Contributor onboarding works without forcing a second toolchain.</span>
       </li>
     </ul>
     <!-- To mark an AC done: change class ac-open → ac-done and text OPEN → DONE -->
@@ -214,6 +214,12 @@
           <td>none (spec wording unchanged)</td>
           <td>AC2 references the en-core-web-sm bundled model via <code>approved-versions.md</code>; that file's URL pin bumped 3.7.1 → 3.8.0 during Step 2 verification (Risk #1 fired on Python 3.13 blis source build). Spec AC text unchanged; the bump is recorded in <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>. Audit row per "never delete rows" rule.</td>
           <td>BILTIQ-001 — Step 2 verification escalation</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>AC10</td>
+          <td>AC10 wording narrowed from <code>pip install -e .</code> (single-target, repo-root) to <code>pip install -e packages/python-core -e packages/python-server -e .</code> (three editable targets in one shell command) to match implementation reality. Originally the AC assumed pip would install <code>[project.dependencies]</code> entries editably when written as <code>file://</code> URLs; pip does not (it installs them non-editably even with file URLs), and <code>${PROJECT_ROOT}</code> is a uv-only template variable that pip does not expand. The three-target form is one shell command, satisfies the "contributor onboarding works" intent unchanged, and is documented in <code>design.html</code> change-history (Step 4) + <a href="../../adr/0001-dual-install-paths.md">ADR-0001</a>. Caught by Step 4 (Review) parallel reviewer slice E.</td>
+          <td>BILTIQ-001 — Step 4 review finding F3</td>
         </tr>
         <!-- Agent appends a new row here on every edit. Never delete rows. -->
       </tbody>
