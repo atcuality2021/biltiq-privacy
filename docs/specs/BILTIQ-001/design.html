@@ -331,6 +331,12 @@ biltiq_privacy_server.__version__   # "0.1.0"
           <td>R1 mitigation upgraded after Step 2 verification fired Risk #1 on Python 3.13 (not 3.14). <code>blis 0.7.11</code> has no cp313 wheel; gcc source build of AVX-512 kernels failed. Path A unreachable. Dev approved en-core-web-sm 3.7.1 → 3.8.0 bump, cascading to spacy 3.8.x / thinc 8.3.x / blis 1.3.x with native wheels for all four Python versions. Severity downgraded HIGH → LOW. <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a> records the decision.</td>
           <td>BILTIQ-001 — Step 2 verification escalation</td>
         </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Files-to-Touch (packages/python-server/pyproject.toml row)</td>
+          <td>Step 3 verification: design.html named <code>biltiq-privacy @ file://${PROJECT_ROOT}/../python-core</code> as the transitional path ref. uv interprets <code>${PROJECT_ROOT}</code> as the workspace/cwd root (not the per-package dir as hatchling does), so the literal substitution resolves to a wrong path. Switched to plain <code>biltiq-privacy</code> in <code>[project.dependencies]</code> and rely on combined install (<code>uv pip install -e packages/python-core -e packages/python-server</code>) for sibling resolution. Same end-state as Step 4 (which the design already planned to introduce); just lands the cleaner form one step earlier. 4-version gate green: 2/2 server + 2/2 core regression on 3.11/3.12/3.13/3.14; mypy --strict + ruff clean on 3.12.</td>
+          <td>BILTIQ-001 — Step 3 verification refinement</td>
+        </tr>
       </tbody>
     </table>
   </section>

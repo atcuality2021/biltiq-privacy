@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: MIT
+# biltiq-privacy-server — FastAPI sidecar exposing /anonymize and /validate.
+#
+# This file's only role in BILTIQ-001 is to compile, install editably, and
+# import alongside biltiq-privacy. Routes land in a later task once the
+# engine ports complete (BILTIQ-002+).
+#
+# Step 3 of BILTIQ-001 declares the biltiq-privacy dep by name only — the
+# Step 3 install command installs python-core first (`pip install -e
+# packages/python-core packages/python-server`), so resolution finds the
+# already-installed sibling rather than reaching for PyPI (where v0.1.0
+# is not yet published). Step 4 formalises this via [tool.uv.sources] at
+# the repo root; the line below stays unchanged across that transition.
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "biltiq-privacy-server"
+version = "0.1.0"
+description = "FastAPI sidecar for biltiq-privacy. Exposes REST /anonymize and /validate endpoints."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "BiltIQ", email = "engineering@biltiq.ai" },
+]
+keywords = ["privacy", "pii", "anonymisation", "fastapi", "rest", "sidecar"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
+dependencies = [
+    "biltiq-privacy",
+    "fastapi>=0.110,<1",
+    "uvicorn[standard]>=0.27,<1",
+    "pydantic>=2.5,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/atcuality2021/biltiq-privacy"
+Repository = "https://github.com/atcuality2021/biltiq-privacy"
+Issues = "https://github.com/atcuality2021/biltiq-privacy/issues"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "httpx>=0.27",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["biltiq_privacy_server"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DTZ"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["biltiq_privacy_server"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
