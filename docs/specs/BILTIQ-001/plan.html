@@ -280,8 +280,8 @@
           <td>R1</td>
           <td>Python 3.14 wheel availability for spaCy / Presidio / their transitive C-extension deps. spaCy's released wheels at lock time are 3.7.x with 3.13 support; 3.14 may need a source build.</td>
           <td>Step 2, 3, 4 (local matrix); Step 6 (CI matrix)</td>
-          <td><span class="risk-h">HIGH</span></td>
-          <td>Path A (locked with dev): <code>uv</code> invocations use <code>--allow-prereleases</code> implicitly via <code>uv python install 3.14</code>; ci.yml's 3.14 cell accepts source builds (no <code>--only-binary</code>). If the source build fails on a binary dep (cymem / preshed / blis), <strong>escalate to dev before merge</strong> — no silent <code>continue-on-error</code>. Fallback options remain in scope for the dev decision: (B) defer 3.14, (C) hold red CI until upstream wheels ship.</td>
+          <td><span class="risk-l">LOW</span> <span style="font-size:0.75rem; color:var(--color-muted);">(was HIGH at plan-confirm; downgraded 2026-05-17 after Step 2 verification — see <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>)</span></td>
+          <td><strong>Original (Path A, plan-confirm):</strong> accept source builds on 3.13/3.14, escalate to dev if a binary dep fails. <strong>What actually happened:</strong> 3.13 install failed at <code>blis 0.7.11</code> source build (no cp313 wheel; gcc AVX-512 compile failure). <strong>Adopted mitigation:</strong> bumped <code>en-core-web-sm</code> URL pin from 3.7.1 → 3.8.0 (<a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>), cascading to <code>spacy 3.8.x</code> / <code>thinc 8.3.x</code> / <code>blis 1.3.x</code> — all four Python versions install from binary wheels, no compiler dependency. Verified locally during Step 2: 2/2 tests pass on 3.11, 3.12, 3.13, 3.14.</td>
         </tr>
         <tr>
           <td>R2</td>
@@ -318,6 +318,12 @@
           <td>all</td>
           <td>Initial draft — 7 atomic steps (ADR-0001 first per dev decision); Prerequisites box for uv + 4 Pythons; Test Strategy table with 6 layers; Rollback for pure scaffolding; Risks R1–R4 covering 3.14 wheels, local matrix prereq, en-core-web-sm URL pin, pip↔uv source divergence.</td>
           <td>BILTIQ-001</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Risks R1</td>
+          <td>R1 mitigation updated post-plan-confirm. During Step 2 verification, 3.13 install failed at <code>blis 0.7.11</code> source build (no cp313 wheel; gcc AVX-512 compile failure). Path A unreachable. Dev approved bump of <code>en-core-web-sm</code> 3.7.1 → 3.8.0 — cascades to <code>spacy 3.8.x</code> / <code>thinc 8.3.x</code> / <code>blis 1.3.x</code> with native cp313/cp314 wheels. Severity HIGH → LOW. <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a> records the decision.</td>
+          <td>BILTIQ-001 — Step 2 verification escalation</td>
         </tr>
       </tbody>
     </table>

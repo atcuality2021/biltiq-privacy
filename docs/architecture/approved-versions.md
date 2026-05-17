@@ -98,7 +98,7 @@ These pins are deliberately tight because the library exposes specific Presidio 
 "presidio-analyzer >= 2.2, < 3"
 "presidio-anonymizer >= 2.2, < 3"
 "spacy >= 3.7, < 4"
-"en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz"
+"en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz"
 "rapidfuzz >= 3.0, < 4"
 ```
 

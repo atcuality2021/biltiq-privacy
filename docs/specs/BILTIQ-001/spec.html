@@ -209,6 +209,12 @@
           <td>Wall-clock revised <code>M (≈2h)</code> → <code>L (≈3-4h)</code>. Per-step compose at plan time summed Step 1 M + Step 2 M + Step 3 M + Step 4 M + Step 5 S + Step 6 M + Step 7 S ≈ 330 min (XL band midpoint). plan-reviewer fired two soft warnings (W1 compose-vs-spec divergence ≥2 bands; W2 AC count ≥10 vs M band) per <code>docs/architecture/estimation-rubric.md</code>. Spec re-band to L closes both warnings before Build.</td>
           <td>BILTIQ-001 — plan-reviewer W1+W2</td>
         </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>none (spec wording unchanged)</td>
+          <td>AC2 references the en-core-web-sm bundled model via <code>approved-versions.md</code>; that file's URL pin bumped 3.7.1 → 3.8.0 during Step 2 verification (Risk #1 fired on Python 3.13 blis source build). Spec AC text unchanged; the bump is recorded in <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>. Audit row per "never delete rows" rule.</td>
+          <td>BILTIQ-001 — Step 2 verification escalation</td>
+        </tr>
         <!-- Agent appends a new row here on every edit. Never delete rows. -->
       </tbody>
     </table>

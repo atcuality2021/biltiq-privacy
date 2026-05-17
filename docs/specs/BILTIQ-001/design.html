@@ -256,8 +256,8 @@ biltiq_privacy_server.__version__   # "0.1.0"
         <tr>
           <td>1</td>
           <td><strong>spaCy / Presidio wheel availability on Python 3.14.</strong> 3.14 was released Oct 2025. <code>presidio-analyzer 2.2.x</code> and <code>spacy 3.7.x</code> historically lag a release cycle on cpython bumps. There is a non-trivial chance the 3.14 matrix cell fails at <code>pip install</code> with "no compatible wheel" — particularly for any binary deps (e.g. <code>blis</code>, <code>thinc</code>) in the spaCy chain.</td>
-          <td><span class="tag tag-risk-h">HIGH</span></td>
-          <td>Detection: 3.14 matrix cell red on first CI run. <strong>Mitigation (locked 2026-05-17 — Path A):</strong> the <code>.github/workflows/ci.yml</code> <code>setup-python</code> step sets <code>allow-prereleases: true</code> and accepts source builds when wheels are absent (slower CI cell, ~5 min ceiling for the 3.14 row). AC4 stands as written. If a binary dep (<code>blis</code>, <code>thinc</code>) fails to build from source on 3.14 with the runner's default toolchain, escalate to dev (would justify a spec amendment ADR — explicitly not a silent fallback to drop 3.14).</td>
+          <td><span class="tag tag-risk-l">LOW</span> <span style="font-size:0.75rem; color:var(--color-muted);">(was HIGH; downgraded 2026-05-17)</span></td>
+          <td><strong>Original mitigation (Path A, plan-confirm):</strong> <code>allow-prereleases: true</code> + accept source builds. <strong>What actually happened (Step 2 verification, 2026-05-17):</strong> 3.13 install failed first — <code>blis 0.7.11</code> has no cp313 wheel and gcc AVX-512 source build fails on the dev machine. <strong>Adopted mitigation (<a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>):</strong> bumped <code>en-core-web-sm</code> URL pin 3.7.1 → 3.8.0, cascading to <code>spacy 3.8.x</code> / <code>thinc 8.3.x</code> / <code>blis 1.3.x</code>. All four Python versions install from binary wheels; no compiler dependency on the runner. Local Step 2 gate confirmed 2/2 tests pass on 3.11, 3.12, 3.13, 3.14.</td>
         </tr>
         <tr>
           <td>2</td>
@@ -324,6 +324,12 @@ biltiq_privacy_server.__version__   # "0.1.0"
           <td>Approach, Alternatives, Files-to-Touch, Risks #1/#2/#4, ADRs Needed</td>
           <td>Dev-locked 3 decisions: (a) AC8 reading confirmed — tests/ is sibling not under blocked path; Risk #4 marked RESOLVED. (b) Workspace pattern changed from uv-only to dual path (pip+hatch canonical, uv opt-in) — root <code>pyproject.toml</code> becomes a real hatchling metapackage with path deps; <code>[tool.uv.workspace]</code> sits alongside; alternatives table expanded to 5 rows. (c) Python 3.14 mitigation locked to Path A (<code>allow-prereleases: true</code> + accept source builds); paths B and C removed from Risk #1. (d) Risk #2 downgraded MEDIUM → LOW because uv is now opt-in. (e) ADR-0001 scope changed from "uv as orchestrator" to "dual install paths".</td>
           <td>BILTIQ-001 — dev review at plan step</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Risks #1</td>
+          <td>R1 mitigation upgraded after Step 2 verification fired Risk #1 on Python 3.13 (not 3.14). <code>blis 0.7.11</code> has no cp313 wheel; gcc source build of AVX-512 kernels failed. Path A unreachable. Dev approved en-core-web-sm 3.7.1 → 3.8.0 bump, cascading to spacy 3.8.x / thinc 8.3.x / blis 1.3.x with native wheels for all four Python versions. Severity downgraded HIGH → LOW. <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a> records the decision.</td>
+          <td>BILTIQ-001 — Step 2 verification escalation</td>
         </tr>
       </tbody>
     </table>
