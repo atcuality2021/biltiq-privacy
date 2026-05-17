@@ -337,6 +337,18 @@ biltiq_privacy_server.__version__   # "0.1.0"
           <td>Step 3 verification: design.html named <code>biltiq-privacy @ file://${PROJECT_ROOT}/../python-core</code> as the transitional path ref. uv interprets <code>${PROJECT_ROOT}</code> as the workspace/cwd root (not the per-package dir as hatchling does), so the literal substitution resolves to a wrong path. Switched to plain <code>biltiq-privacy</code> in <code>[project.dependencies]</code> and rely on combined install (<code>uv pip install -e packages/python-core -e packages/python-server</code>) for sibling resolution. Same end-state as Step 4 (which the design already planned to introduce); just lands the cleaner form one step earlier. 4-version gate green: 2/2 server + 2/2 core regression on 3.11/3.12/3.13/3.14; mypy --strict + ruff clean on 3.12.</td>
           <td>BILTIQ-001 — Step 3 verification refinement</td>
         </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Approach, Files-to-Touch (root pyproject.toml row), Rollout</td>
+          <td>Step 4 verification: design.html named <code>file://${PROJECT_ROOT}/packages/python-core</code> for the root path-deps and assumed <code>pip install -e .</code> would install all three packages editably. Two issues surfaced: (a) <code>${PROJECT_ROOT}</code> is a uv-only template variable — pip does not expand it. (b) pip installs <code>[project.dependencies]</code> entries non-editably even when written as <code>file:</code> URLs, so <code>pip install -e .</code> alone would not produce an editable dev tree. Switched to plain dependency names (<code>biltiq-privacy</code>, <code>biltiq-privacy-server</code>) and documented the canonical pip command as <code>pip install -e packages/python-core -e packages/python-server -e .</code> — one shell command, three editable targets, AC10 still satisfied. uv path uses <code>[tool.uv.workspace] members</code> + <code>[tool.uv.sources] { workspace = true }</code> to resolve the same plain names to local workspace members. Also added repo-root <code>[tool.pytest.ini_options]</code> with <code>--import-mode=importlib</code> to fix collection collision between the two packages' <code>tests/test_import.py</code> files. 8-combo gate green: pip × 3.11/3.12/3.13/3.14 + uv × 3.11/3.12/3.13/3.14, all 4 tests per combo passing; mypy --strict + ruff clean on 3.12.</td>
+          <td>BILTIQ-001 — Step 4 verification refinement</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Risks #1, Approach (resolver constraint note)</td>
+          <td>Risk #1 fired a second time during Step 4, this time on the uv path at Python 3.14: spaCy 3.8.14 (latest as of 2026-05-17) lacks cp314 wheels. pip's resolver backtracked to 3.8.13 automatically; uv's resolver does not backtrack across the wheel gap and failed the install. Added <code>[tool.uv] constraint-dependencies = ["spacy&lt;3.8.14"]</code> in the root <code>pyproject.toml</code> — narrow, uv-only, transient. pip path is unaffected (pip ignores <code>[tool.uv]</code>). Constraint removal criteria recorded in <code>docs/architecture/approved-versions.md</code> § Transient resolver constraints. No new ADR — tactical pin adjustment, not architectural; ADR-0002 already covers the broader en-core-web-sm/spaCy wheel availability theme.</td>
+          <td>BILTIQ-001 — Step 4 uv 3.14 resolver gap</td>
+        </tr>
       </tbody>
     </table>
   </section>
