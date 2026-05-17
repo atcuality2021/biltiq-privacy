@@ -16,7 +16,7 @@ on:
 
 jobs:
   residue-files:
-    name: Anti-Pattern #7 — Debugging residue
+    name: "Anti-Pattern #7 — Debugging residue"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
           echo "only rule-definition references; no real banned-vocab usage"
 
   any-types-py:
-    name: Anti-Pattern #4 — Type safety (Python)
+    name: "Anti-Pattern #4 — Type safety (Python)"
     runs-on: ubuntu-latest
     if: hashFiles('pyproject.toml') != '' || hashFiles('requirements.txt') != ''
     steps:
@@ -76,7 +76,7 @@ jobs:
         run: mypy --strict .
 
   any-types-ts:
-    name: Anti-Pattern #4 — Type safety (TypeScript)
+    name: "Anti-Pattern #4 — Type safety (TypeScript)"
     runs-on: ubuntu-latest
     if: hashFiles('tsconfig.json') != ''
     steps:
