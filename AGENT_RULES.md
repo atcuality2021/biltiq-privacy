@@ -110,6 +110,67 @@ The list is canonical there. Locked terms include "cutting-edge", "revolutionary
 - Any new AI dependency in any mode requires an ADR.
 - **Any web-framework import added to `packages/python-core/` requires an ADR explicitly overriding the library/server boundary rule.**
 
+## Memory
+
+The repo carries a per-machine **memory spine** that flows session signal into `MEMORY.md`. Two layers:
+
+- **Stream:** `.biltiq/memory-stream.jsonl` — append-only JSONL, one event per line. Per-machine, gitignored.
+- **Projection:** `MEMORY.md` — committed; partly hand-curated, partly regenerated from the stream.
+
+**Public API (writer):**
+
+```python
+from scripts._memory_writer import write_event
+
+write_event(
+    event_type: str,                 # see vocabulary below
+    payload: dict[str, Any],         # JSON-serialisable
+) -> None
+```
+
+The call is POSIX-atomic (single `os.write()` under `PIPE_BUF`, `O_APPEND`). Encoded line size hard-limited to `PIPE_BUF` (4096 B on Linux) — oversize raises `MemoryEventTooLargeError`. Empty `event_type` or non-dict payload raises `ValueError`. Stream path overridable via `BILTIQ_REPO_ROOT` (test-only).
+
+**v1 event-type vocabulary:**
+
+| `event_type` | Projects to |
+|---|---|
+| `standup_post` | `auto:current_focus` |
+| `blocker_logged` | `auto:current_focus` |
+| `commit_metadata` | `auto:code_areas` |
+| `reflect_note` | `auto:session_log` |
+| `decision_made` | _(counted, not projected in v1)_ |
+
+Producers in v1 are upstream BiltIQ-engineering skills (`/biltiq-engineering:standup` emits `standup_post`; `/biltiq-engineering:reflect` emits `reflect_note` and may emit `decision_made` / `blocker_logged`). `commit_metadata` is reserved in the v1 vocabulary but has no in-repo producer yet — write it explicitly via `write_event(...)` for now.
+
+Unknown event types and events with `schema_version > 1` are counted in `events_seen` but not projected. This is the forward-compat contract — future event types ship as additive writer entries without breaking older curators.
+
+**Projection contract (`MEMORY.md`):**
+
+The curator (`scripts/_memory_curator.py`) reads the stream and splice-replaces content between HTML-comment markers:
+
+- `<!-- auto:<name>:start -->` … `<!-- auto:<name>:end -->` — curator-owned. Names in v1: `current_focus`, `code_areas`, `session_log`. Hand edits to content between these markers are overwritten on the next curator run.
+- `<!-- manual:start -->` … `<!-- manual:end -->` — dev-owned. Curator never reads or writes content here.
+- Anything outside both marker pairs (the H1, top-level doc framing) is untouched.
+
+If any expected marker is missing, the curator **fails closed**: exits `1`, writes a structured `{"error": "missing_marker", "marker": "..."}` to stderr, leaves `MEMORY.md` byte-equal. This protects hand-curated content from being silently overwritten when the contract drifts.
+
+**Curator CLI:**
+
+```
+python3 scripts/_memory_curator.py        # exit 0; emits {"events_seen": N, ...} on stdout
+                                          # exit 0 + {"skipped": "..."} if another curator already running (advisory lock)
+                                          # exit 1 + {"error": "missing_marker", ...} on contract violation
+                                          # exit 2 reserved for unexpected failures
+```
+
+Concurrency-safe via `fcntl.flock` on `.biltiq/.curator.lock` (mode `0600`, auto-released on FD close). Two curators racing → second prints `{"skipped": "another curator already running"}` and exits `0`.
+
+**Opt-in post-commit hook:**
+
+The hook at `scripts/hooks/post-commit.sh` spawns the curator in the background (50 ms hard cap on the main thread); it does not emit any event itself. Install with `scripts/install-curator-hook.sh`; uninstall with `--uninstall`. Hook failures are logged to `.biltiq/curator-hook.log` (gitignored) and never block the commit. **Not installed by default** — devs opt in per machine.
+
+**What never lands in the stream:** secrets, PII, raw file contents, payload of any text larger than one screen. The writer is for *session signal* (what task, what blocker, what file touched), not for content snapshots.
+
 ## Test rules
 
 - Every public function: at least one unit test (happy path) AND at least one failure-path test.
