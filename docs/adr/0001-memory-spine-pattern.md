@@ -7,7 +7,7 @@
 
 ## Context
 
-Several `biltiq-engineering` workflow commands (`/standup`, `/reflect`, `/commit`, and the planned compaction auto-trigger) emit structured events about engineering activity — daily standups, decisions, blockers, reflection notes, commit metadata. These events need to survive across Claude Code sessions so that `MEMORY.md` — the file injected into every session's context — stays current without manual curation.
+Several `biltiq-engineering` workflow commands (`/standup`, `/reflect`, and the planned compaction auto-trigger) emit structured events about engineering activity — daily standups, decisions, blockers, reflection notes. `commit_metadata` is reserved in the v1 vocabulary but has no in-repo producer yet (the opt-in `post-commit` hook only triggers curation; it does not emit events). These events need to survive across Claude Code sessions so that `MEMORY.md` — the file injected into every session's context — stays current without manual curation.
 
 Three coupled choices fall out of this:
 

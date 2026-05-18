@@ -167,7 +167,7 @@ Concurrency-safe via `fcntl.flock` on `.biltiq/.curator.lock` (mode `0600`, auto
 
 **Opt-in post-commit hook:**
 
-The hook at `scripts/hooks/post-commit.sh` writes a `commit_metadata` event and spawns the curator in the background (50 ms hard cap on the main thread). Install with `scripts/install-curator-hook.sh`; uninstall with `--uninstall`. Hook failures are logged to `.biltiq/curator-hook.log` (gitignored) and never block the commit. **Not installed by default** — devs opt in per machine.
+The hook at `scripts/hooks/post-commit.sh` spawns the curator in the background (50 ms hard cap on the main thread); it does not emit any event itself. Install with `scripts/install-curator-hook.sh`; uninstall with `--uninstall`. Hook failures are logged to `.biltiq/curator-hook.log` (gitignored) and never block the commit. **Not installed by default** — devs opt in per machine.
 
 **What never lands in the stream:** secrets, PII, raw file contents, payload of any text larger than one screen. The writer is for *session signal* (what task, what blocker, what file touched), not for content snapshots.
 
