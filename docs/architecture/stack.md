@@ -41,7 +41,7 @@ The library core (`packages/python-core/biltiq_privacy/`) is framework-free. No 
 - **spacy ≥ 3.7** + **en_core_web_sm** — NER model bundled via pyproject dep on `en-core-web-sm`.
 
 Extension points used:
-- `presidio_analyzer.PatternRecognizer` — for the 7 Indian recognisers (Aadhaar, PAN, ABHA, GSTIN, Voter, IFSC, phone) and future EU/US/UK packs.
+- `presidio_analyzer.PatternRecognizer` — for the 8 Indian recognisers (Aadhaar, PAN, ABHA, GSTIN, Voter, IFSC, phone, Medical Registration; BILTIQ-002) and future EU/US/UK packs.
 - `presidio_analyzer.EntityRecognizer` — base class for any ML/contextual recogniser (v0.4.0+).
 - `presidio_anonymizer.operators.Operator` — for our HMAC-token pseudonymiser.
 
@@ -57,7 +57,8 @@ Extension points used:
 
 | What | Module | Purpose |
 |---|---|---|
-| Residual-scan regex set | `biltiq_privacy.core.pii_patterns` | Single source of truth for Aadhaar / PAN / phone / email / ABHA regexes. |
+| Indian PII regex set + pure-stdlib redactor | `biltiq_privacy.indian.patterns` (BILTIQ-002) | Eight `Final[str]` constants (Aadhaar, PAN, ABHA, GSTIN, Voter ID, IFSC, Phone, Medical Registration), compiled `PATTERNS` dict, and `redact()` honouring `_REDACT_ORDER` (ABHA before AADHAAR). No Presidio / spaCy import — light enough for logging-filter use. |
+| Indian Presidio adapter + engine factory | `biltiq_privacy.indian.recognisers.build_engine(nlp_engine=None)` (BILTIQ-002) | Builds a fresh `AnalyzerEngine` with the eight Indian `PatternRecognizer`s registered. Default-None branch constructs `NlpEngineProvider` pinned to `en_core_web_sm` (ADR-0002). No module-global singleton. |
 | Logging redaction | `biltiq_privacy.core.log_filter.RedactionFilter` | `logging.Filter` subclass — scrubs `record.msg`, `record.args`, `extra=` fields. |
 | HMAC pseudonymisation | `biltiq_privacy.core.doc_hasher.hmac_pseudonymise(text, *, key)` | Key as kwarg, no global state. |
 | Pseudonymiser (text → tokens) | `biltiq_privacy.core.pseudonymiser.Pseudonymiser` | Replaces detected entities with deterministic HMAC tokens. |
@@ -66,7 +67,7 @@ Extension points used:
 | Detector ABC | `biltiq_privacy.detectors.base.Detector` | Implement to add a new detection backend. |
 | Default detector | `biltiq_privacy.detectors.presidio_backend.PresidioDetector` | Wraps `AnalyzerEngine`. |
 | Regime ABC | `biltiq_privacy.regimes.base.Regime` | Implement to add a new regulatory framework. |
-| Recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=["india"])` | Convenience factory; assembles a `RecognizerRegistry`. |
+| Multi-region recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=[...])` (v0.2.0+) | Convenience factory wrapping per-region adapters; planned for when EU/US/UK packs land. For Indian-only use today, call `biltiq_privacy.indian.recognisers.build_engine()` directly. |
 | Memory-spine writer | `scripts._memory_writer.write_event(event_type, payload)` | POSIX-atomic append to `.biltiq/memory-stream.jsonl`; consumed by `scripts/_memory_curator.py` to project session signal into `MEMORY.md`. See `AGENT_RULES.md` § Memory. |
 
 [PROJECT: add new internal modules here in the same PR they're created.]

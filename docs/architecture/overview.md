@@ -26,14 +26,14 @@ biltiq-privacy/                                    (monorepo)
 ```
 
 **`biltiq_privacy` (library, `packages/python-core/`):**
-- `core/pii_patterns.py` — residual-scan regex set (Aadhaar, PAN, phone, email, ABHA).
+- `indian/patterns.py` — eight Final[str] regex constants (Aadhaar, PAN, ABHA, GSTIN, Voter ID, IFSC, Phone, Medical Registration), compiled PATTERNS dict, and pure-stdlib `redact()` (BILTIQ-002, v0.1.1+).
 - `core/log_filter.py` — `_RedactionFilter` for `logging` integration.
 - `core/doc_hasher.py` — HMAC pseudonymisation (key as constructor arg).
 - `core/pseudonymiser.py` — replaces detected PII with deterministic HMAC tokens.
 - `core/generaliser.py` — 20-year age brackets + state→region rollup (k-anonymity).
 - `core/audit_chain.py` — append-only hash chain; pure hashing logic, consumers persist.
-- `recognisers/india.py` — 7 Indian `PatternRecognizer`s (v0.1.0).
-- `recognisers/{eu,us,uk}.py` — EU/US/UK PII (v0.2.0+).
+- `indian/recognisers.py` — eight Presidio `PatternRecognizer`s + `build_engine()` factory (BILTIQ-002, v0.1.1+).
+- `{eu,us,uk}/recognisers.py` — EU/US/UK PII (v0.2.0+; same sub-package layout).
 - `regimes/base.py` — `Regime` ABC + `ComplianceCheck` / `ComplianceReport` dataclasses.
 - `regimes/dpdp.py` — 8-check DPDP/NDHM/ICMR validator (v0.1.0).
 - `regimes/{gdpr,hipaa,ccpa}.py` — additional regimes (v0.2.0+).
@@ -162,7 +162,7 @@ Services that depend on this repo:
 
 The most common "where do I put this?" answers:
 
-- A new PII recogniser for region X → `packages/python-core/biltiq_privacy/recognisers/<region>.py` + tests in `tests/recognisers/test_<region>.py`.
+- A new PII recogniser pack for region X → sub-package `packages/python-core/biltiq_privacy/<region>/` containing `patterns.py` (pure-stdlib regex + `redact()`) and `recognisers.py` (Presidio adapter + `build_engine()`); tests in `packages/python-core/tests/<region>/`. The `indian/` pack (BILTIQ-002) is the canonical reference.
 - A new regime adapter → `packages/python-core/biltiq_privacy/regimes/<regime>.py` implementing `Regime` ABC + tests.
 - A new detector backend → `packages/python-core/biltiq_privacy/detectors/<name>.py` implementing `Detector` ABC.
 - A new REST endpoint → `packages/python-server/biltiq_privacy_server/app.py` (route) + `models.py` (schema) + tests in `packages/python-server/tests/`.
