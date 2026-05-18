@@ -98,7 +98,7 @@ These pins are deliberately tight because the library exposes specific Presidio 
 "presidio-analyzer >= 2.2, < 3"
 "presidio-anonymizer >= 2.2, < 3"
 "spacy >= 3.7, < 4"
-"en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz"
+"en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz"
 "rapidfuzz >= 3.0, < 4"
 ```
 
@@ -112,6 +112,14 @@ These pins are deliberately tight because the library exposes specific Presidio 
 ```
 
 When upgrading any of these across a major version, write an ADR and run the full test suite plus the integration tests against the 7 Indian recognisers' golden corpus.
+
+### Transient resolver constraints (uv path only)
+
+These constraints live in the root `pyproject.toml` under `[tool.uv] constraint-dependencies` and apply only to the `uv sync` install path. The pip path resolves independently and is not affected (pip's resolver auto-backtracks across the same wheel gaps that trip uv).
+
+| Date | Constraint | Reason | Remove when |
+|------|------------|--------|-------------|
+| 2026-05-17 | `spacy<3.8.14` | spaCy 3.8.14 (latest release as of 2026-05-17) lacks cp314 wheels; uv refuses to backtrack, pip backtracks to 3.8.13 automatically. Constraint pins uv to 3.8.13 on all Pythons; pip-on-3.14 lands on 3.8.13 naturally; pip on 3.11/3.12/3.13 may pick 3.8.13 or 3.8.14. | Explosion publishes cp314 wheels for the next spaCy release (≥ 3.8.14 with cp314 wheel) — verify by running `uv sync --python 3.14` without the constraint; if no resolver error, drop the line. |
 
 ---
 

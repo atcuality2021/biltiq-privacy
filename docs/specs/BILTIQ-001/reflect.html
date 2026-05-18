@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reflect: BILTIQ-001 — pyproject + monorepo packages/ skeleton</title>
+  <style>
+    :root {
+      --color-shipped:   #16a34a;
+      --color-wip:       #d97706;
+      --color-blocker:   #dc2626;
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-well:      #16a34a;
+      --color-wrong:     #dc2626;
+      --color-missed:    #7c3aed;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h2.well   { border-left: 4px solid var(--color-well);   }
+    h2.wrong  { border-left: 4px solid var(--color-wrong);  }
+    h2.missed { border-left: 4px solid var(--color-missed); }
+    h2.neutral{ border-left: 4px solid var(--color-border); }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 0.5rem 0;
+    }
+    .metric-card {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      text-align: center;
+    }
+    .metric-label { font-size: 0.75rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; }
+    .metric-note  { font-size: 0.75rem; color: var(--color-muted); margin-top: 0.2rem; }
+    .match   { color: var(--color-shipped); }
+    .over    { color: var(--color-blocker); }
+    .under   { color: var(--color-wip);    }
+    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 1.5rem; }
+    .timeline::before { content:""; position:absolute; left:0.4rem; top:0; bottom:0; width:2px; background:var(--color-border); }
+    .tl-item { position: relative; padding: 0.4rem 0 0.4rem 0.75rem; }
+    .tl-item::before { content:""; position:absolute; left:-1.1rem; top:0.75rem; width:0.6rem; height:0.6rem; border-radius:50%; background:var(--color-muted); border:2px solid var(--color-bg); }
+    .tl-time  { font-size: 0.75rem; color: var(--color-muted); }
+    .tl-label { font-size: 0.875rem; }
+    .checklist { list-style: none; padding: 0; }
+    .checklist li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.25rem 0; font-size: 0.875rem; }
+    .check { flex-shrink: 0; margin-top: 0.1rem; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } .metrics-grid { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Reflect: BILTIQ-001 — pyproject + monorepo packages/ skeleton</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-001</dd></div>
+      <div><dt>Author</dt><dd>@harish (dev) + @claude (build agent)</dd></div>
+      <div><dt>Closed</dt><dd>2026-05-17 (pending merge of PR #1)</dd></div>
+      <div><dt>PRs merged</dt><dd>#1 (open, all 9 ci.yml cells green)</dd></div>
+      <div><dt>Tests shipped</dt><dd>0 → 4 (2 package import tests + 7-case self-test in <code>check-banned-vocab.py</code> + boundary-check self-test fixtures)</dd></div>
+    </dl>
+  </header>
+
+  <section id="metrics">
+    <h2 class="neutral">Estimation Actuals</h2>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Wall-clock</div>
+        <div class="metric-value match">L</div>
+        <div class="metric-note">spec: L (≈3-4h) &rarr; actual: L (≈3-4h focused work across 2 sessions; ~2h commit window)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Tool calls</div>
+        <div class="metric-value over">L</div>
+        <div class="metric-note">spec: M &rarr; actual: L (verification ran on 8 install combos + 2 hotfix sidequests)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Iteration cycles</div>
+        <div class="metric-value over">9</div>
+        <div class="metric-note">spec: 7 steps &rarr; actual: 7 build + 2 BILTIQ-000 hotfix commits (parse failure surfaced post-Step 6)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Review findings</div>
+        <div class="metric-value under">3</div>
+        <div class="metric-note">all in docs slice E; 0 code findings across slices A-D; no AP #5 / AP #7 hits</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">CI cells</div>
+        <div class="metric-value match">9/9</div>
+        <div class="metric-note">8 matrix (4 py × 2 packages) + 1 boundary, all green in 55s on PR #1</div>
+      </div>
+    </div>
+    <!-- Legend: match (green) = at-spec, over (red) = above-spec band, under (amber) = below-spec band -->
+  </section>
+
+  <section id="what-went-well">
+    <h2 class="well">What Went Well</h2>
+    <ul>
+      <li><strong>Parallel-subagent Step 4 review caught 3 doc-sync issues the in-line build missed.</strong> Five reviewers ran independently against logical slices (engine / sidecar / root / CI+scripts / docs) and the four code slices came back clean while the docs slice found a stale ADR install-shape, an under-counted Files-to-Touch inventory, and an AC10 wording / implementation drift. Inline review wouldn't have flagged any of these — they're cross-file consistency issues that need a reader who hasn't internalised the build's running narrative. Pattern to repeat for any PR &gt;10 files.</li>
+      <li><strong>Step 3 verification caught the <code>${PROJECT_ROOT}</code> resolver drift one step before the canonical install path landed.</strong> Design.html named <code>biltiq-privacy @ file://${PROJECT_ROOT}/../python-core</code> as the transitional path; the per-step verification gate (4-version smoke) revealed uv interprets <code>${PROJECT_ROOT}</code> as the workspace root (not per-package dir). Fix landed at Step 3, not Step 4 where it would have compounded with the pip-vs-uv install-path divergence. Per-step gates earn their token cost in moments like this.</li>
+      <li><strong>Two install paths verified by an 8-combo gate at Step 4, not deferred to "we'll see what CI says".</strong> pip × {3.11, 3.12, 3.13, 3.14} + uv × {3.11, 3.12, 3.13, 3.14}, all 8 green locally before any push. CI on PR #1 confirmed in 55s. The 8-combo gate took ~15 min of wall-clock and surfaced the uv-3.14-spaCy-wheel-gap (Risk #1 second firing) that GitHub Actions on pip-only would never have seen.</li>
+      <li><strong>Documenting transient resolver constraints with a concrete removal trigger.</strong> The <code>spacy&lt;3.8.14</code> uv constraint is in a dedicated § Transient resolver constraints table in <code>approved-versions.md</code> with a column "Remove when" — not a buried comment, not an indefinite pin. When the next spaCy release ships cp314 wheels, the constraint comes out with a one-line PR.</li>
+      <li><strong>BILTIQ-000 hotfix bundled as a carved-out commit, not folded into a BILTIQ-001 step.</strong> When biltiq-gates.yml's YAML-comment-in-job-name bug surfaced post-Step-6, the fix went on the same branch but as separate commits (<code>adf0b28</code>, <code>0edaca5</code>) with <code>BILTIQ-000 hotfix:</code> message prefix. PR description names it explicitly. Keeps the BILTIQ-001 narrative atomic without forcing a second PR cycle.</li>
+    </ul>
+  </section>
+
+  <section id="what-went-wrong">
+    <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
+    <p>No anti-pattern hits in the 4 code slices. Three documentation findings in slice E — all caught at Step 4 (Review) before merge, fixed in Step 7.5.</p>
+    <table>
+      <thead><tr><th>Finding</th><th>Caught at</th><th>Fix applied</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>F1 — <code>reflect.html</code> still on template scaffolding after Step 7 commit</td>
+          <td>Review (slice E)</td>
+          <td>This file. Real metrics, real what-went-well, real timeline. (Process suggestion below: <code>/biltiq-engineering:reflect</code> may need to self-run at end-of-build.)</td>
+        </tr>
+        <tr>
+          <td>F2 — <code>design.html</code> § Files to Touch under-counted shipped surface by 3 docs files</td>
+          <td>Review (slice E)</td>
+          <td>Added § "Documentation deltas" sub-section listing ADR-0001, ADR-0002, and the <code>approved-versions.md</code> edit. Plus an explicit note for the bundled BILTIQ-000 hotfix.</td>
+        </tr>
+        <tr>
+          <td>F3 — AC10 spec wording (<code>pip install -e .</code>) didn't match implementation reality (3 editable targets)</td>
+          <td>Review (slice E)</td>
+          <td>Narrowed AC10 text to the actual 3-target shape; added a spec change-history row tying the change back to Step 4's resolver-template-variable findings.</td>
+        </tr>
+        <tr>
+          <td>F4 — ADR-0001 install-shape paragraph described <code>file://${PROJECT_ROOT}/...</code> URL refs that don't ship</td>
+          <td>Review (slice C suggestion, slice E finding)</td>
+          <td>Rewrote ADR-0001 Decision and Consequences sections to describe the plain-name + workspace-source reality. Added an ADR Change History row recording the post-acceptance amendment.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="what-we-missed">
+    <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
+    <p>Two surprises landed during Build that the design's § Risks anticipated in principle but not in specifics. Both were caught by per-step verification gates, not by CI.</p>
+    <table>
+      <thead><tr><th>Issue</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Risk #1 firing on Python 3.13 (not 3.14 as design anticipated) — <code>blis 0.7.11</code> has no cp313 wheel; source build fails on AVX-512 kernels</td>
+          <td>Step 2 verification (4-version smoke on python-core)</td>
+          <td>en-core-web-sm 3.7.1 install blocked on 3.13. Cascade: spaCy 3.7.x / thinc 8.2.x / blis 0.7.x all wheel-less on cp313.</td>
+          <td>Bumped en-core-web-sm 3.7.1 → 3.8.0 (cascades to spaCy 3.8.x / thinc 8.3.x / blis 1.3.x, all cp313 + cp314 wheels). ADR-0002 records the decision; <code>approved-versions.md</code> § Hard dependency pins updated. Design.html Risk #1 mitigation rewritten.</td>
+        </tr>
+        <tr>
+          <td>Risk #1 firing a <em>second</em> time, this time on uv at Python 3.14 — spaCy 3.8.14 (latest on 2026-05-17) lacks cp314 wheels; uv's resolver does not backtrack across the wheel gap</td>
+          <td>Step 4 verification (8-combo gate)</td>
+          <td>uv × 3.14 install fails. pip × 3.14 works (pip backtracks to spaCy 3.8.13 automatically).</td>
+          <td>Added <code>[tool.uv] constraint-dependencies = ["spacy&lt;3.8.14"]</code> at the root — narrow, uv-only, transient. Removal trigger documented in <code>approved-versions.md</code> § Transient resolver constraints.</td>
+        </tr>
+        <tr>
+          <td>BILTIQ-000's <code>biltiq-gates.yml</code> had been failing GitHub's workflow validator at parse time since bootstrap — 0-second runs, <code>total_count: 0</code> jobs, stored workflow name falling back to file path. Root cause: three job <code>name:</code> fields contained unquoted <code>#N</code>, which YAML treats as the start of a comment, silently truncating all three to the literal string <code>Anti-Pattern</code>. Secondary: an inlined python <code>-c</code> heredoc with raw f-string regex that was fragile but not actually the parse blocker.</td>
+          <td>Step 6 push (gh run list showed prior 0s failures going back to BILTIQ-000)</td>
+          <td>BILTIQ-001's ship-gate clause "existing biltiq-gates.yml jobs still green" was unsatisfiable until fixed.</td>
+          <td>Two commits on this branch (<code>adf0b28</code>, <code>0edaca5</code>) — extracted the heredoc into <code>scripts/check-banned-vocab.py</code> with a 7-case <code>--self-test</code> mode, then quoted the three job names. Carved out as <code>BILTIQ-000 hotfix:</code> commits so BILTIQ-001's narrative stays atomic.</td>
+        </tr>
+        <tr>
+          <td><code>gh pr edit</code> fails on <code>gh &lt; 2.59</code> because the internal GraphQL query touches the now-deprecated <code>repository.pullRequest.projectCards</code> field. This machine has 2.46.0 from apt (Ubuntu default). The Ship-step task to rewrite PR #1's body to template shape hit this immediately — first call failed with the deprecation message; retry returned exit 1.</td>
+          <td>Step 6 Ship — rewriting PR #1 body to match <code>.github/PULL_REQUEST_TEMPLATE.md</code></td>
+          <td>Blocks any agent or automation step that uses <code>gh pr edit</code>. Same root cause likely affects <code>gh issue edit</code> + any <code>gh</code> subcommand that mutates a PR field. Not anticipated by design.html § Risks because the broken tool was assumed to work.</td>
+          <td>Worked around in-session by switching to the REST API: <code>gh api --method PATCH /repos/&lt;owner&gt;/&lt;repo&gt;/pulls/&lt;n&gt; --input &lt;(jq -Rs '{body: .}' &lt; body.md)</code>. Documented in MEMORY.md § Known issues (<code>62b5ee6</code>) so future sessions skip <code>gh pr edit</code>. System fix is <code>sudo apt upgrade gh</code> or installing newer gh to <code>~/.local/bin/</code>; not landed because system upgrade is out-of-repo blast radius.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top: 0.75rem; color: var(--color-muted);">Note: the biltiq-gates.yml hotfix on the feature branch did NOT make the workflow run on feature-branch pushes — GitHub validates workflows against the default branch (<code>main</code>) at registration time, and the broken file is still on main. The fix lands on main when PR #1 merges; the next push to main re-validates and the workflow's 5 jobs will instantiate.</p>
+  </section>
+
+  <section id="timeline">
+    <h2 class="neutral">Step-by-Step Timeline</h2>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 (earlier session, pre-commit-window)</div>
+        <div class="tl-label">Think + Plan + plan-reviewer approved (2 soft warnings re-banded the wall-clock M → L)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 10:37</div>
+        <div class="tl-label">Step 1 shipped — ADR-0001 dual install paths (<code>69e06b4</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 11:04</div>
+        <div class="tl-label">Step 1.5 (Step 2 escalation) shipped — ADR-0002 en-core-web-sm 3.7.1 → 3.8.0 (<code>01d2383</code>) <br>Step 2 shipped — python-core skeleton + 4-version verify (<code>2974e44</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 11:17</div>
+        <div class="tl-label">Step 3 shipped — python-server skeleton + 4-version verify (<code>3345356</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 11:38</div>
+        <div class="tl-label">Step 4 shipped — root metapackage for dual install paths (<code>c18477a</code>); 8/8 install combos green; uv-3.14 spaCy constraint added</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 11:51</div>
+        <div class="tl-label">Step 5 shipped — <code>scripts/check-boundaries.sh</code> + injection self-test (<code>68db6b8</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 12:06</div>
+        <div class="tl-label">Step 6 shipped — <code>ci.yml</code> matrix + boundary-check job (<code>8d315f0</code>); biltiq-gates.yml parse failure surfaced during push-side gate</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 12:37</div>
+        <div class="tl-label">Step 7 shipped — README.md (<code>9a12ddb</code>); BILTIQ-000 hotfix #1 — extracted heredoc to <code>check-banned-vocab.py</code> (<code>adf0b28</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 12:39</div>
+        <div class="tl-label">BILTIQ-000 hotfix #2 — quoted <code>name: "Anti-Pattern #N — ..."</code> fields (<code>0edaca5</code>); the actual parse-blocker fix</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 12:45</div>
+        <div class="tl-label">PR #1 opened against <code>main</code>; <code>ci.yml</code> succeeded 9/9 cells in 55s</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 12:55</div>
+        <div class="tl-label">Step 4 (Review) — 5 parallel reviewers; aggregate <em>needs revision</em> on 3 doc findings in slice E</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 13:16</div>
+        <div class="tl-label">Step 7.5 shipped — F1/F2/F3/F4 doc fixes (<code>1711c1b</code>); this reflect.html written</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 13:18</div>
+        <div class="tl-label">Step 7.5b — ADR-0001 References footer AC10 quote cosmetic sync (<code>c9b7cc5</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 ~13:30</div>
+        <div class="tl-label">Step 4 (Review re-run) — verdict: <em>approved</em>. Step 5 (Test) — verdict: <em>ready for ship</em>. All 10 ACs verified with concrete evidence; <code>scripts/check-boundaries.sh</code> + <code>scripts/check-banned-vocab.py --self-test</code> both green.</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 13:52</div>
+        <div class="tl-label">Step 6 (Ship) shipped — CHANGELOG.md + MEMORY.md updates (<code>4eeaede</code>); PR #1 body rewritten via <code>gh api PATCH</code> to follow the <code>.github/PULL_REQUEST_TEMPLATE.md</code> shape. <code>gh pr edit</code> failed mid-step — see "What We Missed" below.</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 14:16</div>
+        <div class="tl-label">Step 6 (Ship) — gh tooling gotcha documented in MEMORY.md § Known issues (<code>62b5ee6</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-17 ~14:25</div>
+        <div class="tl-label">Step 7 (Reflect ratify) — this extension of reflect.html with Step 5/6 timeline, the gh-tooling discovery as a "we missed" row, a 5th process-change proposal, and an estimate-actuals row appended to <code>.biltiq/estimates-history.jsonl</code></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">— pending —</div>
+        <div class="tl-label">PR #1 human review + approval → merge → branch deletion → v0.1.0-scaffold lands on main</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="process-changes">
+    <h2 class="neutral">Process Changes Proposed</h2>
+    <ul class="checklist">
+      <li><input class="check" type="checkbox" disabled><span><strong><code>/biltiq-engineering:build</code> should require reflect.html to be filled (not just present) before declaring the task done.</strong> The current Build skill's plan-driven step 7 ("update README") was the last shipped commit, but the Attack Loop's <em>seventh canonical step</em> is Reflect. Today reflect.html exists as a template file in the diff (good — proves it was added during the task) but the build agent did not write actual content into it. Suggestion: extend the Build skill's per-step gate to include "if this is the last plan step, also write reflect.html with substantive content" — or have <code>/biltiq-engineering:reflect</code> auto-run at end-of-build. Caught by review skill F1, which is the correct fall-back but a costly round-trip.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>Build skill should run a final "design ↔ diff inventory" check before completion.</strong> F2 (Files-to-Touch under-counted by 3 docs deltas) was a mechanical reconciliation issue — comparing <code>git diff --name-only main...HEAD</code> against design.html's enumerated file list. Could be a one-step shell-callable check that fails the build if the diff contains files not in the inventory (with an explicit "documentation-only deltas are OK if recorded under § Documentation deltas" carve-out). Saves a review round-trip on every multi-step task.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>plan-reviewer (or a new lint) should flag YAML <code>name:</code> fields containing unquoted <code>#</code>.</strong> The biltiq-gates.yml bug was YAML correctly parsing <code>name: Anti-Pattern #7 — ...</code> as <code>name: Anti-Pattern</code> (rest stripped as comment). GitHub Actions' validator silently rejects the result. A repo-level pre-commit hook running <code>yamllint</code> with the <code>truthy</code>/<code>comments-indentation</code> rules <em>plus</em> a custom rule for "name field truncated by inline #" would catch this category. Worth a small follow-up task to add to the BiltIQ template's <code>.pre-commit-config.yaml</code>.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>Reviewer slice protocol: per-slice constraint lists should be generated, not hand-written.</strong> The 5 reviewer prompts in this Step 4 review each had a slice-specific constraint section pasted in by the dispatcher. Worked fine, but is reusable scaffolding — a slice-spec file (<code>docs/architecture/review-slices.yaml</code>) could declare slice membership + per-slice critical-constraint anchors, and the review skill could compose prompts deterministically. Out of BILTIQ-001 scope; flagging for the engineering plugin roadmap.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>Repo bootstrap should pin a minimum <code>gh</code> CLI version (≥ 2.59).</strong> <code>gh pr edit</code> on older <code>gh</code> calls the deprecated <code>repository.pullRequest.projectCards</code> GraphQL field and fails. The Ship skill assumes <code>gh pr edit</code> works; a fresh contributor on Ubuntu's apt-default gh (2.46.0 on Ubuntu 24.04 LTS) silently hits this. Two fix shapes: (a) add a <code>gh --version</code> check to the SessionStart hook or a pre-flight script with a clear error message + upgrade path; (b) replace <code>gh pr edit</code> calls in BiltIQ skills with the REST-API form (<code>gh api PATCH /repos/.../pulls/N</code>) which works on every gh version. Surfaced by BILTIQ-001 Step 6 Ship.</span></li>
+    </ul>
+  </section>
+
+  <section id="cleanup-confirmation">
+    <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
+    <ul class="checklist">
+      <li><input class="check" type="checkbox" checked disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>, <code>*_temp.*</code>, or <code>test_scratch_*</code> files in the diff. Verified via reviewer slice A and slice D direct inspection.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No throwaway scripts. The two new scripts (<code>check-boundaries.sh</code>, <code>check-banned-vocab.py</code>) are both wired into <code>ci.yml</code> / <code>biltiq-gates.yml</code> and have inline self-test modes — neither is throwaway.</span></li>
+      <li><input class="check" type="checkbox" disabled><span>Branch deletion deferred — <code>feature/biltiq-001-pyproject-skeleton</code> still in flight pending PR #1 merge.</span></li>
+    </ul>
+  </section>
+
+  <section id="tech-debt">
+    <h2 class="neutral">Tech Debt Logged</h2>
+    <ul>
+      <li><strong>Transient uv constraint <code>spacy&lt;3.8.14</code></strong> — narrow, documented, with concrete removal trigger in <code>approved-versions.md</code> § Transient resolver constraints. Track for removal when Explosion ships a cp314-wheel-bearing spaCy release.</li>
+      <li><strong>pip canonical command has 3 editable targets</strong> — less ergonomic than single-target. ADR-0001 § Tech debt accepted records the rationale and rules out the alternatives. Re-visit if hatchling/pip improve their <code>file://</code> editable-install semantics.</li>
+      <li><strong>biltiq-gates.yml will not run on this PR</strong> — fix lands on <code>main</code> only via PR #1 merge. Verify after merge that the next push to main re-validates the workflow and all 5 jobs instantiate. If any jobs report real failures (vs the prior 0-second parse-failure shells), those are follow-ups.</li>
+      <li><strong>Process changes proposed (Section above)</strong> — not BILTIQ-001 scope; surfaced for the engineering-plugin backlog.</li>
+      <li><strong><code>gh pr edit</code> workaround documented but not auto-applied.</strong> MEMORY.md § Known issues records the <code>gh api PATCH</code> form for future sessions. System fix (upgrade gh to ≥ 2.59) is out-of-repo blast radius and deferred to whoever next provisions the dev environment. Track for removal when this machine's <code>gh --version</code> reports ≥ 2.59.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2 class="neutral">Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2026-05-17</td>
+          <td>all</td>
+          <td>Initial draft</td>
+          <td>BILTIQ-001 (new-task scaffold)</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>title, meta, metrics, what-went-well, what-went-wrong, what-we-missed, timeline, process-changes, cleanup-confirmation, tech-debt</td>
+          <td>Replaced template placeholders with the actual BILTIQ-001 reflection: 5 metrics with at-spec / over / under bands, 5 patterns-to-repeat, 4 review findings + 3 build-time surprises with fixes, 13-step timeline keyed to commit hashes, 4 proposed process improvements, cleanup confirmation, 4 tech-debt items. Caught by Step 4 (Review) finding F1.</td>
+          <td>BILTIQ-001 — Step 4 review finding F1</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>timeline, what-we-missed, process-changes, tech-debt</td>
+          <td>Step 7 (Reflect) ratify pass: timeline extended with Steps 5/6/7 commits and timestamps (replaced the "pending — re-Review" placeholder with the actual sequence through commit <code>62b5ee6</code>); added a 4th "we missed" row for the <code>gh pr edit</code> projectCards GraphQL deprecation that blocked PR-body rewriting at Step 6; added a 5th process-change proposal for pinning a minimum <code>gh</code> CLI version in repo bootstrap; added a 5th tech-debt entry for the gh workaround being documentation-only. Also appended an estimate-actuals row to <code>.biltiq/estimates-history.jsonl</code> as forward-compat data for the BILTIQ-022 estimation calibration loop.</td>
+          <td>BILTIQ-001 — Step 7 Reflect skill</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

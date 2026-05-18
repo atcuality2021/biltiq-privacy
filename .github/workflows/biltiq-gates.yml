@@ -16,7 +16,7 @@ on:
 
 jobs:
   residue-files:
-    name: Anti-Pattern #7 — Debugging residue
+    name: "Anti-Pattern #7 — Debugging residue"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,15 +36,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: self-test the filter before using it
+        run: python3 scripts/check-banned-vocab.py --self-test
       - name: scan for real banned-vocab usage (not rule listings)
         shell: bash
         run: |
           set -euo pipefail
-          # Collect candidate hits, then filter out lines that are rule definitions:
-          #   - Lines containing 2+ banned words (multi-term listing).
-          #   - Lines mentioning 'banned' / 'do not use' / 'no marketing' / 'use plain' / 'enforced' / 'flag' (rule context).
-          #   - Bulleted single-word listings (e.g. `- "cutting-edge"`).
-          # Real violations: lines using the banned word in normal prose.
           hits=$(grep -rIniE 'cutting-edge|revolutionary|empowering|seamless|future-ready' \
                   --exclude-dir=.git --exclude-dir=node_modules \
                   --exclude=AGENT_RULES.md --exclude=CHEATSHEET.md \
@@ -53,24 +53,7 @@ jobs:
             echo "no banned-vocab matches"
             exit 0
           fi
-          # Hand off to a python filter that's stricter
-          violations=$(printf '%s\n' "$hits" | python3 -c "
-          import sys, re
-          banned = ['cutting-edge','revolutionary','empowering','seamless','future-ready']
-          banned_re = '|'.join(banned)
-          out = []
-          for line in sys.stdin:
-              line_lower = line.lower()
-              count = sum(1 for w in banned if w in line_lower)
-              if count >= 2: continue
-              if any(x in line_lower for x in ['banned','do not use','no marketing','use plain','enforced','flag']): continue
-              # The grep prefix is 'path:lineno:content' — extract content.
-              parts = line.split(':', 2)
-              body = parts[2].strip() if len(parts) >= 3 else line.strip()
-              if re.match(rf'^[-*\\s]*[\"\\'\\\`]?({banned_re})[\"\\'\\\`]?\\s*\\.?\\s*\$', body, re.I): continue
-              out.append(line.rstrip())
-          print('\\n'.join(out))
-          ")
+          violations=$(printf '%s\n' "$hits" | python3 scripts/check-banned-vocab.py)
           if [ -n "$violations" ]; then
             echo "::error::Banned vocabulary used in normal prose (not rule listing). Use plain language."
             echo "$violations"
@@ -79,7 +62,7 @@ jobs:
           echo "only rule-definition references; no real banned-vocab usage"
 
   any-types-py:
-    name: Anti-Pattern #4 — Type safety (Python)
+    name: "Anti-Pattern #4 — Type safety (Python)"
     runs-on: ubuntu-latest
     if: hashFiles('pyproject.toml') != '' || hashFiles('requirements.txt') != ''
     steps:
@@ -93,7 +76,7 @@ jobs:
         run: mypy --strict .
 
   any-types-ts:
-    name: Anti-Pattern #4 — Type safety (TypeScript)
+    name: "Anti-Pattern #4 — Type safety (TypeScript)"
     runs-on: ubuntu-latest
     if: hashFiles('tsconfig.json') != ''
     steps:

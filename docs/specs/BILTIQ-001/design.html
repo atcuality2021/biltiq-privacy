@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: BILTIQ-001 — pyproject + monorepo packages/ skeleton</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .ac-ref { display: inline-block; font-size: 0.72rem; font-weight: 600; color: var(--color-muted); background: var(--color-bg-subtle); border: 1px solid var(--color-border); padding: 0.05rem 0.35rem; border-radius: 4px; margin-right: 0.25rem; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: BILTIQ-001 — pyproject + monorepo packages/ skeleton</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-001</dd></div>
+      <div><dt>Author</dt><dd>@claude (code-architect)</dd></div>
+      <div><dt>Created</dt><dd>2026-05-17</dd></div>
+      <div><dt>Spec ref</dt><dd><code>docs/specs/BILTIQ-001/spec.html</code></dd></div>
+      <div><dt>Compliance mode</dt><dd><code>on_prem_preferred</code></dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Approach</h2>
+    <h3>Name</h3>
+    <p><strong>Hatchling-built monorepo with a dual install path (pip canonical, uv opt-in) and a grep-based boundary guard.</strong></p>
+    <h3>Description</h3>
+    <p>Two independent <code>pyproject.toml</code> files under <code>packages/python-core/</code> and <code>packages/python-server/</code>, both using <code>hatchling</code> as the PEP 517 build backend (per <code>docs/architecture/approved-versions.md</code> and BILTIQ-000 decision §6 monorepo, §8 fork policy). A third <code>pyproject.toml</code> at the repo root is a <em>real installable metapackage</em> (<code>name = "biltiq-privacy-workspace"</code>, <code>version = "0.1.0"</code>, hatchling backend, not published to PyPI) whose <code>[project.dependencies]</code> are two path references — <code>biltiq-privacy @ file://packages/python-core</code> and <code>biltiq-privacy-server @ file://packages/python-server</code>. Running <code>pip install -e .</code> at the repo root resolves both, installing them editably with the server picking up the local core sibling. This satisfies AC10 without uv. The same root <code>pyproject.toml</code> additionally carries a <code>[tool.uv.workspace]</code> declaration so contributors who prefer <code>uv sync</code> (faster, lockfile-aware) get the same result via the opt-in path. Each package's own <code>pyproject.toml</code> remains the sole source of truth for its PyPI metadata; downstream consumers continue to see two clean, independently-versioned distributions.</p>
+    <p>The library/server boundary (AC9) is enforced by a 20-line POSIX shell script <code>scripts/check-boundaries.sh</code> that greps every <code>.py</code> file under <code>packages/python-core/</code> for forbidden imports (<code>fastapi</code>, <code>starlette</code>, <code>uvicorn</code>) and exits non-zero on hit. CI invokes it once per workflow run (not per matrix cell) as a dedicated job. A new <code>.github/workflows/ci.yml</code> runs the Python 3.11/3.12/3.13/3.14 install + lint + mypy + import-test matrix; it is additive to the existing <code>biltiq-gates.yml</code> (which keeps doing residue / banned-vocab / on-prem compliance scans).</p>
+    <p>Trade-off accepted: the root metapackage adds one file's worth of maintenance (two path-dep entries to keep in sync with package names). uv is introduced as an <em>opt-in</em> contributor tool — not pinned into wheels, not required for CI, but documented in <code>README.md</code> as the recommended fast path. Both paths are first-class supported. This is a new tooling posture not listed in the BILTIQ-000 decisions, so an ADR is required before merge (see § ADRs needed).</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+
+    <h3>Workspace pattern (chosen: hatchling metapackage at root + opt-in uv workspace declaration)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Hatch native workspaces (<code>[tool.hatch.envs.*]</code> across packages)</td><td>Hatch's multi-package environment feature is built around shared envs for a single project, not cross-package editable installs; getting <code>biltiq-privacy-server</code> to pick up an editable <code>biltiq-privacy</code> sibling requires custom scripts and is brittle on first-time-contributor setup. Fails the AC10 "one command" smell test.</td></tr>
+        <tr><td>2</td><td>Poetry workspaces (path deps + <code>[tool.poetry.group]</code>)</td><td>Forces poetry as the project's lockfile/install tool, which conflicts with the published-via-hatch-build-backend posture and adds a heavyweight dep most consumers won't need. BILTIQ-000 decision §6 implies one backend; mixing Poetry as orchestrator is needless surface area.</td></tr>
+        <tr><td>3</td><td>No workspace — each package independent, contributors run <code>pip install -e</code> twice</td><td>Works correctly but fails AC10 ("one command at repo root"). Also makes the server's dependency on the local core fragile — by default <code>pip install -e packages/python-server</code> resolves <code>biltiq-privacy</code> from PyPI (which doesn't exist yet at v0.1.0), not from the sibling source tree.</td></tr>
+        <tr><td>4</td><td>uv workspaces only (uv is the sole supported install path)</td><td>Faster and cleaner for uv users, but mandates uv as a contributor dependency. Subagent's first recommendation; rejected by dev on 2026-05-17 in favor of broader compatibility — internal BiltIQ engineers and external OSS contributors should not have to install a second toolchain.</td></tr>
+        <tr><td>5 ✓</td><td><strong>Hatchling metapackage at root + <code>[tool.uv.workspace]</code> alongside it (chosen)</strong></td><td>Root <code>pyproject.toml</code> is a real installable distribution (not published) with two path-dep entries; <code>pip install -e .</code> at root installs both packages editably. The same file also carries a <code>[tool.uv.workspace]</code> table so contributors who prefer uv get the fast path (<code>uv sync</code> ≈ 60s vs pip ≈ 90s on warm cache). Both paths are first-class. Adds ~10 lines of TOML maintenance vs option 4 in exchange for AC10 compatibility without forcing a uv install on any contributor.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Library/server boundary enforcement (chosen: bash grep)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr></thead>
+      <tbody>
+        <tr><td>1 ✓</td><td><strong>POSIX <code>scripts/check-boundaries.sh</code> using <code>grep -rE</code> (chosen)</strong></td><td>Zero install footprint, runs identically on dev machine + CI + pre-push hook, ~20 lines. Spec literally names this path in AC9.</td></tr>
+        <tr><td>2</td><td><code>import-linter</code> with a <code>.importlinter</code> contracts file</td><td>Requires a dev dependency and a config file; equivalent enforcement but adds setup steps. Worth revisiting in v0.2.0 if the rule set grows beyond "no web frameworks in core".</td></tr>
+        <tr><td>3</td><td>Custom Ruff plugin / <code>per-file-ignores</code> using <code>flake8-import-restrictions</code></td><td>Custom ruff rules need a ruff-internal API that's not yet stable for plugin authors; flake8 plugin pulls in flake8 alongside ruff. Tool overlap rejected.</td></tr>
+        <tr><td>4</td><td>CI-only check (workflow step with inline grep)</td><td>Loses local-developer feedback. Spec's <code>scripts/check-boundaries.sh</code> path puts it at the developer's hand, not just in CI.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>CI matrix shape (chosen: single workflow, 4 Python × 2 packages, boundary as a separate job)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr></thead>
+      <tbody>
+        <tr><td>1 ✓</td><td><strong>One <code>ci.yml</code> with <code>matrix: { python: [3.11,3.12,3.13,3.14], package: [python-core, python-server] }</code> (chosen)</strong></td><td>8 parallel cells, each installs one package + runs lint + mypy + import-test. A separate <code>boundary-check</code> job (no matrix) calls <code>scripts/check-boundaries.sh</code>. Total wall-clock ≈ 8 min with cache. Clean for CI dashboard reading.</td></tr>
+        <tr><td>2</td><td>Two workflows — <code>ci-core.yml</code> and <code>ci-server.yml</code></td><td>Doubles maintenance for no parallelism gain (GH Actions parallelises matrix cells anyway). Spec AC7 names a single <code>ci.yml</code>.</td></tr>
+        <tr><td>3</td><td>Single matrix cell per Python version, running both packages serially inside one cell</td><td>Loses per-package failure isolation; one failed mypy in server hides core's success. Harder to read CI output.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Boundary script location (chosen: <code>scripts/check-boundaries.sh</code>)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr></thead>
+      <tbody>
+        <tr><td>1 ✓</td><td><strong><code>scripts/check-boundaries.sh</code> (chosen)</strong></td><td>Spec AC9 names this exact path. <code>scripts/</code> is the documented location for repo-wide helpers per <code>overview.md</code> § Where new code goes.</td></tr>
+        <tr><td>2</td><td><code>scripts/ci/check-boundaries.sh</code></td><td>Implies CI-only; the script is also useful as a developer-side pre-push manual check. Top-level <code>scripts/</code> signals that.</td></tr>
+        <tr><td>3</td><td>Inline in the workflow YAML</td><td>Splits the rule between two places (script vs CI) and loses local invocability. Already rejected in the previous table.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+
+    <h3>New <span class="tag tag-new">CREATE</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Purpose</th><th>ACs</th></tr></thead>
+      <tbody>
+        <tr><td><code>pyproject.toml</code> (repo root)</td><td>Hatchling-backed metapackage: <code>name = "biltiq-privacy-workspace"</code>, <code>version = "0.1.0"</code>, <code>requires-python = "&gt;=3.11"</code>, <code>classifiers = ["Private :: Do Not Upload"]</code> (PyPI safety guard), <code>[project.dependencies] = ["biltiq-privacy @ file://${PROJECT_ROOT}/packages/python-core", "biltiq-privacy-server @ file://${PROJECT_ROOT}/packages/python-server"]</code>. Also includes <code>[tool.uv.workspace]</code> listing both packages as members for the opt-in uv path. Wires AC10 via both <code>pip install -e .</code> and <code>uv sync</code>.</td><td><span class="ac-ref">AC10</span></td></tr>
+        <tr><td><code>packages/python-core/pyproject.toml</code></td><td>Hatchling build backend; <code>name = "biltiq-privacy"</code>; <code>version = "0.1.0"</code>; <code>requires-python = ">=3.11"</code>; deps pinned exactly per <code>approved-versions.md</code> (presidio-analyzer, presidio-anonymizer, spacy, en-core-web-sm URL-pinned, rapidfuzz); MIT license header; optional <code>[dependency-groups]</code> for dev tools (ruff, mypy, pytest, pytest-cov).</td><td><span class="ac-ref">AC2</span><span class="ac-ref">AC4</span></td></tr>
+        <tr><td><code>packages/python-server/pyproject.toml</code></td><td>Hatchling build backend; <code>name = "biltiq-privacy-server"</code>; <code>version = "0.1.0"</code>; <code>requires-python = ">=3.11"</code>; deps: <code>biltiq-privacy</code> (path source resolved via root <code>[tool.uv.sources]</code> in workspace mode, plain name in published wheel), fastapi, uvicorn[standard], pydantic (all exact pins from approved-versions); MIT.</td><td><span class="ac-ref">AC3</span><span class="ac-ref">AC4</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/__init__.py</code></td><td>Empty module marker. Exports <code>__version__</code> only, read from <code>importlib.metadata</code> (current approved API). No re-exports of submodule symbols yet — those land in BILTIQ-002+.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC8</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/__init__.py</code></td><td>Empty marker.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC8</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/recognisers/__init__.py</code></td><td>Empty marker.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC8</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/regimes/__init__.py</code></td><td>Empty marker.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC8</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/detectors/__init__.py</code></td><td>Empty marker.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC8</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/backup/__init__.py</code></td><td>Empty marker.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC8</span></td></tr>
+        <tr><td><code>packages/python-server/biltiq_privacy_server/__init__.py</code></td><td>Empty marker with <code>__version__</code> from <code>importlib.metadata</code>.</td><td><span class="ac-ref">AC1</span></td></tr>
+        <tr><td><code>packages/python-core/tests/__init__.py</code></td><td>Empty.</td><td><span class="ac-ref">AC4</span></td></tr>
+        <tr><td><code>packages/python-core/tests/test_import.py</code></td><td>Single-test file: <code>import biltiq_privacy</code> succeeds and <code>biltiq_privacy.__version__</code> is a non-empty string. Per spec Out-of-Scope §9, no behavioural tests.</td><td><span class="ac-ref">AC4</span></td></tr>
+        <tr><td><code>packages/python-server/tests/__init__.py</code></td><td>Empty.</td><td><span class="ac-ref">AC4</span></td></tr>
+        <tr><td><code>packages/python-server/tests/test_import.py</code></td><td>Single-test file: <code>import biltiq_privacy_server</code> succeeds, plus a smoke assertion that <code>import biltiq_privacy</code> is reachable (verifies workspace dep resolves).</td><td><span class="ac-ref">AC4</span></td></tr>
+        <tr><td><code>scripts/check-boundaries.sh</code></td><td>POSIX bash. <code>set -euo pipefail</code>. <code>grep -rE '^(from|import) (fastapi|starlette|uvicorn)\b' packages/python-core/ --include='*.py'</code>; non-empty result → print offending lines + <code>exit 1</code>. <code>chmod +x</code>.</td><td><span class="ac-ref">AC9</span></td></tr>
+        <tr><td><code>.github/workflows/ci.yml</code></td><td>Two jobs: (a) <code>matrix-build</code> with <code>strategy.matrix: { python-version: [3.11,3.12,3.13,3.14], package: [python-core, python-server] }</code> and <code>fail-fast: false</code> — sets up Python with <code>allow-prereleases: true</code> for 3.14, caches pip, installs the matrix package editably, runs <code>ruff check packages/${{ matrix.package }}</code>, <code>mypy --strict packages/${{ matrix.package }}</code>, <code>pytest packages/${{ matrix.package }}/tests/</code>. (b) <code>boundary-check</code> job — no matrix — checks out, runs <code>bash scripts/check-boundaries.sh</code>. No <code>continue-on-error</code> anywhere.</td><td><span class="ac-ref">AC4</span><span class="ac-ref">AC5</span><span class="ac-ref">AC6</span><span class="ac-ref">AC7</span><span class="ac-ref">AC9</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Change</th><th>ACs</th></tr></thead>
+      <tbody>
+        <tr><td><code>README.md</code></td><td>Replace template placeholders. Project name "biltiq-privacy"; one-paragraph blurb from <code>docs/CONTEXT.md</code>; install line <code>pip install -e packages/python-core</code> (and the server equivalent); status "Pre-implementation; v0.1.0 scaffolded, no engine yet — track progress at docs/specs/." No banned vocabulary. No marketing copy.</td><td>—</td></tr>
+        <tr><td><code>.pre-commit-config.yaml</code></td><td><strong>No edit in BILTIQ-001.</strong> The file already exists from BILTIQ-000 and its hooks (residue, banned-vocab, bare-except, ruff, mypy) are compatible as-is. Hooking <code>scripts/check-boundaries.sh</code> into pre-commit is deliberately deferred — spec doesn't ask for it and Out-of-Scope discipline applies. Surfacing here so the dev knows it was considered and skipped.</td><td>—</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Documentation deltas <span class="tag tag-modified">EDIT</span></h3>
+    <p>These docs were edited or created as part of BILTIQ-001 but sit outside the code surface enumerated above. Added retroactively at Step 7.5 (Review fix F2) so the design ↔ diff inventory stays synchronised.</p>
+    <table>
+      <thead><tr><th>File</th><th>Change</th><th>Step</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/adr/0001-dual-install-paths.md</code></td><td><strong>CREATE</strong> — Records the dual contributor install paths decision (pip canonical + uv opt-in), the four alternatives rejected, consequences, and accepted tech debt. Explicitly listed in § ADRs Needed Before Build below. (Install-shape paragraphs subsequently revised at Step 7.5 — F4 — to match the plain-name + workspace-source implementation reality after Step 4's resolver-template-variable findings.)</td><td>Step 1</td></tr>
+        <tr><td><code>docs/adr/0002-en-core-web-sm-3-8-0.md</code></td><td><strong>CREATE</strong> — Records the en-core-web-sm 3.7.1 → 3.8.0 bump triggered by Risk #1 firing on Python 3.13 during Step 2 verification (blis 0.7.11 cp313 wheel gap). Not flagged in original design; added as an emergent ADR per AGENT_RULES.md "non-trivial decisions need an ADR" rule.</td><td>Step 1.5 (Step 2 escalation)</td></tr>
+        <tr><td><code>docs/architecture/approved-versions.md</code></td><td><strong>EDIT</strong> — Two changes: (a) en-core-web-sm URL pin bumped 3.7.1 → 3.8.0 in § Hard dependency pins (Step 1.5 / ADR-0002). (b) New § "Transient resolver constraints (uv path only)" added with table row documenting <code>spacy&lt;3.8.14</code> constraint and concrete removal trigger (Step 4 / Risk #1 second firing on uv 3.14).</td><td>Steps 1.5 + 4</td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top: 0.75rem;"><strong>Not touched (intentionally):</strong> <code>AGENT_RULES.md</code>, <code>MEMORY.md</code>, <code>docs/architecture/overview.md</code>, <code>docs/architecture/stack.md</code>, <code>LICENSE</code>, <code>.gitignore</code> — already correct for this task.</p>
+    <p><strong>Touched but for a separate concern (bundled BILTIQ-000 hotfix):</strong> <code>.github/workflows/biltiq-gates.yml</code> was modified to fix a parse failure (unquoted <code>name: Anti-Pattern #N</code> fields were silently truncated by YAML's <code>#</code>-comment rule; python heredoc extracted to <code>scripts/check-banned-vocab.py</code> for testability). Bundled into this PR because BILTIQ-001's ship-gate requires the workflow to actually run. Carved out as a separate commit so the BILTIQ-001 narrative stays atomic.</p>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model Changes</h2>
+    <p><strong>None.</strong> No schemas, no JSONL fields, no SQLite tables, no audit-chain rows. BILTIQ-001 ships zero runtime code paths. <code>AuditChain</code> and its row shape land in BILTIQ-002+ when <code>core/audit_chain.py</code> is ported.</p>
+  </section>
+
+  <section id="api-contract">
+    <h2>API Contract Changes</h2>
+    <p><strong>None.</strong> No HTTP routes (Out of Scope §5 — FastAPI routes deferred). No public Python function signatures (Out of Scope §1–4 — every module under <code>core/</code>, <code>recognisers/</code>, <code>regimes/</code>, <code>detectors/</code> is empty in BILTIQ-001).</p>
+    <p>The only externally-observable surface introduced by BILTIQ-001 is the two pip-installable distribution names and their version metadata:</p>
+    <pre><code># After BILTIQ-001 ships, this works and nothing else does:
+import biltiq_privacy
+biltiq_privacy.__version__   # "0.1.0"
+
+import biltiq_privacy_server
+biltiq_privacy_server.__version__   # "0.1.0"
+</code></pre>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance</h2>
+    <ul>
+      <li><strong>Library/server boundary as a regulatory-relevant rule.</strong> Downstream consumers running <code>on_prem_required</code> (CDSCO-RegAI healthcare workloads, DPDP-sensitive deployments) need to pip-install <code>biltiq-privacy</code> without dragging in a web framework. The boundary script (AC9) makes that contract machine-checkable from day one, before any code is ported. A future ADR override (web-framework import added to <code>packages/python-core/</code>) per <code>AGENT_RULES.md</code> § Architectural decisions stays the explicit escape hatch.</li>
+      <li><strong>Pin discipline.</strong> All dependencies use upper bounds (<code>&lt; 3</code>, <code>&lt; 4</code>, <code>&lt; 1</code>) per <code>approved-versions.md</code>. No <code>*</code> versions, no unpinned transitives, no <code>--pre</code> at install time. Compliance audits (Brief §2 rule 1 — no forks, vendored mirrors only) depend on this being machine-readable.</li>
+      <li><strong>MIT license headers.</strong> Each new <code>pyproject.toml</code> declares <code>license = { text = "MIT" }</code>; each new Python file gets the SPDX one-liner <code># SPDX-License-Identifier: MIT</code> at the top per BiltIQ convention. <code>LICENSE</code> at repo root already exists from BILTIQ-000.</li>
+      <li><strong>No secrets in CI.</strong> The new <code>ci.yml</code> uses only the GitHub-managed <code>GITHUB_TOKEN</code> (implicitly, for checkout). No <code>secrets.*</code> references. No third-party API tokens needed at the scaffolding stage. When BILTIQ-002+ ports the engine, secret-handling stays a constructor-arg contract per <code>AGENT_RULES.md</code> § Code conventions — out of scope here.</li>
+      <li><strong>No cloud AI usage.</strong> Mode is <code>on_prem_preferred</code>; this task introduces zero AI calls of any kind. The existing <code>biltiq-gates.yml</code> on-prem-compliance job will confirm.</li>
+      <li><strong>Workflow security.</strong> No <code>${{ ... }}</code> interpolation in <code>run:</code> blocks for user-controllable fields (PR title, branch name, etc.) — matrix values (Python version, package name) come from the workflow's own literal arrays, which is safe per GitHub's security guidance and matches the pattern already used in <code>biltiq-gates.yml</code>.</li>
+    </ul>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <p>BILTIQ-001 has no runtime hot path. Performance concerns reduce to <strong>CI matrix wall-clock</strong> and <strong>contributor cold-install time</strong>:</p>
+    <ul>
+      <li><strong>CI per-cell budget.</strong> 8 matrix cells (4 Python × 2 packages) running in parallel. Per cell: Python setup (~20s), pip install with cache (~60-120s; first run ~3 min until cache is warm), ruff (&lt;5s), mypy on near-empty package (~10s), pytest of one import test (~5s). Per cell ~3-5 min warm, ~6-8 min cold. Wall-clock end-to-end with GH Actions' default concurrency ≈ 8 min warm.</li>
+      <li><strong>spaCy <code>en-core-web-sm</code> download.</strong> The URL-pinned dep is a ~12 MB tar.gz wheel resolved at install time (not from PyPI's index). It's the single largest contributor to cold-install time (~30-90s per cell). Mitigation: <code>actions/setup-python</code>'s built-in pip cache keys on the pyproject + lockfile hash, so cache hits after the first PR cut this to ~2s. Document the cache key in <code>ci.yml</code>.</li>
+      <li><strong>Contributor first-install.</strong> <code>uv sync</code> at repo root (or <code>pip install -e packages/python-core packages/python-server</code>) ≈ 60-90s on a warm pip cache, 3-5 min cold. Acceptable for a once-per-clone cost.</li>
+    </ul>
+    <p>None of these are user-facing — engine latency budgets in <code>overview.md</code> § Data flow (~15-50 ms warm path) are unaffected because no engine code lands in BILTIQ-001.</p>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <p><strong>Single PR, single commit.</strong> All scaffolding is interdependent: the boundary script needs the package paths to exist, the CI workflow needs the pyprojects to exist, the import tests need both. Splitting buys nothing and would leave intermediate commits with red CI. Recommendation: one commit <code>BILTIQ-001: scaffold monorepo packages/ skeleton + CI matrix</code> on a topic branch, PR against <code>main</code>, merge once green on all 4 Python versions.</p>
+    <ol style="padding-left: 1.4rem;">
+      <li>Branch from <code>main</code> as <code>biltiq-001-skeleton</code>.</li>
+      <li>Create all files listed in § Files to Touch.</li>
+      <li>Run locally on Python 3.12 (most likely dev default): <code>uv sync</code>, <code>ruff check packages/</code>, <code>mypy --strict packages/</code>, <code>pytest packages/</code>, <code>bash scripts/check-boundaries.sh</code> — all green.</li>
+      <li>Commit, push, open PR. <code>.github/workflows/ci.yml</code> runs the 4 × 2 matrix + boundary check. Expect 3.14 cell to be the highest-risk; see § Risks.</li>
+      <li>Merge once green. No release tag — per Out of Scope §8, v0.1.0 PyPI publish is a separate ship task.</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p>Pure scaffolding. Rollback is <code>git revert &lt;merge-sha&gt;</code> — no data migrations, no schema state, no external service contracts to unwind. The only "dirty" state a revert leaves behind is contributor venvs with the editable installs still resolving — those auto-fix on next <code>uv sync</code> or <code>pip install -e</code>.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>#</th><th>Risk</th><th>Severity</th><th>Detection / Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>spaCy / Presidio wheel availability on Python 3.14.</strong> 3.14 was released Oct 2025. <code>presidio-analyzer 2.2.x</code> and <code>spacy 3.7.x</code> historically lag a release cycle on cpython bumps. There is a non-trivial chance the 3.14 matrix cell fails at <code>pip install</code> with "no compatible wheel" — particularly for any binary deps (e.g. <code>blis</code>, <code>thinc</code>) in the spaCy chain.</td>
+          <td><span class="tag tag-risk-l">LOW</span> <span style="font-size:0.75rem; color:var(--color-muted);">(was HIGH; downgraded 2026-05-17)</span></td>
+          <td><strong>Original mitigation (Path A, plan-confirm):</strong> <code>allow-prereleases: true</code> + accept source builds. <strong>What actually happened (Step 2 verification, 2026-05-17):</strong> 3.13 install failed first — <code>blis 0.7.11</code> has no cp313 wheel and gcc AVX-512 source build fails on the dev machine. <strong>Adopted mitigation (<a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>):</strong> bumped <code>en-core-web-sm</code> URL pin 3.7.1 → 3.8.0, cascading to <code>spacy 3.8.x</code> / <code>thinc 8.3.x</code> / <code>blis 1.3.x</code>. All four Python versions install from binary wheels; no compiler dependency on the runner. Local Step 2 gate confirmed 2/2 tests pass on 3.11, 3.12, 3.13, 3.14.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>uv workspace + URL-pinned <code>en-core-web-sm</code> interaction.</strong> uv's workspace resolver interacts with hatchling's <code>[tool.hatch.metadata.allow-direct-references]</code> setting. Possible failure mode: <code>uv sync</code> at repo root rejects the direct URL ref despite the hatch allowance. <strong>Severity downgraded to LOW (2026-05-17)</strong> because uv is now opt-in, not required — if uv sync breaks, contributors fall back to <code>pip install -e .</code> which has different URL-pin semantics and is the canonical path. CI uses pip throughout, so this never blocks merge.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: <code>uv sync</code> at repo root fails locally on Python 3.12 for any contributor exercising the opt-in uv path. Mitigation: configure <code>[tool.uv]</code> with <code>allow-direct-url = true</code> in the root <code>pyproject.toml</code>. Documented fallback in <code>README.md</code>: "if uv sync fails on the URL-pinned spaCy model, use <code>pip install -e .</code> instead."</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>URL-pinned <code>en-core-web-sm</code> breaks airgap CI.</strong> The pin <code>en-core-web-sm @ https://github.com/explosion/...</code> reaches out to github.com at install time. Today's CI has internet, so this is latent. The risk surfaces if/when a downstream consumer (CDSCO-RegAI in a healthcare-airgapped env) tries to install the wheel.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Detection: out-of-scope for BILTIQ-001 (no airgapped CI yet). Mitigation in scope: document the constraint in <code>README.md</code> install section ("requires github.com reachability at install time"). Mitigation deferred: vendoring the <code>en_core_web_sm-3.7.1.tar.gz</code> wheel into <code>vendor/spacy-models/</code> and rewriting the pin to a file:// reference — proper ADR-worthy change, separate task.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>(RESOLVED 2026-05-17) AC8 reading vs <code>tests/test_import.py</code>.</strong> AC8 scopes to the five subdirs under <code>biltiq_privacy/</code>; tests live at <code>packages/python-core/tests/</code> (sibling of <code>biltiq_privacy/</code>), so they fall outside AC8. Dev confirmed the reading. No spec amendment needed.</td>
+          <td><span class="tag tag-risk-l">RESOLVED</span></td>
+          <td>No action. Kept in the table for audit trail.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>Existing <code>.pre-commit-config.yaml</code> has a <code>mypy</code> hook with no <code>files:</code> restriction.</strong> Once <code>packages/</code> contains Python files, <code>pre-commit run mypy</code> on staged changes may pick up files outside the package and fail. The <code>exclude</code> setting only blocks <code>tests/</code>, <code>scripts/</code>, <code>dev/</code> — not e.g. ad-hoc scripts at repo root.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: local <code>pre-commit run --all-files</code> after creating the skeleton. Mitigation: if it fires on something irrelevant, narrow the mypy hook to <code>files: ^packages/</code>. Deferred mitigation only — don't pre-emptively edit pre-commit config in BILTIQ-001; wait until it actually breaks.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="adrs-needed">
+    <h2>ADRs Needed Before Build</h2>
+    <p>The following design decisions sit outside the 10 architectural decisions taken at BILTIQ-000 and therefore need an ADR recorded under <code>docs/adr/</code> before Step 3 (Build):</p>
+    <ul>
+      <li><strong>ADR-0001 (or next number): Dual contributor install paths — <code>pip install -e .</code> (canonical) and <code>uv sync</code> (opt-in fast path) — both backed by a hatchling-built root metapackage with two path-deps and a parallel <code>[tool.uv.workspace]</code> declaration.</strong> Documents why hatch native workspaces / Poetry / no-workspace / uv-only were rejected. Notes that uv is an opt-in developer-side tool, not a build-time or runtime dep of either published wheel, and not required for CI. Links: <code>approved-versions.md</code> § Hard dependency pins, BILTIQ-000 decision §6 (C-as-SDKs monorepo), conversation 2026-05-17 (dev rejected uv-only path).</li>
+    </ul>
+    <p>No other ADRs required. The other design choices (bash boundary script, single ci.yml workflow, scripts/ path) follow existing conventions in <code>AGENT_RULES.md</code> and <code>overview.md</code> § Where new code goes.</p>
+  </section>
+
+  <section id="anti-pattern-check">
+    <h2>Anti-Pattern Guardrails Honored</h2>
+    <ul>
+      <li><strong>#1 Duplication</strong> — clean. The repo has no existing <code>pyproject.toml</code>, no <code>packages/</code>, no <code>scripts/check-boundaries.sh</code>, no <code>.github/workflows/ci.yml</code>. The existing <code>biltiq-gates.yml</code> is kept intact (its checks complement, do not overlap, the new <code>ci.yml</code>).</li>
+      <li><strong>#2 Abstraction Bypass</strong> — clean. The stack's internal modules table lists no scaffolding-related wrappers; the chosen approach uses standard tooling (hatchling, uv, ruff, mypy, pytest) per <code>AGENT_RULES.md</code> § Stack.</li>
+      <li><strong>#9 Deprecated API Usage</strong> — clean. <code>__version__</code> uses <code>importlib.metadata</code> (current per <code>approved-versions.md</code>), not <code>pkg_resources</code>. No <code>distutils</code>, no <code>setup.py</code>, no <code>datetime.utcnow()</code>.</li>
+      <li><strong>#11 HTML/MD boundary</strong> — clean. This file is <code>design.html</code>, paired with <code>spec.html</code> per the convention.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-17</td>
+          <td>all</td>
+          <td>Initial draft — chosen approach (uv workspaces + hatchling + bash boundary script), 4 alternatives tables, file inventory mapped to 10 ACs, 5 risks with mitigations, ADR-0001 flagged for uv-vs-hatch-workspaces decision.</td>
+          <td>BILTIQ-001</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Approach, Alternatives, Files-to-Touch, Risks #1/#2/#4, ADRs Needed</td>
+          <td>Dev-locked 3 decisions: (a) AC8 reading confirmed — tests/ is sibling not under blocked path; Risk #4 marked RESOLVED. (b) Workspace pattern changed from uv-only to dual path (pip+hatch canonical, uv opt-in) — root <code>pyproject.toml</code> becomes a real hatchling metapackage with path deps; <code>[tool.uv.workspace]</code> sits alongside; alternatives table expanded to 5 rows. (c) Python 3.14 mitigation locked to Path A (<code>allow-prereleases: true</code> + accept source builds); paths B and C removed from Risk #1. (d) Risk #2 downgraded MEDIUM → LOW because uv is now opt-in. (e) ADR-0001 scope changed from "uv as orchestrator" to "dual install paths".</td>
+          <td>BILTIQ-001 — dev review at plan step</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Risks #1</td>
+          <td>R1 mitigation upgraded after Step 2 verification fired Risk #1 on Python 3.13 (not 3.14). <code>blis 0.7.11</code> has no cp313 wheel; gcc source build of AVX-512 kernels failed. Path A unreachable. Dev approved en-core-web-sm 3.7.1 → 3.8.0 bump, cascading to spacy 3.8.x / thinc 8.3.x / blis 1.3.x with native wheels for all four Python versions. Severity downgraded HIGH → LOW. <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a> records the decision.</td>
+          <td>BILTIQ-001 — Step 2 verification escalation</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Files-to-Touch (packages/python-server/pyproject.toml row)</td>
+          <td>Step 3 verification: design.html named <code>biltiq-privacy @ file://${PROJECT_ROOT}/../python-core</code> as the transitional path ref. uv interprets <code>${PROJECT_ROOT}</code> as the workspace/cwd root (not the per-package dir as hatchling does), so the literal substitution resolves to a wrong path. Switched to plain <code>biltiq-privacy</code> in <code>[project.dependencies]</code> and rely on combined install (<code>uv pip install -e packages/python-core -e packages/python-server</code>) for sibling resolution. Same end-state as Step 4 (which the design already planned to introduce); just lands the cleaner form one step earlier. 4-version gate green: 2/2 server + 2/2 core regression on 3.11/3.12/3.13/3.14; mypy --strict + ruff clean on 3.12.</td>
+          <td>BILTIQ-001 — Step 3 verification refinement</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Approach, Files-to-Touch (root pyproject.toml row), Rollout</td>
+          <td>Step 4 verification: design.html named <code>file://${PROJECT_ROOT}/packages/python-core</code> for the root path-deps and assumed <code>pip install -e .</code> would install all three packages editably. Two issues surfaced: (a) <code>${PROJECT_ROOT}</code> is a uv-only template variable — pip does not expand it. (b) pip installs <code>[project.dependencies]</code> entries non-editably even when written as <code>file:</code> URLs, so <code>pip install -e .</code> alone would not produce an editable dev tree. Switched to plain dependency names (<code>biltiq-privacy</code>, <code>biltiq-privacy-server</code>) and documented the canonical pip command as <code>pip install -e packages/python-core -e packages/python-server -e .</code> — one shell command, three editable targets, AC10 still satisfied. uv path uses <code>[tool.uv.workspace] members</code> + <code>[tool.uv.sources] { workspace = true }</code> to resolve the same plain names to local workspace members. Also added repo-root <code>[tool.pytest.ini_options]</code> with <code>--import-mode=importlib</code> to fix collection collision between the two packages' <code>tests/test_import.py</code> files. 8-combo gate green: pip × 3.11/3.12/3.13/3.14 + uv × 3.11/3.12/3.13/3.14, all 4 tests per combo passing; mypy --strict + ruff clean on 3.12.</td>
+          <td>BILTIQ-001 — Step 4 verification refinement</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Risks #1, Approach (resolver constraint note)</td>
+          <td>Risk #1 fired a second time during Step 4, this time on the uv path at Python 3.14: spaCy 3.8.14 (latest as of 2026-05-17) lacks cp314 wheels. pip's resolver backtracked to 3.8.13 automatically; uv's resolver does not backtrack across the wheel gap and failed the install. Added <code>[tool.uv] constraint-dependencies = ["spacy&lt;3.8.14"]</code> in the root <code>pyproject.toml</code> — narrow, uv-only, transient. pip path is unaffected (pip ignores <code>[tool.uv]</code>). Constraint removal criteria recorded in <code>docs/architecture/approved-versions.md</code> § Transient resolver constraints. No new ADR — tactical pin adjustment, not architectural; ADR-0002 already covers the broader en-core-web-sm/spaCy wheel availability theme.</td>
+          <td>BILTIQ-001 — Step 4 uv 3.14 resolver gap</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Files-to-Touch</td>
+          <td>Step 4 (Review) parallel reviewer slice E flagged F2: the Files-to-Touch inventory under-counted the shipped surface by three documentation files that the design's own change-history rows already reference. Added a new "Documentation deltas" subsection listing <code>docs/adr/0001-dual-install-paths.md</code>, <code>docs/adr/0002-en-core-web-sm-3-8-0.md</code>, and the <code>docs/architecture/approved-versions.md</code> edit so the design ↔ diff inventory matches. Also surfaced the BILTIQ-000 hotfix bundle (<code>biltiq-gates.yml</code>) explicitly under "Touched but for a separate concern" so the PR's full surface is enumerated.</td>
+          <td>BILTIQ-001 — Step 4 review finding F2</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

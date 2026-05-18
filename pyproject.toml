@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: MIT
+# biltiq-privacy-workspace -- repo-root metapackage for the biltiq-privacy monorepo.
+#
+# This file's primary role is wiring AC10 (one-command onboarding from repo root)
+# for both supported install paths -- pip (canonical) and uv (opt-in fast path).
+# It is NOT published to PyPI; the `Private :: Do Not Upload` classifier is the
+# upload guard.
+#
+# Two install paths, both first-class:
+#
+#   1. pip (canonical, no extra toolchain required):
+#          pip install -e packages/python-core \
+#                      -e packages/python-server \
+#                      -e .
+#      Three editable targets in one shell command. pip resolves
+#      biltiq-privacy / biltiq-privacy-server from the local checkouts on
+#      disk because they are installed first; the root metapackage then
+#      finds them already-present and the [project.dependencies] entries
+#      below resolve to the editable installs.
+#
+#   2. uv (opt-in, faster, lockfile-aware):
+#          uv sync
+#      [tool.uv.workspace] declares both packages as members; [tool.uv.sources]
+#      tells uv to resolve the [project.dependencies] entries below from the
+#      workspace rather than from PyPI (where v0.1.0 is not yet published).
+#
+# Why plain names in [project.dependencies] instead of `file://...` URLs:
+#   - pip does not expand uv's `${PROJECT_ROOT}` template variable; the literal
+#     URL form in design.html breaks under pip (same `${PROJECT_ROOT}` mismatch
+#     that surfaced in BILTIQ-001 Step 3, see design.html change-history).
+#   - pip's behaviour on `pip install -e .` is to install the *root* editably
+#     but resolve [project.dependencies] entries *non-editably* (even when
+#     written as file: URLs). Plain names + pre-installed editable siblings is
+#     the only shape that delivers AC10 + a fully editable dev tree under pip.
+#
+# When BILTIQ-002+ publishes v0.1.0 to PyPI, this file does not change --
+# pip's dep resolution finds the local editable siblings before reaching for
+# PyPI, and the [tool.uv.sources] override keeps uv on the workspace path.
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "biltiq-privacy-workspace"
+version = "0.1.0"
+description = "Repo-root metapackage wiring the biltiq-privacy monorepo. Not published to PyPI."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "BiltIQ", email = "engineering@biltiq.ai" },
+]
+keywords = ["monorepo", "workspace", "metapackage", "biltiq-privacy"]
+classifiers = [
+    "Private :: Do Not Upload",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "biltiq-privacy",
+    "biltiq-privacy-server",
+]
+
+[project.urls]
+Homepage = "https://github.com/atcuality2021/biltiq-privacy"
+Repository = "https://github.com/atcuality2021/biltiq-privacy"
+Issues = "https://github.com/atcuality2021/biltiq-privacy/issues"
+
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.uv.workspace]
+members = ["packages/python-core", "packages/python-server"]
+
+[tool.uv.sources]
+biltiq-privacy = { workspace = true }
+biltiq-privacy-server = { workspace = true }
+
+# Transient resolver constraint -- see approved-versions.md for the full rationale.
+# spaCy 3.8.14 (released a few days before 2026-05-17) lacks cp314 wheels. pip's
+# resolver backtracks to 3.8.13 (which has cp314 wheels); uv's default strategy
+# picks the latest in-range and fails. Constraining here keeps the uv path green
+# on 3.14 without disturbing pip or the publishable package pins. Remove once
+# Explosion publishes cp314 wheels for the next spaCy release.
+[tool.uv]
+constraint-dependencies = ["spacy<3.8.14"]
+
+# Repo-root pytest config so `pytest` from the repo root collects both packages.
+# `--import-mode=importlib` is required because packages/python-core/tests/
+# and packages/python-server/tests/ both contain a file named test_import.py;
+# under the legacy `prepend` import mode pytest collides on the duplicate module
+# name `tests.test_import`. importlib mode loads each test file as a unique
+# anonymous module and is the pytest-recommended import mode for new projects.
+[tool.pytest.ini_options]
+testpaths = ["packages/python-core/tests", "packages/python-server/tests"]
+addopts = "-ra --strict-markers --import-mode=importlib"

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan: BILTIQ-001 — pyproject + monorepo packages/ skeleton</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-step-bg:   #f0fdf4;
+      --color-step-bdr:  #bbf7d0;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
+    .step {
+      border: 1px solid var(--color-step-bdr);
+      background: var(--color-step-bg);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .step-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+    .step-title { font-weight: 700; font-size: 0.95rem; }
+    .band {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #7dd3fc;
+    }
+    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
+    .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
+    .step-tests strong { color: var(--color-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .risk-h { color: var(--color-risk-high); font-weight: 700; }
+    .risk-m { color: var(--color-risk-med);  font-weight: 700; }
+    .risk-l { color: var(--color-risk-low);  font-weight: 700; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Plan: BILTIQ-001 — pyproject + monorepo packages/ skeleton</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-001</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-001-pyproject-skeleton</dd></div>
+      <div><dt>Base</dt><dd>main</dd></div>
+      <div><dt>Created</dt><dd>2026-05-17</dd></div>
+    </dl>
+
+    <p style="margin-top:0.75rem; padding:0.6rem 0.75rem; background:#fef3c7; border:1px solid #fcd34d; border-radius:6px; font-size:0.85rem;">
+      <strong>Prerequisites (verify before Step 2):</strong>
+      <code>uv</code> 0.4+ installed, and <code>uv python install 3.11 3.12 3.13 3.14</code> succeeded.
+      4-version local verification at each install step depends on this. If unavailable, fall back to
+      pyenv with the four interpreters; if neither toolchain is available, escalate to
+      <code>uv-only-on-3.12 + trust CI for the other three</code> and amend this plan accordingly.
+    </p>
+  </header>
+
+  <section id="steps">
+    <h2>Build Sequence</h2>
+    <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
+      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding.
+    </p>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 1 — ADR-0001: Dual install paths (pip canonical, uv opt-in)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Architectural decisions land before the code that implements them. ADR provides the rationale future readers (and reviewers) need before they see <code>pyproject.toml</code> with both <code>[project.dependencies]</code> path refs and a parallel <code>[tool.uv.workspace]</code> block. Sets the precedent: no orphan workspace pattern in code without ADR justification.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>docs/adr/0001-dual-install-paths.md</code> (CREATE).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>Visual check: ADR follows <code>templates/docs/adr/_template.md</code> structure — Context, Decision, Alternatives Considered, Consequences, Status (Accepted).</li>
+          <li>Cross-link check: <code>design.html § ADRs Needed</code> reference resolves to this new file.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>ls docs/adr/0001-dual-install-paths.md</code> exists; no banned vocabulary present; commit <code>BILTIQ-001 step 1: ADR-0001 dual install paths</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 2 — packages/python-core skeleton + 4-version verify</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Library lands before server because the server depends on it (path ref in workspace). Independent <code>pyproject.toml</code> first proves the core package installs cleanly with its full dep tree (presidio, spacy, en-core-web-sm URL pin, rapidfuzz) before workspace wiring multiplies the surface.</p>
+      <p class="step-meta"><strong>Files (all CREATE):</strong> <code>packages/python-core/pyproject.toml</code>, <code>packages/python-core/biltiq_privacy/__init__.py</code>, <code>packages/python-core/biltiq_privacy/{core,recognisers,regimes,detectors,backup}/__init__.py</code> (5 files), <code>packages/python-core/tests/__init__.py</code>, <code>packages/python-core/tests/test_import.py</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>tests/test_import.py::test_import_package</code> — asserts <code>import biltiq_privacy</code> succeeds and <code>biltiq_privacy.__version__</code> is a non-empty string (read via <code>importlib.metadata</code>). Covers AC1, AC4 (per-version), AC8.</li>
+          <li>Boundary scaffolding check: <code>find packages/python-core/biltiq_privacy/{core,recognisers,regimes,detectors,backup} -type f ! -name __init__.py</code> returns empty (AC8).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate (4 versions, all required to pass):</strong></p>
+      <ul style="font-size:0.85rem; margin-top:0;">
+        <li><code>uv run --python 3.11 -- pip install -e packages/python-core && uv run --python 3.11 -- pytest packages/python-core/tests/</code> — GREEN.</li>
+        <li>Same with <code>--python 3.12</code>, <code>--python 3.13</code>, <code>--python 3.14</code>.</li>
+        <li><code>uv run --python 3.12 -- mypy --strict packages/python-core</code> — GREEN (AC5).</li>
+        <li><code>uv run --python 3.12 -- ruff check packages/python-core</code> — GREEN (AC6).</li>
+      </ul>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-001 step 2: packages/python-core skeleton</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 3 — packages/python-server skeleton + 4-version verify</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Server depends on core (already on disk from Step 2). At this point the server's <code>biltiq-privacy</code> path ref needs to resolve to <code>../python-core</code>; with no workspace yet, this is configured via <code>[tool.hatch.metadata.allow-direct-references]</code> + an explicit <code>biltiq-privacy @ file://../python-core</code> in the server's <code>[project.dependencies]</code>. The root workspace in Step 4 will replace this with the cleaner workspace-managed path source.</p>
+      <p class="step-meta"><strong>Files (all CREATE):</strong> <code>packages/python-server/pyproject.toml</code>, <code>packages/python-server/biltiq_privacy_server/__init__.py</code>, <code>packages/python-server/tests/__init__.py</code>, <code>packages/python-server/tests/test_import.py</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>tests/test_import.py::test_import_server</code> — asserts <code>import biltiq_privacy_server</code> succeeds.</li>
+          <li><code>tests/test_import.py::test_can_reach_core</code> — asserts <code>import biltiq_privacy</code> resolves (verifies the path dep wiring).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate (4 versions):</strong></p>
+      <ul style="font-size:0.85rem; margin-top:0;">
+        <li>For each Python in 3.11/3.12/3.13/3.14: <code>uv run --python X -- pip install -e packages/python-core packages/python-server && uv run --python X -- pytest packages/python-server/tests/</code> — GREEN.</li>
+        <li><code>uv run --python 3.12 -- mypy --strict packages/python-server</code> — GREEN.</li>
+        <li><code>uv run --python 3.12 -- ruff check packages/python-server</code> — GREEN.</li>
+      </ul>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-001 step 3: packages/python-server skeleton</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 4 — Root metapackage pyproject.toml (pip + uv dual path)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Both packages already install standalone (Steps 2–3). Now wire AC10 — one-command onboarding from the repo root for both <code>pip install -e .</code> (canonical) and <code>uv sync</code> (opt-in). The Step 3 explicit path ref in server's pyproject is replaced by a workspace-managed source, but the server's own <code>pyproject.toml</code> stays publishable to PyPI by keeping the path ref under a <code>[tool.uv.sources]</code> block that uv reads but PyPI ignores.</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>pyproject.toml</code> (repo root). <strong>EDIT:</strong> <code>packages/python-server/pyproject.toml</code> — move the <code>biltiq-privacy @ file://...</code> from <code>[project.dependencies]</code> to a plain <code>biltiq-privacy</code> dep, with workspace path resolution moved to root's <code>[tool.uv.sources]</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>From a clean venv on each of 3.11/3.12/3.13/3.14: <code>pip install -e .</code> at repo root succeeds and installs both packages editably. <code>pytest packages/</code> runs all import tests, all GREEN.</li>
+          <li>Repeat with <code>uv sync</code> at repo root (opt-in path); same result.</li>
+          <li>Smoke: <code>python -c "import biltiq_privacy, biltiq_privacy_server; print(biltiq_privacy.__version__, biltiq_privacy_server.__version__)"</code> prints "0.1.0 0.1.0" on all 4 versions.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> All 4 versions × 2 install paths (pip, uv) = 8 combinations green. Covers AC10 + AC4.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-001 step 4: root metapackage for dual install paths</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 5 — scripts/check-boundaries.sh + injection self-test</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Boundary enforcement script is independent of install machinery; lands after core/server exist so the grep has something to grep against (and the negative test in this step has a real codebase to scan). Self-test via temporary injection proves the script actually fails when it should, not just exits 0 vacuously.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>scripts/check-boundaries.sh</code> (CREATE, chmod +x).</p>
+      <div class="step-tests">
+        <strong>Tests (manual, scripted):</strong>
+        <ul>
+          <li>Positive: <code>bash scripts/check-boundaries.sh</code> exits 0 on clean tree.</li>
+          <li>Negative: insert <code>from fastapi import FastAPI</code> at top of <code>packages/python-core/biltiq_privacy/__init__.py</code>; run script; assert exit code 1 and the offending file/line is printed to stderr. Then revert the injection.</li>
+          <li>Optional: same negative test with <code>import starlette</code> and <code>import uvicorn</code> — confirms regex covers all three.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> All three negative tests fire correctly; injection reverted; <code>git status</code> clean of injected lines before commit. Covers AC9.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-001 step 5: scripts/check-boundaries.sh + injection self-test</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 6 — .github/workflows/ci.yml (4×2 matrix + boundary-check)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> CI lands after every artifact it needs to run against exists (pyprojects, root metapackage, boundary script). Single workflow file matches AC7. Local matrix run is not possible — CI runs on push, so verification is "PR opens, all 9 cells green (8 matrix + 1 boundary)."</p>
+      <p class="step-meta"><strong>Files:</strong> <code>.github/workflows/ci.yml</code> (CREATE).</p>
+      <div class="step-tests">
+        <strong>Tests (CI-side):</strong>
+        <ul>
+          <li>Push branch to GitHub; PR opens; the <code>matrix-build (3.11/3.12/3.13/3.14, python-core/python-server)</code> 8 cells all green.</li>
+          <li>The <code>boundary-check</code> job is green.</li>
+          <li>Existing <code>biltiq-gates.yml</code> jobs (residue, banned-vocab, on-prem compliance) remain green — additive, not replacing.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> All 9 cells in <code>ci.yml</code> + all pre-existing <code>biltiq-gates.yml</code> jobs green. If 3.14 cell fails on a binary dep source build (Risk #1, Path A), escalate to dev <em>before</em> merge — do not silently mark <code>continue-on-error</code>.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-001 step 6: ci.yml matrix + boundary-check job</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 7 — README.md update (status, install paths, project-status line)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Last because it documents the working state. Premature README edits get out of sync with reality; doing it last keeps the install instructions verified against the just-shipped artifacts.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>README.md</code> (EDIT).</p>
+      <div class="step-tests">
+        <strong>Tests (manual):</strong>
+        <ul>
+          <li>Replace template placeholders. Project name "biltiq-privacy". One-paragraph blurb adapted from <code>docs/CONTEXT.md</code>. Status line: "Pre-implementation — v0.1.0 scaffolded; engine modules (BILTIQ-002+) not yet ported. Track progress at <code>docs/specs/</code>."</li>
+          <li>Install section: both <code>pip install -e .</code> and <code>uv sync</code> documented with one-line note explaining each. Note that PyPI publication is a future task.</li>
+          <li>Banned vocabulary scan: <code>grep -iE "cutting-edge|revolutionary|empowering|seamless|future-ready" README.md</code> returns nothing. Covers AGENT_RULES.md banned-vocab rule.</li>
+          <li>Visual: open README.md in a Markdown renderer; verify formatting + links resolve.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> No banned vocabulary; both install paths documented; status line present.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-001 step 7: README install + status update</code>. Then open PR.</p>
+    </div>
+    <!-- Add more steps by copying a .step block -->
+  </section>
+
+  <section id="test-strategy">
+    <h2>Test Strategy</h2>
+    <table>
+      <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
+      <tbody>
+        <tr><td>Unit (import smoke only)</td><td>One test per package asserting <code>import</code> succeeds and <code>__version__</code> is non-empty. Server test additionally asserts <code>import biltiq_privacy</code> works (cross-package wiring). No behavioural tests — engine is unimplemented per spec § Out of Scope §9.</td><td><code>packages/python-core/tests/test_import.py</code>, <code>packages/python-server/tests/test_import.py</code></td></tr>
+        <tr><td>Multi-version install matrix (local)</td><td>Per step that creates or modifies a <code>pyproject.toml</code> (Steps 2, 3, 4), the gate requires the package to install + import cleanly on Python 3.11, 3.12, 3.13, and 3.14 locally via <code>uv run --python X</code>. This is the developer-side complement to the CI matrix; catches version-specific issues before CI runs.</td><td>n/a — gate commands listed per step.</td></tr>
+        <tr><td>Multi-version install matrix (CI)</td><td>Step 6's <code>ci.yml</code> repeats the matrix in GitHub Actions: 4 Python versions × 2 packages = 8 cells, plus a separate <code>boundary-check</code> job. CI is authoritative — local matrix is the early warning.</td><td><code>.github/workflows/ci.yml</code></td></tr>
+        <tr><td>Static analysis</td><td><code>ruff check packages/</code> (rules <code>E,F,I,B,UP,DTZ</code> per AGENT_RULES.md). <code>mypy --strict packages/</code>. Both run in CI cells and in local Step 2/3/4 gates.</td><td><code>packages/python-core/pyproject.toml</code> § [tool.ruff], [tool.mypy]; <code>packages/python-server/pyproject.toml</code> § same.</td></tr>
+        <tr><td>Boundary enforcement</td><td><code>scripts/check-boundaries.sh</code>: positive test (clean tree exits 0) + 3 negative tests (inject fastapi / starlette / uvicorn import each, expect exit 1, revert). Run in CI as a dedicated job.</td><td><code>scripts/check-boundaries.sh</code>, CI <code>boundary-check</code> job.</td></tr>
+        <tr><td>Manual</td><td>Step 7: open README.md in a markdown renderer; visual check for formatting + link resolution; grep for banned vocabulary.</td><td><code>README.md</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="rollback-plan">
+    <h2>Rollback Plan</h2>
+    <p>Pure scaffolding — additive only, no data migrations, no schema state, no external service contracts to unwind. Per-step rollback is <code>git reset --hard HEAD~1</code> before the next step's commit; cross-step (post-merge) rollback is <code>git revert &lt;merge-sha&gt;</code> on a follow-up PR. The only contributor-side cleanup after a revert: <code>pip uninstall biltiq-privacy biltiq-privacy-server biltiq-privacy-workspace</code> in any venv that ran <code>pip install -e .</code>, then <code>rm -rf .venv</code> and re-create. Auto-fixed on next <code>uv sync</code> or <code>pip install -e .</code> after the revert lands.</p>
+    <p>No production deployment risk in this task — the PyPI release is a separate ship task (per spec § Out of Scope §8). CI workflows in <code>.github/workflows/ci.yml</code> are sandbox-scoped to GitHub-managed <code>GITHUB_TOKEN</code> only; no third-party secrets touched.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>#</th><th>Risk</th><th>Step(s)</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>R1</td>
+          <td>Python 3.14 wheel availability for spaCy / Presidio / their transitive C-extension deps. spaCy's released wheels at lock time are 3.7.x with 3.13 support; 3.14 may need a source build.</td>
+          <td>Step 2, 3, 4 (local matrix); Step 6 (CI matrix)</td>
+          <td><span class="risk-l">LOW</span> <span style="font-size:0.75rem; color:var(--color-muted);">(was HIGH at plan-confirm; downgraded 2026-05-17 after Step 2 verification — see <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>)</span></td>
+          <td><strong>Original (Path A, plan-confirm):</strong> accept source builds on 3.13/3.14, escalate to dev if a binary dep fails. <strong>What actually happened:</strong> 3.13 install failed at <code>blis 0.7.11</code> source build (no cp313 wheel; gcc AVX-512 compile failure). <strong>Adopted mitigation:</strong> bumped <code>en-core-web-sm</code> URL pin from 3.7.1 → 3.8.0 (<a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a>), cascading to <code>spacy 3.8.x</code> / <code>thinc 8.3.x</code> / <code>blis 1.3.x</code> — all four Python versions install from binary wheels, no compiler dependency. Verified locally during Step 2: 2/2 tests pass on 3.11, 3.12, 3.13, 3.14.</td>
+        </tr>
+        <tr>
+          <td>R2</td>
+          <td>Local 4-version matrix prerequisite — dev environment must have <code>uv</code> 0.4+ with Pythons 3.11/3.12/3.13/3.14 installed, otherwise the per-step gates in Steps 2–4 cannot run.</td>
+          <td>Step 2, 3, 4</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Header Prerequisites box names the exact <code>uv python install</code> command. Documented fallback chain: <code>uv</code> → <code>pyenv</code> → "uv-only-on-3.12 + trust CI for the other three" with explicit plan amendment if invoked. Risk shifts to CI (R1) under the last fallback but does not block the plan.</td>
+        </tr>
+        <tr>
+          <td>R3</td>
+          <td>en-core-web-sm 3.7.1 URL pin reachability — <code>github.com/explosion/spacy-models/releases/download/...</code> must be reachable from CI runners and contributor machines at install time. GitHub Releases occasionally have transient outages; a stricter problem applies in airgap deployments downstream (out of scope for BILTIQ-001, but worth flagging).</td>
+          <td>Step 2 (local), Step 6 (CI)</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Hatchling's <code>[tool.hatch.metadata.allow-direct-references]</code> handles the URL syntax. README Step 7 documents the dependency on github.com being reachable. Wheel-vendoring for airgap installs is explicitly deferred to a later task; flag this in the BILTIQ-001 PR description so reviewers see the deferral. If CI flakes on the download, the retry is a re-run, not a code fix.</td>
+        </tr>
+        <tr>
+          <td>R4</td>
+          <td>pip vs uv path-source semantics divergence at the root metapackage. pip reads <code>[project.dependencies]</code> with <code>file://</code> direct refs (via <code>allow-direct-references</code>); uv reads <code>[tool.uv.sources]</code> for workspace path overrides. The two configs must agree on which packages are local and which would resolve from PyPI — drift here would cause one toolchain to install a stale PyPI version while the other uses the local checkout.</td>
+          <td>Step 4</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>The Step 4 gate explicitly requires <strong>both</strong> install paths to succeed on all 4 Python versions (8 combinations) before commit. The smoke test prints <code>__version__</code> for both packages — a stale-PyPI resolution would print whatever the last published version is (currently nothing — package not yet on PyPI), making divergence loud rather than silent. As insurance, the BILTIQ-001 PR description will call out both <code>[project.dependencies]</code> and <code>[tool.uv.sources]</code> entries side by side for human review.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2026-05-17</td>
+          <td>all</td>
+          <td>Initial draft — 7 atomic steps (ADR-0001 first per dev decision); Prerequisites box for uv + 4 Pythons; Test Strategy table with 6 layers; Rollback for pure scaffolding; Risks R1–R4 covering 3.14 wheels, local matrix prereq, en-core-web-sm URL pin, pip↔uv source divergence.</td>
+          <td>BILTIQ-001</td>
+        </tr>
+        <tr>
+          <td>2026-05-17</td>
+          <td>Risks R1</td>
+          <td>R1 mitigation updated post-plan-confirm. During Step 2 verification, 3.13 install failed at <code>blis 0.7.11</code> source build (no cp313 wheel; gcc AVX-512 compile failure). Path A unreachable. Dev approved bump of <code>en-core-web-sm</code> 3.7.1 → 3.8.0 — cascades to <code>spacy 3.8.x</code> / <code>thinc 8.3.x</code> / <code>blis 1.3.x</code> with native cp313/cp314 wheels. Severity HIGH → LOW. <a href="../../adr/0002-en-core-web-sm-3-8-0.md">ADR-0002</a> records the decision.</td>
+          <td>BILTIQ-001 — Step 2 verification escalation</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
