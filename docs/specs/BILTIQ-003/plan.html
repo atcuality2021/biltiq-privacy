@@ -105,8 +105,9 @@
         <span class="band">M &middot; ~45 min</span>
       </div>
       <p class="step-meta"><strong>Rationale:</strong> The writer is the smallest, most isolated unit. Atomic-append correctness is the load-bearing claim of the whole task &mdash; nail it first so every later step inherits a known-good event log. Deleting the stale <code>.biltiq/curator.lock</code> here keeps the cleanup adjacent to the file's first real use and out of the doc step's diff.</p>
-      <p class="step-meta"><strong>Files (CREATE):</strong> <code>scripts/__init__.py</code>, <code>scripts/_memory_writer.py</code>, <code>tests/scripts/__init__.py</code>, <code>tests/scripts/conftest.py</code>, <code>tests/scripts/test_memory_writer.py</code>.</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>scripts/__init__.py</code>, <code>scripts/_memory_writer.py</code>, <code>conftest.py</code> (repo root &mdash; prepends rootdir to <code>sys.path</code> because there is no root-level <code>pyproject.toml</code> yet), <code>tests/scripts/conftest.py</code>, <code>tests/scripts/test_memory_writer.py</code>.</p>
       <p class="step-meta"><strong>Files (DELETE):</strong> <code>.biltiq/curator.lock</code> (stale zero-byte legacy from BILTIQ-000 onboarding; canonical path is dot-prefixed <code>.biltiq/.curator.lock</code>, created on first curator run).</p>
+      <p class="step-meta"><strong>Note:</strong> the original plan listed <code>tests/scripts/__init__.py</code> as a CREATE. Discovered during Build that the marker file caused pytest's <code>prepend</code> import mode to insert <code>tests/</code> on <code>sys.path</code>, which collides with the real top-level <code>scripts/</code> package (Python resolves <code>import scripts</code> to <code>tests/scripts/</code> and <code>scripts._memory_writer</code> then 404s). Dropping the marker keeps test files rootless and lets the root-conftest <code>sys.path</code> insert work as designed. See Change History row 2.</p>
       <div class="step-tests">
         <strong>Tests:</strong>
         <ul>
@@ -330,6 +331,12 @@
           <td>all</td>
           <td>Initial draft &mdash; 6 atomic steps, &le; 50 min each. Steps 1&ndash;3 build writer + curator; Step 4 wires docs + markers; Step 5 ships opt-in hook; Step 6 is the AC5 manual gate.</td>
           <td>BILTIQ-003</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>Step 1</td>
+          <td>Build-time correction: replaced <code>tests/scripts/__init__.py</code> CREATE with a repo-root <code>conftest.py</code> CREATE. The marker file would have shadowed the top-level <code>scripts</code> package under pytest's <code>prepend</code> import mode; the rootless test layout + root conftest's <code>sys.path</code> insert is the correct shape for a repo without a root <code>pyproject.toml</code>. All 8 writer tests pass (plan said 7; split the dual-assertion bullet into two test functions for clarity &mdash; same coverage, no scope change).</td>
+          <td>Build observation, Step 1</td>
         </tr>
       </tbody>
     </table>
