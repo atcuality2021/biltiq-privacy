@@ -92,12 +92,19 @@ biltiq-privacy-server = { workspace = true }
 [tool.uv]
 constraint-dependencies = ["spacy<3.8.14"]
 
-# Repo-root pytest config so `pytest` from the repo root collects both packages.
+# Repo-root pytest config so `pytest` from the repo root collects both packages
+# AND the repo-level tooling tests under tests/scripts/ (BILTIQ-003 memory-spine).
 # `--import-mode=importlib` is required because packages/python-core/tests/
 # and packages/python-server/tests/ both contain a file named test_import.py;
 # under the legacy `prepend` import mode pytest collides on the duplicate module
 # name `tests.test_import`. importlib mode loads each test file as a unique
 # anonymous module and is the pytest-recommended import mode for new projects.
+# test-scaffolds/ is intentionally excluded — those are language-agnostic
+# placeholders for SDK tests, not part of the live Python suite.
 [tool.pytest.ini_options]
-testpaths = ["packages/python-core/tests", "packages/python-server/tests"]
+testpaths = [
+    "packages/python-core/tests",
+    "packages/python-server/tests",
+    "tests/scripts",
+]
 addopts = "-ra --strict-markers --import-mode=importlib"
