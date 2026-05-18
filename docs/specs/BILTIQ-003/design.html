@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: Scaffold memory-spine tooling</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: Scaffold memory-spine tooling</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-003</dd></div>
+      <div><dt>Author</dt><dd>@don007rvs</dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Approach</h2>
+    <h3>Name</h3>
+    <p>Stdlib-only JSONL append-stream + deterministic projection curator, with <code>fcntl.flock</code> advisory locking and an opt-in <code>post-commit</code> hook.</p>
+    <h3>Description</h3>
+    <p>Two small Python modules under a new <code>scripts/</code> package, both stdlib-only (no new dependencies). <code>scripts/_memory_writer.py</code> exposes <code>write_event(event_type, payload)</code> that appends one JSON line to <code>.biltiq/memory-stream.jsonl</code> using a single <code>os.write()</code> against an <code>O_APPEND</code> file descriptor &mdash; POSIX guarantees the write is atomic for payloads under <code>PIPE_BUF</code> (4 KiB on Linux), and we cap a single event at that size to keep the guarantee. <code>scripts/_memory_curator.py</code> reads the stream end-to-end, projects events into a fixed set of auto-curated <code>MEMORY.md</code> sections delimited by HTML-comment markers, and writes the file back atomically (temp + <code>os.replace</code>). Manual content is fenced by <code>&lt;!-- manual:start --&gt;</code>&hellip;<code>&lt;!-- manual:end --&gt;</code> markers and copied through verbatim. Concurrency is protected by <code>fcntl.flock(LOCK_EX|LOCK_NB)</code> on <code>.biltiq/.curator.lock</code>; a second invocation finding the lock held prints <code>{"skipped": "another curator already running"}</code> to stdout and exits <code>0</code>. The hook variant (<code>scripts/hooks/post-commit.sh</code>) is shipped but not installed; <code>scripts/install-curator-hook.sh</code> places it under <code>.git/hooks/post-commit</code> idempotently. Trade-off: we rebuild auto-sections from the full stream on every run rather than tail-following &mdash; simpler, deterministic, and well under the 200&nbsp;ms budget for the foreseeable stream size (thousands of events &asymp; hundreds of KB).</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>SQLite-backed event store</td><td>Adds query power we will not use in v1; turns the stream from a grep-able text file into an opaque binary; complicates the gitignore + per-machine backup story. JSONL is enough until we need filtered projections.</td></tr>
+        <tr><td>2</td><td><code>filelock</code> PyPI package</td><td>New runtime dependency for what stdlib <code>fcntl.flock</code> already does on Linux/macOS (the only platforms the dev runs on). Adds a wheel + version pin + airgap-CI burden against a feature that has not been requested.</td></tr>
+        <tr><td>3</td><td><code>os.O_EXCL</code> lock-file race instead of <code>flock</code></td><td>Lock leaks on crash; we would need a stale-PID-cleanup heuristic. <code>fcntl.flock</code> auto-releases when the file descriptor closes (including process exit / kill).</td></tr>
+        <tr><td>4</td><td>Read-modify-write of <code>MEMORY.md</code> via regex section markers</td><td>Brittle when the dev edits the file from the inside; one stray bracket and the regex eats manual content. HTML-comment delimiters are an explicit out-of-band contract neither Markdown renderers nor the dev's eye will trip over.</td></tr>
+        <tr><td>5</td><td>JSONL append via Python <code>open(..., "a")</code></td><td>CPython buffers; two concurrent writers can interleave bytes mid-line. Going through <code>os.open(..., O_WRONLY|O_APPEND|O_CREAT)</code> + a single <code>os.write()</code> of the full <code>line + "\n"</code> bytes hits the POSIX atomic-append guarantee with no buffering layer in the way.</td></tr>
+        <tr><td>6</td><td>Install the hook by default</td><td>Spec OQ2 explicitly resolves &ldquo;on-demand default, opt-in hook&rdquo; &mdash; surprising the dev with a hook that runs on every commit violates least-astonishment, especially for collaborators cloning the repo.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+    <h3>New <span class="tag tag-new">CREATE</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>scripts/__init__.py</code></td><td>Empty package marker. Makes <code>scripts</code> importable as <code>from scripts._memory_writer import write_event</code> (the contract the <code>biltiq-engineering</code> plugin's slash commands use).</td></tr>
+        <tr><td><code>scripts/_memory_writer.py</code></td><td>Exposes <code>write_event(event_type: str, payload: dict) -&gt; None</code>. Stdlib-only. POSIX-atomic append.</td></tr>
+        <tr><td><code>scripts/_memory_curator.py</code></td><td>CLI entry point: <code>python3 scripts/_memory_curator.py</code>. Reads stream, projects to auto-sections, writes <code>MEMORY.md</code> back atomically. Acquires <code>.biltiq/.curator.lock</code> via <code>fcntl.flock</code>; non-blocking; prints the skipped-sentinel JSON if held.</td></tr>
+        <tr><td><code>scripts/hooks/post-commit.sh</code></td><td>POSIX shell. Runs <code>python3 scripts/_memory_curator.py</code> detached in the background, redirecting stdout/stderr to <code>.biltiq/curator-hook.log</code> (append; logs <em>only</em> exit codes and timestamps, never event payload contents). <code>exit 0</code> unconditionally so a curator crash never aborts the commit.</td></tr>
+        <tr><td><code>scripts/install-curator-hook.sh</code></td><td>Idempotent installer. Detects the repo root via <code>git rev-parse --show-toplevel</code>, then <code>ln -sf "$root/scripts/hooks/post-commit.sh" "$root/.git/hooks/post-commit"</code> (symlink &mdash; survives edits to the hook source). Prints a one-line confirmation and exits 0. Re-running is a no-op. A <code>--uninstall</code> flag removes the symlink.</td></tr>
+        <tr><td><code>tests/scripts/__init__.py</code></td><td>Empty.</td></tr>
+        <tr><td><code>tests/scripts/conftest.py</code></td><td>Provides <code>tmp_repo</code> fixture: a <code>tmp_path</code>-rooted fake repo with <code>.biltiq/</code> dir, an empty stream, and a seeded <code>MEMORY.md</code> containing both auto and manual sections. Re-points <code>_memory_writer</code> / <code>_memory_curator</code> at the tmp root via an env var (<code>BILTIQ_REPO_ROOT</code>, see API Contract).</td></tr>
+        <tr><td><code>tests/scripts/test_memory_writer.py</code></td><td>AC1 + AC4 + AC6(a). Happy path: <code>write_event("standup_post", {...})</code> produces one parsable JSON line with all four required fields. Concurrency: 50 events from 4 threads land on 50 valid lines, no interleaving. Schema: missing fields raise; oversize payload (&gt; <code>PIPE_BUF</code>) raises a clear error.</td></tr>
+        <tr><td><code>tests/scripts/test_memory_curator.py</code></td><td>AC2 + AC3 + AC4 + AC6(b)(c)(d)(e). Auto-section regeneration; manual-section verbatim survival across multiple runs; lock-contention skipped-sentinel; unknown event-type tolerated and skipped; missing manual markers fails closed with non-zero exit and an explicit error to stderr (does <em>not</em> rewrite <code>MEMORY.md</code>).</td></tr>
+        <tr><td><code>tests/scripts/test_hook_install.py</code></td><td>AC9. Install script idempotent (run twice, single symlink remains); uninstall removes the symlink; hook script swallows curator failure (returns 0 even when curator exits non-zero, simulated via PATH-injected fake <code>python3</code>); hook does not block when curator is slow (background spawn).</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td><code>.gitignore</code></td><td>Already covers <code>.biltiq/</code> via wildcard plus an explicit <code>.biltiq/memory-stream.jsonl</code> line. Add two explicit lines beneath it for documentation parity: <code>.biltiq/.curator.lock</code> and <code>.biltiq/curator-hook.log</code>. No behaviour change &mdash; the wildcard already excludes them &mdash; the explicit lines make the contract visible to anyone reading the file.</td></tr>
+        <tr><td><code>AGENT_RULES.md</code></td><td>Add new top-level section <code>## Memory</code> documenting: (a) the stream is per-machine at <code>.biltiq/memory-stream.jsonl</code>, gitignored; (b) <code>MEMORY.md</code> is the committed canonical projection rebuilt by the curator; (c) only the marked auto-curated sections are rewritten; manual sections are sacred; (d) the public API is <code>write_event(event_type, payload)</code> and <code>python3 scripts/_memory_curator.py</code>; (e) the v1 event-type vocabulary (AC4); (f) the opt-in hook is opt-in by design.</td></tr>
+        <tr><td><code>MEMORY.md</code></td><td>Surround the existing manually-curated sections (<em>Recent decisions</em>, <em>Recently completed</em>, <em>Known issues &amp; gotchas</em>, <em>Open questions</em>, <em>Conventions specific to this repo</em>) with <code>&lt;!-- manual:start --&gt;</code>&hellip;<code>&lt;!-- manual:end --&gt;</code>. Add empty auto-curated sections delimited by <code>&lt;!-- auto:&lt;name&gt;:start --&gt;</code>&hellip;<code>&lt;!-- auto:&lt;name&gt;:end --&gt;</code> for: <em>Current focus</em> (built from <code>standup_post</code> + <code>blocker_logged</code>), <em>Code areas under active change</em> (from <code>commit_metadata</code>), <em>Session log</em> (from <code>standup_post</code> + <code>reflect_note</code>). First curator run is otherwise a no-op since the stream is empty.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td>Append a row under <em>Internal modules</em>: <code>scripts._memory_writer.write_event</code> &mdash; canonical structured-event emitter; do not write to <code>.biltiq/memory-stream.jsonl</code> directly.</td></tr>
+        <tr><td><code>docs/architecture/overview.md</code></td><td>Add a one-paragraph subsection under <em>Components</em> describing the <code>scripts/</code> tier (developer-tooling, not shipped to PyPI). Note that it is excluded from the library's <code>pyproject.toml</code>.</td></tr>
+        <tr><td><code>.biltiq/curator.lock</code> (stale)</td><td>Delete during Step 1. A zero-byte file under this name was created during BILTIQ-000 onboarding; the spec's canonical path is <code>.biltiq/.curator.lock</code> (dot-prefixed, hidden in <code>ls</code>). Leaving the legacy file behind would confuse future archaeology.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model</h2>
+    <h3>Event stream &mdash; <code>.biltiq/memory-stream.jsonl</code></h3>
+    <p>Append-only newline-delimited JSON. One event per line. UTF-8. No trailing comma, no enclosing array.</p>
+    <pre><code>{
+  "schema_version": 1,
+  "ts": "2026-05-18T11:42:07.812000+00:00",
+  "event_type": "standup_post",
+  "payload": { ... event-type-specific keys ... }
+}</code></pre>
+    <p>Field rules:</p>
+    <ul>
+      <li><code>schema_version</code>: integer. v1 ships with <code>1</code>. Bumped on any breaking change to the event schema. The curator skips events with <code>schema_version &gt; CURATOR_SUPPORTED_VERSION</code> (forward-compat).</li>
+      <li><code>ts</code>: ISO-8601 UTC, microsecond precision, produced by <code>datetime.now(timezone.utc).isoformat()</code> (current API per <code>docs/architecture/approved-versions.md</code>; <code>datetime.utcnow()</code> is on the deprecated list).</li>
+      <li><code>event_type</code>: lowercase snake_case string. v1 vocabulary: <code>standup_post</code>, <code>decision_made</code>, <code>blocker_logged</code>, <code>reflect_note</code>, <code>commit_metadata</code>. Other values are written but ignored by the projector (AC4 forward-compat).</li>
+      <li><code>payload</code>: arbitrary JSON-serialisable dict. Convention per event type:
+        <ul>
+          <li><code>standup_post</code> &rarr; <code>{ "date": "YYYY-MM-DD", "did": [...], "doing": [...], "blockers": [...] }</code></li>
+          <li><code>decision_made</code> &rarr; <code>{ "title": str, "rationale": str, "adr_ref": str | null }</code></li>
+          <li><code>blocker_logged</code> &rarr; <code>{ "title": str, "task_id": str, "since": "YYYY-MM-DD" }</code></li>
+          <li><code>reflect_note</code> &rarr; <code>{ "task_id": str, "what_went_well": [str], "what_broke": [str] }</code></li>
+          <li><code>commit_metadata</code> &rarr; <code>{ "sha": str, "task_id": str | null, "files_touched": [str] }</code></li>
+        </ul>
+      </li>
+    </ul>
+    <p>Total event size hard cap: <strong>4&nbsp;KiB</strong> (<code>PIPE_BUF</code> on Linux). The writer measures the encoded line and raises <code>MemoryEventTooLargeError</code> if exceeded &mdash; this preserves the POSIX atomic-append guarantee for the single <code>os.write()</code>. The curator never enforces this cap on read (forward-compat).</p>
+
+    <h3><code>MEMORY.md</code> section-marker convention</h3>
+    <p>The curator owns the contents of <code>auto:&lt;name&gt;</code> blocks. Everything else &mdash; including the file's top-of-file preamble &mdash; is untouched.</p>
+    <pre><code>&lt;!-- auto:current_focus:start --&gt;
+&lt;!-- generated by scripts/_memory_curator.py; do not hand-edit --&gt;
+(projection output)
+&lt;!-- auto:current_focus:end --&gt;
+
+&lt;!-- manual:start --&gt;
+## Recent decisions
+(human-curated content, never touched by the curator)
+&lt;!-- manual:end --&gt;</code></pre>
+    <p><strong>Fail-closed rule:</strong> if the curator cannot locate matching start/end markers for any of the auto-sections it intends to write, it exits non-zero with <code>{"error": "missing_marker", "marker": "..."}</code> on stderr and writes nothing. This protects manual content from regex-mishaps (Risk R1 below).</p>
+
+    <h3><code>.biltiq/</code> directory layout (post-task)</h3>
+    <pre><code>.biltiq/
+  memory-stream.jsonl       per-machine event log (gitignored, append-only)
+  .curator.lock             advisory flock target (zero bytes, gitignored)
+  curator-hook.log          opt-in hook log: exit code + timestamp only, no payload (gitignored)
+  auto-log/                 pre-existing; untouched by this task
+  session-memory/           pre-existing; untouched by this task
+  estimates-history.jsonl   pre-existing reflect-skill telemetry; untouched by this task</code></pre>
+  </section>
+
+  <section id="api-contract">
+    <h2>API Contract</h2>
+
+    <h3>Writer &mdash; Python</h3>
+<pre><code>from __future__ import annotations
+from typing import Any
+
+def write_event(event_type: str, payload: dict[str, Any]) -&gt; None:
+    """Append one event to .biltiq/memory-stream.jsonl.
+
+    Raises:
+      ValueError: if event_type is empty or payload is not a dict.
+      TypeError: if payload is not JSON-serialisable.
+      MemoryEventTooLargeError: if the encoded line exceeds PIPE_BUF (4096 bytes).
+      OSError: bubbled up unchanged from the filesystem layer.
+    """</code></pre>
+    <p>Repo-root resolution order: <code>os.environ["BILTIQ_REPO_ROOT"]</code> if set (tests use this) &rarr; the result of walking up from <code>Path(__file__).resolve()</code> looking for a <code>.git/</code> or <code>AGENT_RULES.md</code> marker. Never reads any other env var; never touches network. No logging at INFO level (the writer is on the hot path of every workflow command); only <code>WARNING</code>+ if the write fails.</p>
+
+    <h3>Curator &mdash; CLI</h3>
+<pre><code>$ python3 scripts/_memory_curator.py [--verbose]
+# Exit codes:
+#   0  success (sections rewritten, or no-op if stream empty)
+#   0  lock held by another process &mdash; stdout: {"skipped": "another curator already running"}
+#   1  fail-closed: missing manual/auto marker; stderr: {"error": "...", "marker": "..."}
+#   2  unrecoverable I/O error; stderr: {"error": "io", "detail": "..."}
+# stdout (success): {"events_seen": N, "events_projected": M, "sections_written": [...]}
+</code></pre>
+    <p>Note: exit <code>0</code> for the lock-contention path is deliberate &mdash; the standup command treats &ldquo;another curator is already running&rdquo; as success-with-no-work, not failure.</p>
+
+    <h3>Hook &mdash; shell</h3>
+<pre><code># scripts/hooks/post-commit.sh
+# Contract: never exits non-zero, never writes to stdout/stderr on the
+# commit's TTY, never logs payload contents.
+nohup python3 "$REPO_ROOT/scripts/_memory_curator.py" \
+  &gt;&gt; "$REPO_ROOT/.biltiq/curator-hook.log" 2&gt;&amp;1 &amp;
+exit 0</code></pre>
+
+    <h3>Installer &mdash; shell</h3>
+<pre><code>$ scripts/install-curator-hook.sh           # install (idempotent)
+$ scripts/install-curator-hook.sh --uninstall  # remove the symlink
+# Exit 0 on success; exit 1 on missing .git/ (not in a repo).
+# Never overwrites a non-symlink .git/hooks/post-commit without --force.</code></pre>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance</h2>
+    <ul>
+      <li><strong>Compliance mode</strong>: <code>on_prem_preferred</code> (per <code>AGENT_RULES.md</code> &sect; Compliance). The writer + curator are pure-Python deterministic projection; no external AI, no cloud API, no network sockets opened, no subprocess except <code>git rev-parse</code> in the installer. Trivially compliant; we state it explicitly so the on-prem-compliance scanner does not have to re-derive it on every audit.</li>
+      <li><strong>PII on the stream</strong>: payload contents are dev-authored prose (standup notes, decision rationales, blocker descriptions). They may contain <code>@</code>-mentions, internal task IDs, and free text that could include third-party names. Because <code>biltiq-privacy</code> exists to address exactly this class of leakage we eat our own dogfood: the stream stays <em>per-machine</em> (gitignored), and the committed projection (<code>MEMORY.md</code>) is curated by hand &mdash; the dev decides what crosses the trust boundary on every <code>git commit</code> they make to <code>MEMORY.md</code>.</li>
+      <li><strong>Hook log hygiene</strong>: <code>scripts/hooks/post-commit.sh</code> writes <em>only</em> the curator's stdout + stderr to <code>.biltiq/curator-hook.log</code>. The curator's stdout is structured JSON containing event counts, not payload contents. Anti-Pattern&nbsp;#5 defence: if a future curator change starts logging payload bytes, the hook log must move under the same redaction discipline as <code>core.log_filter</code> &mdash; flagged here for the eventual reviewer.</li>
+      <li><strong>Symlink install</strong>: <code>install-curator-hook.sh</code> refuses to overwrite an existing non-symlink <code>post-commit</code> hook without <code>--force</code>. Prevents silently clobbering a hook a dev or another plugin has installed.</li>
+      <li><strong>Lock-file path</strong>: <code>.biltiq/.curator.lock</code> is created with mode <code>0600</code> (writer's umask notwithstanding) so collaborators on a shared dev box cannot DOS each other's curators.</li>
+      <li><strong>No <code>shell=True</code></strong> anywhere; the installer's <code>git rev-parse</code> call uses an argv list. No user-controlled string ever reaches a shell parser.</li>
+      <li><strong>No <code>print()</code> from the writer</strong>: the writer is library-shaped (called by other tools); it uses <code>logging.getLogger(__name__)</code>. The curator's stdout is structured JSON, which is its CLI contract, not freeform output.</li>
+    </ul>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <ul>
+      <li><strong>Writer:</strong> a single <code>os.open</code> + <code>os.write</code> + <code>os.close</code> per event. No buffering, no read step. O(1) on stream size. Measured budget: &lt; 1&nbsp;ms per event on warm disk.</li>
+      <li><strong>Curator:</strong> reads the full stream into memory once, projects, writes <code>MEMORY.md</code> atomically. Budget: &lt; 200&nbsp;ms for streams up to ~10,000 events (~ a year of solo dev activity); the curator is invoked at most once per commit when the hook is enabled, and on demand otherwise &mdash; the 200&nbsp;ms cap keeps the hook from being a visible commit delay. Above ~10,000 events we will introduce incremental projection in a follow-up (out of scope for v1).</li>
+      <li><strong>Lock acquisition:</strong> <code>fcntl.flock(LOCK_EX | LOCK_NB)</code> is &lt; 1&nbsp;ms; failure path (lock held) is even faster.</li>
+      <li><strong>Hook detachment:</strong> <code>nohup &hellip; &amp;</code> returns immediately; the curator runs in the background. The hook itself adds &lt; 10&nbsp;ms to the visible commit time.</li>
+      <li><strong>No new dependencies</strong> means no import-time cost beyond stdlib; the writer's import path (<code>from scripts._memory_writer import write_event</code>) loads only <code>json</code>, <code>os</code>, <code>pathlib</code>, <code>datetime</code>.</li>
+    </ul>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <ol style="padding-left: 1.4rem;">
+      <li><strong>Step 1 &mdash; scaffold scripts.</strong> Add <code>scripts/__init__.py</code>, <code>scripts/_memory_writer.py</code>, <code>scripts/_memory_curator.py</code>. Delete the stale <code>.biltiq/curator.lock</code>. Add the writer + curator tests. Run them green. This satisfies AC1&ndash;AC6 and unblocks the <code>biltiq-engineering</code> plugin's <code>/biltiq-engineering:standup</code> "After posting" call &mdash; from this commit forward, every workflow command that emits an event starts persisting state to the stream.</li>
+      <li><strong>Step 2 &mdash; documentation hooks.</strong> Add the <code>AGENT_RULES.md</code> &sect; Memory section. Surround manual content in <code>MEMORY.md</code> with the markers. Update <code>.gitignore</code> and <code>docs/architecture/stack.md</code>. Satisfies AC7.</li>
+      <li><strong>Step 3 &mdash; opt-in hook.</strong> Add <code>scripts/hooks/post-commit.sh</code> and <code>scripts/install-curator-hook.sh</code> with their tests. Satisfies AC8 + AC9. The dev runs the installer manually when they want background curation on every commit; CI does not install it.</li>
+      <li><strong>Acceptance check &mdash; AC5.</strong> After Step 1 lands, invoke <code>/biltiq-engineering:standup</code> in a real session; confirm an event lands in the stream and the curator completes without raising. This is a manual gate before closing the task.</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p>Revert the merge commit. The stream file (<code>.biltiq/memory-stream.jsonl</code>) is gitignored and per-machine; reverting the code leaves the stream in place but it becomes inert &mdash; no slash command tries to read or append once <code>scripts/_memory_writer.py</code> is gone, because the upstream plugin's call sites guard with <code>try: from scripts._memory_writer import write_event &hellip; except ImportError: pass</code>. <code>MEMORY.md</code> reverts to whatever content was in the commit prior; manual sections are preserved by virtue of being in a regular text file. Rollback is non-destructive.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Risk</th><th>Likelihood</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>R1</td>
+          <td>MEMORY.md auto-section regeneration corrupts manual content if start/end markers are missing or mis-paired.</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Curator fails closed: when any expected marker pair is missing, exit non-zero, write nothing, surface the marker name in stderr. Test <code>test_memory_curator.py::test_missing_marker_fails_closed</code> covers this directly. The first curator run after Step 2 lands is the highest-risk window &mdash; the dev verifies <code>MEMORY.md</code> by hand after the first commit that runs the curator.</td>
+        </tr>
+        <tr>
+          <td>R2</td>
+          <td>Lock file (<code>.biltiq/.curator.lock</code>) is orphaned by a crashed curator.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td><code>fcntl.flock</code> releases the lock automatically when the holding process exits or is killed &mdash; no manual cleanup needed. Documented in the curator module's top-of-file docstring so the dev does not waste time hunting a phantom stale lock.</td>
+        </tr>
+        <tr>
+          <td>R3</td>
+          <td>The opt-in <code>post-commit</code> hook swallows a curator failure silently and the dev never notices state is being lost.</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Hook redirects curator stdout/stderr to <code>.biltiq/curator-hook.log</code> (append). The dev's standup template includes a one-line "tail -n 5 .biltiq/curator-hook.log" check. CI does not enable the hook; only the dev who explicitly opts in is exposed. If a follow-up wants visible failures, that is a separate task adding a one-line warning to the next <code>git status</code> &mdash; out of scope here.</td>
+        </tr>
+        <tr>
+          <td>R4</td>
+          <td>Collision with the upstream <code>biltiq-engineering</code> plugin's own auto-trigger paths.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>The plugin's standup command already calls <code>write_event</code> + <code>python3 scripts/_memory_curator.py</code> in series; our lock serialises any concurrent invocation safely (second caller gets the skipped sentinel). The hook variant adds at most one curator process per commit; the lock makes it safe to overlap with a manual curator run. AC3 + AC6(d) tests cover this.</td>
+        </tr>
+        <tr>
+          <td>R5</td>
+          <td>Stream growth degrades curator latency past the 200&nbsp;ms budget.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Budget headroom: ~10,000 events. At a realistic emission rate (~ 20 events / dev-day) we hit that in ~500 working days. Follow-up task to introduce incremental projection + archival is tracked under the existing &ldquo;archive promotion&rdquo; out-of-scope item in <code>spec.html</code>.</td>
+        </tr>
+        <tr>
+          <td>R6</td>
+          <td>POSIX atomic-append guarantee depends on payload size staying under <code>PIPE_BUF</code>; a careless caller could pass an oversize blob.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Writer measures the encoded line and raises <code>MemoryEventTooLargeError</code> with the offending event type and byte count in the message. Test <code>test_memory_writer.py::test_oversize_raises</code> covers this.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-18</td>
+          <td>all</td>
+          <td>Initial design.</td>
+          <td>BILTIQ-003</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

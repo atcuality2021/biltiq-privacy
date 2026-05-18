@@ -12,6 +12,8 @@
 .biltiq/memory-stream.jsonl
 .biltiq/memory-archive/
 .biltiq/session-memory/
+.biltiq/.curator.lock
+.biltiq/curator-hook.log
 
 # biltiq-graph local SQLite index (M14)
 .biltiq-graph/
