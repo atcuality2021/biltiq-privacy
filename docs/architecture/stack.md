@@ -67,6 +67,7 @@ Extension points used:
 | Default detector | `biltiq_privacy.detectors.presidio_backend.PresidioDetector` | Wraps `AnalyzerEngine`. |
 | Regime ABC | `biltiq_privacy.regimes.base.Regime` | Implement to add a new regulatory framework. |
 | Recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=["india"])` | Convenience factory; assembles a `RecognizerRegistry`. |
+| Memory-spine writer | `scripts._memory_writer.write_event(event_type, payload)` | POSIX-atomic append to `.biltiq/memory-stream.jsonl`; consumed by `scripts/_memory_curator.py` to project session signal into `MEMORY.md`. See `AGENT_RULES.md` § Memory. |
 
 [PROJECT: add new internal modules here in the same PR they're created.]
 

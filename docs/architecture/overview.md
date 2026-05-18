@@ -53,6 +53,9 @@ biltiq-privacy/                                    (monorepo)
 - Wrap `/anonymize` and `/validate` into language-native API surfaces.
 - Generated from the OpenAPI spec emitted by FastAPI.
 
+**`scripts/` (tooling tier — outside `pyproject.toml`):**
+`scripts/_memory_writer.py` and `scripts/_memory_curator.py` form the **memory spine** — a per-machine append-only event stream (`.biltiq/memory-stream.jsonl`) plus a projector that splice-rewrites curator-owned blocks in `MEMORY.md`. Not part of the published `biltiq-privacy` wheel; consumed only by repo-local engineering skills (`/biltiq-engineering:standup`, `/biltiq-engineering:reflect`) and the opt-in `post-commit` hook. Contract documented in `AGENT_RULES.md` § Memory.
+
 ## Data flow
 
 ```
