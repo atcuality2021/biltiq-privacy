@@ -338,6 +338,18 @@
           <td>Build-time correction: replaced <code>tests/scripts/__init__.py</code> CREATE with a repo-root <code>conftest.py</code> CREATE. The marker file would have shadowed the top-level <code>scripts</code> package under pytest's <code>prepend</code> import mode; the rootless test layout + root conftest's <code>sys.path</code> insert is the correct shape for a repo without a root <code>pyproject.toml</code>. All 8 writer tests pass (plan said 7; split the dual-assertion bullet into two test functions for clarity &mdash; same coverage, no scope change).</td>
           <td>Build observation, Step 1</td>
         </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>Step 5</td>
+          <td>Build-time correction propagated from Step 4: the <code>## Memory</code> table I added to <code>AGENT_RULES.md</code> in Step 4 named "post-commit hook (opt-in)" as the producer of <code>commit_metadata</code> events. The design's hook is just <code>nohup curator &amp; exit 0</code>; it does not emit events. Step 5 replaced the misleading Producer column with a paragraph enumerating real v1 producers (standup, reflect) and noting that <code>commit_metadata</code> has no in-repo producer yet.</td>
+          <td>Build observation, Step 5</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>Step 6</td>
+          <td>AC5 manual gate verified end-to-end. Standup composed cleanly; one <code>standup_post</code> event landed in the stream; curator stdout <code>{"events_seen": 1, "events_projected": 1, "sections_written": ["current_focus", "session_log"]}</code>; <code>auto:current_focus</code> rendered today's <code>doing</code> list; manual block sha256 unchanged (<code>b14d890c74f20e4c&hellip;</code>, 5578 bytes both before and after the curator run). Synthetic verification artifacts (stream + MEMORY.md auto-blocks) cleaned up post-gate so the commit history does not carry test signal. <strong>Finding:</strong> the upstream <code>biltiq-engineering</code> plugin's standup skill text writes <code>standup_post</code> payloads with keys <code>{yesterday_summary, today_task, branch, blockers, trigger}</code> while the spec's API contract specifies <code>{date, did, doing, blockers}</code>. The curator uses <code>.get(..., "?")</code> defensively so it does not crash on the upstream shape, but renders <code>**Today (?):**</code> with no items. Recommendation for <code>reflect.html</code>: file a follow-up either to update the upstream skill or to teach the curator to read both shapes.</td>
+          <td>Build observation, Step 6 (AC5)</td>
+        </tr>
       </tbody>
     </table>
   </section>

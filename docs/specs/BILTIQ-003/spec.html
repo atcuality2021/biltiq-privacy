@@ -121,39 +121,39 @@
     <h2>Acceptance Criteria</h2>
     <ul class="ac-list">
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC1</strong> &mdash; <code>scripts/_memory_writer.py</code> exposes <code>write_event(event_type: str, payload: dict) -&gt; None</code> that appends one JSON line to <code>.biltiq/memory-stream.jsonl</code> with fields: <code>ts</code> (ISO-8601 UTC), <code>event_type</code>, <code>payload</code>, <code>schema_version</code>. Append is atomic (write to temp + rename, or <code>O_APPEND</code> with a single <code>write()</code>).</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC2</strong> &mdash; <code>scripts/_memory_curator.py</code> reads the memory-stream, projects events into auto-curated <code>MEMORY.md</code> sections, and writes the result. Manual sections (delimited by HTML comment markers <code>&lt;!-- manual:start --&gt;</code> / <code>&lt;!-- manual:end --&gt;</code>) are preserved verbatim across runs.</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC3</strong> &mdash; The curator uses a file-based lock (<code>.biltiq/.curator.lock</code> via <code>fcntl.flock</code>). If a second invocation finds the lock held, it exits cleanly with <code>{&quot;skipped&quot;: &quot;another curator already running&quot;}</code> &mdash; the standup command relies on this exact contract.</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC4</strong> &mdash; Canonical event types for v1: <code>standup_post</code>, <code>decision_made</code>, <code>blocker_logged</code>, <code>reflect_note</code>, <code>commit_metadata</code>. Unknown event types are written to the stream but ignored by the curator (forward-compat).</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC5</strong> &mdash; <code>/biltiq-engineering:standup</code> runs end-to-end without error: the &ldquo;After posting&rdquo; <code>write_event(&quot;standup_post&quot;, ...)</code> + <code>python3 scripts/_memory_curator.py</code> calls both succeed on a clean repo.</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC6</strong> &mdash; Tests in <code>tests/scripts/</code> cover: (a) <code>write_event</code> append + JSON round-trip, (b) curator regenerates auto-sections from the stream, (c) manual sections survive a curator run unchanged, (d) lock contention path returns the skipped sentinel without raising, (e) unknown event type is tolerated.</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC7</strong> &mdash; <code>.biltiq/memory-stream.jsonl</code> is gitignored; <code>MEMORY.md</code> is committed. Documented in <code>AGENT_RULES.md</code> &sect; Memory.</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC8</strong> &mdash; An opt-in <code>post-commit</code> hook is provided at <code>scripts/hooks/post-commit.sh</code>. It is <em>not</em> installed by default; the dev enables it via <code>scripts/install-curator-hook.sh</code> (which symlinks or copies into <code>.git/hooks/post-commit</code>). When enabled, every successful commit runs the curator in the background &mdash; failures are logged to <code>.biltiq/curator-hook.log</code> but never block the commit.</span>
       </li>
       <li class="ac-item">
-        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-badge ac-done">DONE</span>
         <span class="ac-label"><strong>AC9</strong> &mdash; Tests cover the hook&rsquo;s opt-in behaviour: install script idempotent, hook runs curator when enabled, no-op when disabled, hook failure does not abort the commit.</span>
       </li>
     </ul>
