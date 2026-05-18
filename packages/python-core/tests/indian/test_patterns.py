@@ -34,15 +34,16 @@ logger = logging.getLogger(__name__)
 
 # Entity names mirror the keys of PATTERNS and the {ENTITY}_VALID /
 # {ENTITY}_FALSE_POSITIVES naming convention in tests.fixtures.india.
+# Per spec.html AC2 + design.html § Eight Entity Types.
 ENTITIES: tuple[str, ...] = (
     "AADHAAR",
-    "ABHA",
     "PAN",
+    "ABHA",
     "GSTIN",
     "VOTER_ID",
-    "DRIVING_LICENSE",
-    "INDIAN_PASSPORT",
-    "INDIAN_PHONE",
+    "IFSC",
+    "PHONE_IN",
+    "MEDICAL_REG",
 )
 
 

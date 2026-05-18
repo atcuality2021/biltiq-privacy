@@ -153,7 +153,7 @@
       </div>
       <p class="step-meta"><strong>Rationale:</strong> Fixtures land before tests + before patterns. Test code in Step 3 references these tuples by name; defining empty <code>Final[tuple[str, ...]]</code> tuples now lets RED tests be written without dev-paste blocking commit. Step 3 then fills both the regex strings AND the tuple values in the same logical commit (DEV PASTE step).</p>
       <p class="step-meta"><strong>Files (CREATE):</strong>
-        <code>packages/python-core/tests/fixtures/india.py</code> — 16 typed tuples (8 entities × 2 lists: <code>{ENTITY}_VALID</code> and <code>{ENTITY}_FALSE_POSITIVES</code>), all initially empty. Entity names per design.html § Eight Entity Types: AADHAAR, ABHA, PAN, GSTIN, VOTER_ID, DRIVING_LICENSE, INDIAN_PASSPORT, INDIAN_PHONE.
+        <code>packages/python-core/tests/fixtures/india.py</code> — 16 typed tuples (8 entities × 2 lists: <code>{ENTITY}_VALID</code> and <code>{ENTITY}_FALSE_POSITIVES</code>), all initially empty. Entity names per spec.html AC2 + design.html § Eight Entity Types: AADHAAR, PAN, ABHA, GSTIN, VOTER_ID, IFSC, PHONE_IN, MEDICAL_REG.
       </p>
       <div class="step-tests">
         <strong>Tests:</strong>

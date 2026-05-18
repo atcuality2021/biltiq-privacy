@@ -44,15 +44,17 @@ GSTIN_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
 VOTER_ID_VALID: Final[tuple[str, ...]] = ()
 VOTER_ID_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
 
-# Driving Licence — state-prefixed licence number issued by RTOs.
-DRIVING_LICENSE_VALID: Final[tuple[str, ...]] = ()
-DRIVING_LICENSE_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
-
-# Indian Passport — passport number issued by MEA Passport Seva.
-INDIAN_PASSPORT_VALID: Final[tuple[str, ...]] = ()
-INDIAN_PASSPORT_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
+# IFSC — Indian Financial System Code (RBI bank branch identifier).
+# 11 characters: 4 letters + '0' + 6 alphanumeric.
+IFSC_VALID: Final[tuple[str, ...]] = ()
+IFSC_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
 
 # Indian Phone — mobile number (10 digits, leading 6/7/8/9) with optional
-# country-code prefix.
-INDIAN_PHONE_VALID: Final[tuple[str, ...]] = ()
-INDIAN_PHONE_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
+# +91 country-code prefix. Spec key: PHONE_IN.
+PHONE_IN_VALID: Final[tuple[str, ...]] = ()
+PHONE_IN_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
+
+# Medical Registration — Indian Medical Council Registration Number
+# (council-prefixed; high false-positive baseline by design).
+MEDICAL_REG_VALID: Final[tuple[str, ...]] = ()
+MEDICAL_REG_FALSE_POSITIVES: Final[tuple[str, ...]] = ()
