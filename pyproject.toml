@@ -94,11 +94,21 @@ constraint-dependencies = ["spacy<3.8.14"]
 
 # Repo-root pytest config so `pytest` from the repo root collects both packages
 # AND the repo-level tooling tests under tests/scripts/ (BILTIQ-003 memory-spine).
+#
 # `--import-mode=importlib` is required because packages/python-core/tests/
 # and packages/python-server/tests/ both contain a file named test_import.py;
 # under the legacy `prepend` import mode pytest collides on the duplicate module
 # name `tests.test_import`. importlib mode loads each test file as a unique
 # anonymous module and is the pytest-recommended import mode for new projects.
+#
+# `pythonpath` puts both package roots on sys.path so cross-test imports
+# (e.g. `from tests.fixtures import india` in packages/python-core/tests/indian/)
+# resolve under repo-root pytest. This works in concert with the two `tests/`
+# directories being PEP 420 namespace packages (no `__init__.py`) — the
+# namespace merges contributions from every `packages/<pkg>/tests/` on
+# sys.path, so `tests.fixtures` (from python-core) is reachable without being
+# masked by python-server's `tests/`. See BILTIQ-002 reflect.html § test-harness.
+#
 # test-scaffolds/ is intentionally excluded — those are language-agnostic
 # placeholders for SDK tests, not part of the live Python suite.
 [tool.pytest.ini_options]
@@ -107,4 +117,15 @@ testpaths = [
     "packages/python-server/tests",
     "tests/scripts",
 ]
+pythonpath = [
+    "packages/python-core",
+    "packages/python-server",
+]
+# pytest 8.1+ — switches importlib-mode parent-package discovery from
+# directory-walk synthesis to Python's full import system. Required so the
+# regular-package `packages/python-core/tests/__init__.py` is honoured under
+# repo-root pytest (without this, pytest synthesises a `tests` namespace
+# pointing only at the repo-root `tests/` dir and `tests.fixtures` resolves to
+# nothing). Default is False; we opt in.
+consider_namespace_packages = true
 addopts = "-ra --strict-markers --import-mode=importlib"

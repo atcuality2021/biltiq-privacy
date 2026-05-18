@@ -101,6 +101,21 @@ Tests must:
 - Use synthetic PII only — never real identifiers, never copied from real documents.
 - Hit ≥ 90% line coverage on `core/` and `recognisers/`.
 
+### Running tests
+
+Two equivalent invocations:
+
+- **Per-package (what CI runs):** `pytest packages/python-core/tests` or `pytest packages/python-server/tests`. CI's matrix uses this form (`pytest packages/${{ matrix.package }}/tests/`).
+- **Repo-root (developer convenience):** bare `pytest` from `/`. Collects both package suites plus `tests/scripts/` (BILTIQ-003 memory-spine).
+
+The repo-root invocation relies on three pieces of plumbing (added in BILTIQ-002 Step 9):
+
+1. `[tool.pytest.ini_options].pythonpath` in `/pyproject.toml` puts both `packages/<pkg>/` roots on `sys.path` so `from biltiq_privacy.indian...` and `from tests.fixtures...` resolve.
+2. `consider_namespace_packages = true` switches pytest's `--import-mode=importlib` from "synthesise parent package from directory walk" to "use Python's full import system" — required so the regular-package `packages/python-core/tests/__init__.py` is honoured. Without it, pytest synthesises a `tests` namespace pointing only at `<repo>/tests/` (which holds `tests/scripts/`) and `tests.fixtures` resolves to nothing.
+3. `packages/python-core/tests/__init__.py` is a regular package (it owns the `tests.fixtures.india` module used by `test_patterns.py`). `packages/python-server/tests/` and `tests/scripts/` remain PEP 420 namespace dirs — pytest's importlib mode loads their test files anonymously, so they don't need `__init__.py`.
+
+If you add a new package under `packages/`, append its root to the `pythonpath` list and decide whether its `tests/` needs an `__init__.py` (only if other test files import from it via a `tests.<subpath>` path).
+
 ---
 
 ## Deprecated
