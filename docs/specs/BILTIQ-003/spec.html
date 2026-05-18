@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: Scaffold memory-spine tooling</title>
+  <style>
+    :root {
+      --color-shipped:   #16a34a;
+      --color-wip:       #d97706;
+      --color-blocker:   #dc2626;
+      --color-ac-open:   #d97706;
+      --color-ac-done:   #16a34a;
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    p, li { color: var(--color-text); margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    .ac-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+    .ac-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius);
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+    }
+    .ac-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ac-open  { background: #fef3c7; color: var(--color-ac-open); border: 1px solid #fcd34d; }
+    .ac-done  { background: #dcfce7; color: var(--color-ac-done); border: 1px solid #86efac; }
+    .ac-label { font-size: 0.85rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--color-border);
+    }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: Scaffold memory-spine tooling</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-003</dd></div>
+      <div><dt>Owner</dt><dd>@don007rvs</dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+      <div><dt>Wall-clock</dt><dd>L</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Iteration cycles</dt><dd>1</dd></div>
+      <div><dt>Human review (min)</dt><dd>30</dd></div>
+      <div><dt>ADR</dt><dd><a href="../../adr/0001-memory-spine-pattern.md">ADR-0001</a></dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.7 (1M context)</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>Several <code>biltiq-engineering</code> workflow commands (notably <code>/biltiq-engineering:standup</code>, and likely <code>/biltiq-engineering:commit</code>, <code>/biltiq-engineering:reflect</code>, and the auto-trigger paths) call into <code>scripts/_memory_writer.py::write_event()</code> and <code>scripts/_memory_curator.py</code> for the &ldquo;After posting&rdquo; memory-spine emission step. Neither script exists in this repo yet &mdash; <code>BILTIQ-000</code> bootstrapped only the repo structure. Result: every workflow command that tries to emit a structured event silently no-ops, and <code>MEMORY.md</code> never receives the canonical event stream it was designed to be regenerated from. Across sessions, decisions, blockers, and standup history are lost or remembered only in free-form prose, which the curator cannot safely round-trip.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>Engineering team (currently @don007rvs solo, eventually shared) gets a working memory-spine for <code>biltiq-privacy</code>:</p>
+    <ul>
+      <li>Standups, ADRs, and reflection notes append to <code>.biltiq/memory-stream.jsonl</code> as structured events.</li>
+      <li>The curator rebuilds <code>MEMORY.md</code> auto-curated sections from those events while preserving manually-edited sections verbatim.</li>
+      <li>Workflow commands that reference the memory-spine stop being silent no-ops.</li>
+      <li>Across sessions, blocker patterns and recent-decision context survive without manual MEMORY.md maintenance.</li>
+    </ul>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC1</strong> &mdash; <code>scripts/_memory_writer.py</code> exposes <code>write_event(event_type: str, payload: dict) -&gt; None</code> that appends one JSON line to <code>.biltiq/memory-stream.jsonl</code> with fields: <code>ts</code> (ISO-8601 UTC), <code>event_type</code>, <code>payload</code>, <code>schema_version</code>. Append is atomic (write to temp + rename, or <code>O_APPEND</code> with a single <code>write()</code>).</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC2</strong> &mdash; <code>scripts/_memory_curator.py</code> reads the memory-stream, projects events into auto-curated <code>MEMORY.md</code> sections, and writes the result. Manual sections (delimited by HTML comment markers <code>&lt;!-- manual:start --&gt;</code> / <code>&lt;!-- manual:end --&gt;</code>) are preserved verbatim across runs.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC3</strong> &mdash; The curator uses a file-based lock (<code>.biltiq/.curator.lock</code> via <code>fcntl.flock</code>). If a second invocation finds the lock held, it exits cleanly with <code>{&quot;skipped&quot;: &quot;another curator already running&quot;}</code> &mdash; the standup command relies on this exact contract.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC4</strong> &mdash; Canonical event types for v1: <code>standup_post</code>, <code>decision_made</code>, <code>blocker_logged</code>, <code>reflect_note</code>, <code>commit_metadata</code>. Unknown event types are written to the stream but ignored by the curator (forward-compat).</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC5</strong> &mdash; <code>/biltiq-engineering:standup</code> runs end-to-end without error: the &ldquo;After posting&rdquo; <code>write_event(&quot;standup_post&quot;, ...)</code> + <code>python3 scripts/_memory_curator.py</code> calls both succeed on a clean repo.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC6</strong> &mdash; Tests in <code>tests/scripts/</code> cover: (a) <code>write_event</code> append + JSON round-trip, (b) curator regenerates auto-sections from the stream, (c) manual sections survive a curator run unchanged, (d) lock contention path returns the skipped sentinel without raising, (e) unknown event type is tolerated.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC7</strong> &mdash; <code>.biltiq/memory-stream.jsonl</code> is gitignored; <code>MEMORY.md</code> is committed. Documented in <code>AGENT_RULES.md</code> &sect; Memory.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC8</strong> &mdash; An opt-in <code>post-commit</code> hook is provided at <code>scripts/hooks/post-commit.sh</code>. It is <em>not</em> installed by default; the dev enables it via <code>scripts/install-curator-hook.sh</code> (which symlinks or copies into <code>.git/hooks/post-commit</code>). When enabled, every successful commit runs the curator in the background &mdash; failures are logged to <code>.biltiq/curator-hook.log</code> but never block the commit.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC9</strong> &mdash; Tests cover the hook&rsquo;s opt-in behaviour: install script idempotent, hook runs curator when enabled, no-op when disabled, hook failure does not abort the commit.</span>
+      </li>
+    </ul>
+    <!-- To mark an AC done: change class ac-open → ac-done and text OPEN → DONE -->
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>Compact-then-brief auto-trigger (the hook that fires <code>write_event</code> + curator on session compaction) &mdash; that&rsquo;s tracked in the <code>biltiq-engineering</code> plugin as <code>BILTIQ-017g-phase2</code>; this task only ships the local Python core it depends on.</li>
+      <li>Archive promotion from <code>.biltiq/memory-archive/</code> to <code>docs/memory-archive/</code> &mdash; deferred; the <code>archive-commit</code> skill handles it once the stream exists.</li>
+      <li>LLM-based summarisation of events; the curator is purely deterministic projection.</li>
+      <li>Cross-repo memory-spine federation.</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li><strong>OQ1</strong> &mdash; <span style="color: var(--color-ac-done);">RESOLVED 2026-05-18:</span> Stream lives repo-local at <code>.biltiq/memory-stream.jsonl</code>, gitignored. <code>MEMORY.md</code> (committed) is the cross-machine canonical projection; the per-machine stream is a regenerable buffer.</li>
+      <li><strong>OQ2</strong> &mdash; <span style="color: var(--color-ac-done);">RESOLVED 2026-05-18:</span> Both modes ship. On-demand curator invocation is the default path; an opt-in <code>post-commit</code> hook is provided but not installed by default (see AC8). Auto-trigger on session compaction remains out of scope (BILTIQ-017g-phase2).</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Section</th>
+          <th>What Changed</th>
+          <th>Trigger</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-18</td>
+          <td>all</td>
+          <td>Initial draft</td>
+          <td>BILTIQ-003</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>acceptance-criteria, open-questions</td>
+          <td>Resolved OQ1 (repo-local stream) and OQ2 (both on-demand + opt-in hook); added AC8 + AC9 for the hook variant.</td>
+          <td>BILTIQ-003</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>meta</td>
+          <td>Wall-clock S &rarr; L, Tokens S &rarr; M, Human review 15 &rarr; 30 min after per-step compose check during plan-reviewer (5 implementation steps + 1 manual gate, ~260 min). Linked ADR-0001.</td>
+          <td>plan-reviewer</td>
+        </tr>
+        <!-- Agent appends a new row here on every edit. Never delete rows. -->
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

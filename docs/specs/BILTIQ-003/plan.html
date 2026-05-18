@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan: Scaffold memory-spine tooling</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-step-bg:   #f0fdf4;
+      --color-step-bdr:  #bbf7d0;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
+    .step {
+      border: 1px solid var(--color-step-bdr);
+      background: var(--color-step-bg);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .step-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+    .step-title { font-weight: 700; font-size: 0.95rem; }
+    .band {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #7dd3fc;
+    }
+    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
+    .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
+    .step-tests strong { color: var(--color-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .risk-h { color: var(--color-risk-high); font-weight: 700; }
+    .risk-m { color: var(--color-risk-med);  font-weight: 700; }
+    .risk-l { color: var(--color-risk-low);  font-weight: 700; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Plan: Scaffold memory-spine tooling</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-003</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-003-memory-spine</dd></div>
+      <div><dt>Base</dt><dd>main</dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+    </dl>
+  </header>
+
+  <section id="steps">
+    <h2>Build Sequence</h2>
+    <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
+      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding.
+    </p>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 1 &mdash; Writer module + tests; delete stale lock</span>
+        <span class="band">M &middot; ~45 min</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> The writer is the smallest, most isolated unit. Atomic-append correctness is the load-bearing claim of the whole task &mdash; nail it first so every later step inherits a known-good event log. Deleting the stale <code>.biltiq/curator.lock</code> here keeps the cleanup adjacent to the file's first real use and out of the doc step's diff.</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>scripts/__init__.py</code>, <code>scripts/_memory_writer.py</code>, <code>tests/scripts/__init__.py</code>, <code>tests/scripts/conftest.py</code>, <code>tests/scripts/test_memory_writer.py</code>.</p>
+      <p class="step-meta"><strong>Files (DELETE):</strong> <code>.biltiq/curator.lock</code> (stale zero-byte legacy from BILTIQ-000 onboarding; canonical path is dot-prefixed <code>.biltiq/.curator.lock</code>, created on first curator run).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_write_event_appends_one_valid_json_line</code> &mdash; happy path (<strong>AC1</strong>).</li>
+          <li><code>test_write_event_concurrent_writers_no_interleave</code> &mdash; 4 threads &times; 50 events &rarr; 200 valid lines, no garbled records (<strong>AC1</strong>).</li>
+          <li><code>test_write_event_required_fields_present</code> &mdash; <code>ts</code>, <code>event_type</code>, <code>payload</code>, <code>schema_version</code> on every line (<strong>AC1</strong>).</li>
+          <li><code>test_write_event_rejects_oversize_payload</code> &mdash; encoded line &gt; <code>PIPE_BUF</code> raises <code>MemoryEventTooLargeError</code> (<strong>AC1</strong>).</li>
+          <li><code>test_write_event_rejects_empty_event_type</code> and <code>test_write_event_rejects_non_dict_payload</code> &mdash; input validation (<strong>AC1</strong>).</li>
+          <li><code>test_write_event_unknown_type_accepted</code> &mdash; arbitrary event types are written (curator-side filtering, not writer-side; <strong>AC4</strong>).</li>
+          <li><code>test_write_event_uses_BILTIQ_REPO_ROOT</code> &mdash; conftest fixture redirection works (<strong>AC6a</strong>).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/test_memory_writer.py -v</code> &mdash; all GREEN. Verify <code>.biltiq/curator.lock</code> is gone via <code>ls -la .biltiq/</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 2 &mdash; Curator skeleton (lock + I/O + CLI contract)</span>
+        <span class="band">M &middot; ~45 min</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Build the curator's outer shell &mdash; argparse, lock acquisition, stream reading, atomic MEMORY.md write &mdash; before the projection logic. The CLI exit-code contract (especially the lock-contention path) is consumed verbatim by the upstream <code>biltiq-engineering</code> plugin, so it gets its own commit and its own test class.</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>scripts/_memory_curator.py</code> (skeleton: argparse, <code>fcntl.flock</code> acquire, stream read, atomic <code>os.replace</code> write of MEMORY.md unchanged, exit-code branches). Projection logic is a stub returning the file unchanged.</p>
+      <p class="step-meta"><strong>Files (MODIFY):</strong> <code>tests/scripts/conftest.py</code> (extend <code>tmp_repo</code> fixture with a seeded <code>MEMORY.md</code> containing both auto and manual marker pairs).</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>tests/scripts/test_memory_curator_io.py</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_curator_acquires_lock_and_releases_on_exit</code> &mdash; <code>fcntl.flock</code> is held during run, released after (<strong>AC3</strong>).</li>
+          <li><code>test_curator_lock_contention_prints_skipped_sentinel</code> &mdash; second concurrent invocation prints exactly <code>{"skipped": "another curator already running"}</code> on stdout and exits <code>0</code> (<strong>AC3</strong>, <strong>AC6d</strong>).</li>
+          <li><code>test_curator_lock_file_created_with_mode_0600</code> &mdash; security posture from design &sect; Security R3.</li>
+          <li><code>test_curator_atomic_write_uses_replace</code> &mdash; assert <code>MEMORY.md</code> is updated via temp + <code>os.replace</code> (no partial-write window).</li>
+          <li><code>test_curator_empty_stream_no_op</code> &mdash; first-run-of-fresh-repo case; exits <code>0</code>, MEMORY.md unchanged byte-for-byte (<strong>AC2</strong>).</li>
+          <li><code>test_curator_emits_structured_stdout_on_success</code> &mdash; <code>{"events_seen": N, "events_projected": M, "sections_written": [...]}</code> (<strong>AC3</strong>).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/ -v</code> &mdash; all GREEN. Manually verify <code>python3 scripts/_memory_curator.py</code> exits <code>0</code> in the repo root (real <code>.biltiq/</code>, empty stream).</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 3 &mdash; Curator projection + fail-closed marker handling</span>
+        <span class="band">M &middot; ~50 min</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> The projection is the only code path that <em>writes content</em> to MEMORY.md. It must be the most tested part of the codebase. Fail-closed marker handling protects manual content &mdash; <strong>Risk R1</strong> in the design &mdash; and gets its own dedicated test.</p>
+      <p class="step-meta"><strong>Files (MODIFY):</strong> <code>scripts/_memory_curator.py</code> (replace stub projection with the real <code>standup_post</code> / <code>blocker_logged</code> / <code>commit_metadata</code> / <code>reflect_note</code> projectors; add marker locator with fail-closed branch).</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>tests/scripts/test_memory_curator_projection.py</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_projects_standup_post_into_current_focus</code> &mdash; one event in, expected text in the <code>auto:current_focus</code> block (<strong>AC2</strong>).</li>
+          <li><code>test_projects_commit_metadata_into_code_areas</code> &mdash; <strong>AC2</strong>.</li>
+          <li><code>test_projects_blocker_logged_alongside_standup</code> &mdash; multi-event projection ordering (<strong>AC2</strong>).</li>
+          <li><code>test_manual_section_survives_curator_run</code> &mdash; arbitrary manual content byte-equal across 1 run (<strong>AC3</strong>, <strong>AC6c</strong>).</li>
+          <li><code>test_manual_section_survives_repeated_runs</code> &mdash; idempotent across 3 runs (<strong>AC3</strong>).</li>
+          <li><code>test_missing_auto_marker_fails_closed</code> &mdash; remove <code>auto:current_focus:end</code> &rarr; exit <code>1</code>, stderr <code>{"error": "missing_marker", ...}</code>, MEMORY.md unchanged (<strong>AC3</strong>, design Risk R1).</li>
+          <li><code>test_missing_manual_marker_fails_closed</code> &mdash; symmetric (<strong>AC3</strong>).</li>
+          <li><code>test_unknown_event_type_skipped_not_failed</code> &mdash; <code>{"event_type": "future_thing"}</code> &rarr; written to stream by writer, ignored by curator, exit <code>0</code> (<strong>AC4</strong>, <strong>AC6e</strong>).</li>
+          <li><code>test_higher_schema_version_skipped</code> &mdash; forward-compat: <code>schema_version: 2</code> event is ignored, exit <code>0</code>.</li>
+          <li><code>test_curator_under_200ms_for_1000_events</code> &mdash; performance smoke test; design budget is &lt; 200 ms for streams up to ~10k events. Skip-by-default with a <code>BILTIQ_PERF_TEST=1</code> env gate to keep regular CI fast (<strong>AC6b</strong>).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/ -v</code> &mdash; all GREEN. Manually inspect a sample MEMORY.md round-trip: write 2 events, run curator, <code>diff</code> the manual section before/after &mdash; must be identical.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 4 &mdash; Documentation + MEMORY.md markers + .gitignore</span>
+        <span class="band">S &middot; ~30 min</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Only safe to land <em>after</em> the curator's projection + fail-closed code is green, because the first time the curator runs against the real <code>MEMORY.md</code> it must already have markers and the curator must be trustworthy. Bundled with the doc updates that announce the new contract.</p>
+      <p class="step-meta"><strong>Files (MODIFY):</strong></p>
+      <ul style="font-size:0.85rem; padding-left:1.4rem;">
+        <li><code>AGENT_RULES.md</code> &mdash; add <code>## Memory</code> section documenting stream location, public API, event-type vocabulary, opt-in hook, manual-vs-auto contract (<strong>AC7</strong>).</li>
+        <li><code>MEMORY.md</code> &mdash; surround existing manually-curated content with <code>&lt;!-- manual:start --&gt;</code>&hellip;<code>&lt;!-- manual:end --&gt;</code>; add empty <code>auto:current_focus</code>, <code>auto:code_areas</code>, <code>auto:session_log</code> blocks (<strong>AC7</strong>).</li>
+        <li><code>.gitignore</code> &mdash; add explicit lines for <code>.biltiq/.curator.lock</code> and <code>.biltiq/curator-hook.log</code> beneath the existing <code>.biltiq/</code> wildcard (documentation parity, no behaviour change).</li>
+        <li><code>docs/architecture/stack.md</code> &mdash; append row under <em>Internal modules</em> for <code>scripts._memory_writer.write_event</code>.</li>
+        <li><code>docs/architecture/overview.md</code> &mdash; one paragraph under <em>Components</em> describing the <code>scripts/</code> tier and its exclusion from <code>pyproject.toml</code>.</li>
+      </ul>
+      <div class="step-tests">
+        <strong>Tests:</strong> none new. Structural correctness is verified by running <code>python3 scripts/_memory_curator.py</code> against the updated MEMORY.md and confirming no <code>missing_marker</code> error.
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>python3 scripts/_memory_curator.py</code> exits <code>0</code> on the real repo; <code>git diff MEMORY.md</code> after the curator runs is empty (no auto-content yet because stream is empty); manual section byte-identical to pre-Step 4 content (verified with <code>git show HEAD~1:MEMORY.md | diff -</code>).</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 5 &mdash; Opt-in post-commit hook + installer + tests</span>
+        <span class="band">M &middot; ~45 min</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Strictly additive; nothing in Steps 1&ndash;4 depends on the hook. Splitting it out keeps the curator's commit history clean for anyone bisecting curator behaviour without dragging in shell-script noise.</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>scripts/hooks/post-commit.sh</code>, <code>scripts/install-curator-hook.sh</code>, <code>tests/scripts/test_hook_install.py</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_installer_creates_symlink</code> &mdash; first run installs (<strong>AC8</strong>).</li>
+          <li><code>test_installer_idempotent</code> &mdash; second run is a no-op, single symlink remains (<strong>AC9</strong>).</li>
+          <li><code>test_installer_uninstall_removes_symlink</code> &mdash; <strong>AC9</strong>.</li>
+          <li><code>test_installer_refuses_to_clobber_non_symlink_without_force</code> &mdash; safety against silently overwriting another plugin's hook (<strong>AC8</strong>, design &sect; Security).</li>
+          <li><code>test_hook_swallows_curator_failure</code> &mdash; PATH-injected failing <code>python3</code>; hook still exits <code>0</code>, failure recorded in <code>.biltiq/curator-hook.log</code> (<strong>AC8</strong>, <strong>AC9</strong>, design Risk R3).</li>
+          <li><code>test_hook_does_not_log_payload_contents</code> &mdash; assert hook log contains exit codes + timestamps + structured JSON only; never raw event payloads (<strong>AC8</strong>, AP#5 defence).</li>
+          <li><code>test_hook_runs_curator_in_background</code> &mdash; assert hook returns within 50&nbsp;ms even with a synthetically-slow curator (<strong>AC8</strong>).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/test_hook_install.py -v</code> &mdash; all GREEN. Manual: run <code>scripts/install-curator-hook.sh</code> in the real repo, make a trivial commit, verify <code>.biltiq/curator-hook.log</code> grows by one entry, then <code>scripts/install-curator-hook.sh --uninstall</code>.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 6 &mdash; Manual acceptance gate (AC5)</span>
+        <span class="band">XS &middot; ~10 min</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC5 is the only acceptance criterion that crosses the boundary into the upstream <code>biltiq-engineering</code> plugin. It cannot be unit-tested from this repo; it can only be verified by running the slash command end-to-end.</p>
+      <p class="step-meta"><strong>Files:</strong> none. Pure verification step.</p>
+      <p class="step-meta"><strong>Procedure:</strong></p>
+      <ol style="font-size:0.85rem; padding-left:1.4rem;">
+        <li>Invoke <code>/biltiq-engineering:standup</code> in a fresh Claude Code session.</li>
+        <li>Confirm the standup composes without error.</li>
+        <li>Confirm one new line appears in <code>.biltiq/memory-stream.jsonl</code> with <code>event_type: standup_post</code>.</li>
+        <li>Confirm the curator's stdout includes <code>"events_projected": 1</code> (or the equivalent for whatever auto-section consumes <code>standup_post</code>).</li>
+        <li>Confirm <code>MEMORY.md</code> has fresh content inside <code>auto:current_focus</code> block, and the manual block is byte-identical to its pre-standup state.</li>
+      </ol>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> All 5 of the above verified by hand. Mark AC5 done in <code>spec.html</code>. Close the task.</p>
+    </div>
+  </section>
+
+  <section id="test-strategy">
+    <h2>Test Strategy</h2>
+    <table>
+      <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Unit</td>
+          <td>Writer atomicity + validation; curator lock + I/O contract; projection per event type; fail-closed marker handling; installer idempotency + safety; hook failure-swallow + background spawn.</td>
+          <td><code>tests/scripts/test_memory_writer.py</code>, <code>tests/scripts/test_memory_curator_io.py</code>, <code>tests/scripts/test_memory_curator_projection.py</code>, <code>tests/scripts/test_hook_install.py</code></td>
+        </tr>
+        <tr>
+          <td>Integration</td>
+          <td>End-to-end round-trip: writer emits N events &rarr; curator runs &rarr; <code>MEMORY.md</code> auto-sections updated, manual sections byte-equal. Covered by projection tests with multi-event fixtures (no separate integration file needed for v1).</td>
+          <td><code>tests/scripts/test_memory_curator_projection.py</code> (integration cases marked with <code>@pytest.mark.integration</code>)</td>
+        </tr>
+        <tr>
+          <td>Performance</td>
+          <td>Curator stays under 200&nbsp;ms for 1000-event stream. Skip-by-default; enable with <code>BILTIQ_PERF_TEST=1</code> to keep regular CI fast.</td>
+          <td><code>tests/scripts/test_memory_curator_projection.py::test_curator_under_200ms_for_1000_events</code></td>
+        </tr>
+        <tr>
+          <td>Manual</td>
+          <td>Step 6 acceptance gate &mdash; invoke <code>/biltiq-engineering:standup</code> end-to-end and verify the 5 checkpoints in Step 6's procedure.</td>
+          <td>&mdash;</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.85rem; color:var(--color-muted); margin-top:0.5rem;"><strong>Fixture strategy:</strong> all tests use the <code>tmp_repo</code> fixture in <code>conftest.py</code>, which builds a clean tmp-rooted fake repo (<code>.biltiq/</code>, seeded <code>MEMORY.md</code>) and points the writer/curator at it via <code>BILTIQ_REPO_ROOT</code>. No test touches the real <code>.biltiq/</code> or real <code>MEMORY.md</code> &mdash; verified by an autouse fixture that asserts the env var is set before each test runs.</p>
+  </section>
+
+  <section id="rollback-plan">
+    <h2>Rollback Plan</h2>
+    <p>All changes are additive except (a) deletion of the stale zero-byte <code>.biltiq/curator.lock</code> in Step 1, and (b) the marker wrapping of existing <code>MEMORY.md</code> content in Step 4.</p>
+    <ul>
+      <li><strong>Steps 1&ndash;3 (writer + curator code + tests):</strong> revert the relevant commits. <code>scripts/</code> disappears; <code>tests/scripts/</code> disappears; the upstream <code>biltiq-engineering</code> plugin's call sites guard with <code>try: &hellip; except ImportError: pass</code> per the design's rollback note, so removing the module does not break standup or other commands &mdash; they simply stop persisting events again.</li>
+      <li><strong>Step 4 (docs + markers):</strong> revert the commit. <code>MEMORY.md</code> returns to pre-marker state; the auto-curated blocks vanish; manual content is preserved by virtue of being plain text inside the marker wrapper. <code>git show HEAD~1:MEMORY.md</code> reproduces the byte-identical pre-marker version for diff verification.</li>
+      <li><strong>Step 5 (hook):</strong> revert. If the dev already ran <code>scripts/install-curator-hook.sh</code>, the symlink at <code>.git/hooks/post-commit</code> will dangle &mdash; harmless (git silently skips broken hooks) but cosmetically untidy; running <code>rm .git/hooks/post-commit</code> cleans it up.</li>
+      <li><strong>Stale lock cleanup (Step 1):</strong> non-reversible by revert (the file was zero bytes and stale; nothing to restore). Documented here for completeness.</li>
+      <li><strong>The stream file</strong> (<code>.biltiq/memory-stream.jsonl</code>) is per-machine and gitignored. Rollback does not touch it. If desired, <code>rm .biltiq/memory-stream.jsonl</code> after rollback discards the local event log; no shared state is affected.</li>
+    </ul>
+    <p style="font-size:0.85rem; color:var(--color-muted); margin-top:0.5rem;"><strong>Data-loss assessment:</strong> none. No prod data, no schema, no migrations. <code>MEMORY.md</code> is the only committed file whose content is touched and its manual sections are guaranteed byte-equal across every step (verified by Step 3 tests and Step 4 gate).</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Step 4 lands before Step 3 is fully green, and a curator with broken projection corrupts <code>MEMORY.md</code> on its first run against real content.</td>
+          <td>4</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Step 3's gate requires <em>all</em> projection + fail-closed tests green before proceeding. Step 4's gate runs the curator manually and diffs the manual section against <code>HEAD~1</code> &mdash; any deviation aborts the step.</td>
+        </tr>
+        <tr>
+          <td>Tests accidentally write to the real <code>.biltiq/</code> or real <code>MEMORY.md</code> instead of the tmp fixture.</td>
+          <td>1&ndash;5</td>
+          <td><span class="risk-h">HIGH</span></td>
+          <td>Autouse fixture in <code>conftest.py</code> asserts <code>BILTIQ_REPO_ROOT</code> is set and points inside <code>tmp_path</code> before each test. The writer + curator both raise if <code>BILTIQ_REPO_ROOT</code> resolves to a path containing the real repo's <code>.git/</code>. Belt-and-braces.</td>
+        </tr>
+        <tr>
+          <td>Hook script's background curator masks a real curator bug because exit codes are swallowed.</td>
+          <td>5</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Hook log (<code>.biltiq/curator-hook.log</code>) records every exit code with timestamp; <code>test_hook_swallows_curator_failure</code> verifies the log captures non-zero exits. Devs running curation interactively (on-demand path) get unmuted errors.</td>
+        </tr>
+        <tr>
+          <td>AC5 (manual gate) depends on the upstream <code>biltiq-engineering</code> plugin's <code>/standup</code> command continuing to call <code>write_event</code> with the same signature.</td>
+          <td>6</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Out of this task's control. Mitigation: AC1's signature is documented in <code>AGENT_RULES.md</code> &sect; Memory (Step 4); any future plugin change that drops the call is a regression on the plugin side, not on this task. The contract is now visible to both sides.</td>
+        </tr>
+        <tr>
+          <td>Hook test depends on POSIX shell + <code>fcntl</code>; would fail on Windows.</td>
+          <td>5</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Per <code>MEMORY.md</code> the supported dev platforms are Linux + macOS (native deploy preferred). Hook tests carry <code>@pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only")</code>. Documented in <code>AGENT_RULES.md</code>.</td>
+        </tr>
+        <tr>
+          <td>Stream grows large enough (&gt; 10k events) that the curator drifts above the 200&nbsp;ms budget.</td>
+          <td>3 (future)</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Performance test gives early signal. Out-of-scope follow-up (incremental projection) is noted in design &sect; Performance. For solo dev usage, ~10k events is roughly a year of activity &mdash; ample runway.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2026-05-18</td>
+          <td>all</td>
+          <td>Initial draft &mdash; 6 atomic steps, &le; 50 min each. Steps 1&ndash;3 build writer + curator; Step 4 wires docs + markers; Step 5 ships opt-in hook; Step 6 is the AC5 manual gate.</td>
+          <td>BILTIQ-003</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
