@@ -132,13 +132,15 @@ The call is POSIX-atomic (single `os.write()` under `PIPE_BUF`, `O_APPEND`). Enc
 
 **v1 event-type vocabulary:**
 
-| `event_type` | Projected to | Producer |
-|---|---|---|
-| `standup_post` | `auto:current_focus` | `/biltiq-engineering:standup` |
-| `blocker_logged` | `auto:current_focus` | standup / reflect skills |
-| `commit_metadata` | `auto:code_areas` | post-commit hook (opt-in) |
-| `reflect_note` | `auto:session_log` | `/biltiq-engineering:reflect` |
-| `decision_made` | — (counted, not projected in v1) | reflect / ADR flows |
+| `event_type` | Projects to |
+|---|---|
+| `standup_post` | `auto:current_focus` |
+| `blocker_logged` | `auto:current_focus` |
+| `commit_metadata` | `auto:code_areas` |
+| `reflect_note` | `auto:session_log` |
+| `decision_made` | _(counted, not projected in v1)_ |
+
+Producers in v1 are upstream BiltIQ-engineering skills (`/biltiq-engineering:standup` emits `standup_post`; `/biltiq-engineering:reflect` emits `reflect_note` and may emit `decision_made` / `blocker_logged`). `commit_metadata` is reserved in the v1 vocabulary but has no in-repo producer yet — write it explicitly via `write_event(...)` for now.
 
 Unknown event types and events with `schema_version > 1` are counted in `events_seen` but not projected. This is the forward-compat contract — future event types ship as additive writer entries without breaking older curators.
 

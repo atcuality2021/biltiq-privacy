@@ -5,11 +5,17 @@ that builds an isolated fake repo under ``tmp_path``, with
 ``BILTIQ_REPO_ROOT`` redirecting the writer/curator away from the real
 ``.biltiq/``. An autouse safety fixture asserts the env var, if set, stays
 inside ``tmp_path`` for the duration of the test.
+
+Hook tests additionally use the ``git_tmp_repo`` fixture, which extends
+``tmp_repo`` with a real ``git init``-ed working tree and a copy of the
+``scripts/`` package, so the installer + post-commit hook can run end-to-end.
 """
 
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Final, Iterator
 
@@ -58,6 +64,41 @@ def tmp_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("BILTIQ_REPO_ROOT", str(tmp_path))
     assert Path(os.environ["BILTIQ_REPO_ROOT"]).resolve() == tmp_path.resolve()
     return tmp_path
+
+
+_REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture
+def git_tmp_repo(tmp_repo: Path) -> Path:
+    """Extend ``tmp_repo`` with a ``git init``-ed working tree and a real ``scripts/`` copy.
+
+    The post-commit hook calls ``git rev-parse --show-toplevel`` and references
+    ``$REPO/scripts/_memory_curator.py``, so the hook tests need both a real ``.git``
+    and a populated ``scripts/`` tree. Copying (rather than symlinking) the source
+    insulates each test from edits a sibling test may make to its own copy
+    (e.g. replacing ``_memory_curator.py`` with a sleep stub).
+    """
+    shutil.copytree(_REPO_ROOT / "scripts", tmp_repo / "scripts")
+
+    subprocess.run(["git", "init", "--quiet"], cwd=tmp_repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@biltiq.invalid"],
+        cwd=tmp_repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "BILTIQ Test"],
+        cwd=tmp_repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "--quiet", "-m", "BILTIQ-003: test init"],
+        cwd=tmp_repo,
+        check=True,
+        capture_output=True,
+    )
+    return tmp_repo
 
 
 @pytest.fixture(autouse=True)
