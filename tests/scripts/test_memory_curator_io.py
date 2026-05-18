@@ -105,8 +105,8 @@ def test_curator_atomic_write_uses_replace(
     original_replace = os.replace
 
     def spy_replace(
-        src: object,
-        dst: object,
+        src: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        dst: str | bytes | os.PathLike[str] | os.PathLike[bytes],
         *,
         src_dir_fd: int | None = None,
         dst_dir_fd: int | None = None,

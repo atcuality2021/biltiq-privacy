@@ -13,8 +13,6 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
-
 HOOK_DEST_REL = ".git/hooks/post-commit"
 HOOK_SOURCE_REL = "scripts/hooks/post-commit.sh"
 INSTALLER_REL = "scripts/install-curator-hook.sh"
