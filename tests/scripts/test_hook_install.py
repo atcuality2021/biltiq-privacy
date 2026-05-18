@@ -170,7 +170,13 @@ def test_hook_does_not_log_payload_contents(git_tmp_repo: Path) -> None:
 
 
 def test_hook_runs_curator_in_background(git_tmp_repo: Path) -> None:
-    """Hook returns quickly even when curator is synthetically slow — proves background spawn (AC8)."""
+    """Hook returns quickly even when curator is synthetically slow — proves background spawn (AC8).
+
+    Stubs out the curator at ``scripts/_memory_curator.py`` in the sandbox repo
+    with a 2-second sleep, then asserts the hook itself returns in under 1
+    second. If the hook ran the curator synchronously, elapsed would exceed
+    the sleep budget.
+    """
     sleep_seconds = 2.0
     curator_path = git_tmp_repo / "scripts" / "_memory_curator.py"
     curator_path.write_text(

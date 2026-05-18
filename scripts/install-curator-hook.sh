@@ -98,6 +98,9 @@ fi
 
 mkdir -p "$REPO_ROOT/.git/hooks"
 ln -s "$HOOK_SOURCE" "$HOOK_DEST"
-chmod +x "$HOOK_SOURCE" 2>/dev/null || true
+if ! chmod +x "$HOOK_SOURCE" 2>/dev/null; then
+    printf 'warning: could not set +x on hook source: %s\n' "$HOOK_SOURCE" >&2
+    printf 'symlink installed but hook may not run on commit; run "chmod +x %s" manually\n' "$HOOK_SOURCE" >&2
+fi
 printf 'installed: %s -> %s\n' "$HOOK_DEST" "$HOOK_SOURCE"
 exit 0

@@ -83,10 +83,12 @@ def test_curator_atomic_write_uses_replace(
 ) -> None:
     """When MEMORY.md is rewritten, ``os.replace`` is called with a temp source.
 
-    Step 2's projection is a stub that returns MEMORY.md unchanged, so the
-    atomic-write branch is normally skipped. Force it by monkeypatching the
-    projector to return a different string — then assert ``os.replace`` was
-    invoked with a ``.tmp`` source path and the real ``MEMORY.md`` as dest.
+    The real projector preserves MEMORY.md byte-for-byte when the stream is
+    empty (the empty-stream no-op path), so the atomic-write branch is not
+    exercised by an unmodified fixture. Force it by monkeypatching
+    ``_project_events`` to return a different string — then assert
+    ``os.replace`` was invoked with a ``.tmp`` source path and the real
+    ``MEMORY.md`` as dest.
     """
     import scripts._memory_curator as curator
 

@@ -259,24 +259,21 @@ def _project_events(
         if isinstance(e, dict) and e.get("schema_version", 1) <= CURATOR_SUPPORTED_VERSION
     ]
 
-    standups = [e for e in eligible if e.get("event_type") == "standup_post"]
-    blockers = [e for e in eligible if e.get("event_type") == "blocker_logged"]
-    commits = [e for e in eligible if e.get("event_type") == "commit_metadata"]
-    reflects = [e for e in eligible if e.get("event_type") == "reflect_note"]
+    eligible_types = {e.get("event_type") for e in eligible}
 
     new_text = memory_text
     sections_written: list[str] = []
 
     new_text = _replace_auto_block(new_text, "auto:current_focus", _render_current_focus(eligible))
-    if standups or blockers:
+    if {"standup_post", "blocker_logged"} & eligible_types:
         sections_written.append("current_focus")
 
     new_text = _replace_auto_block(new_text, "auto:code_areas", _render_code_areas(eligible))
-    if commits:
+    if "commit_metadata" in eligible_types:
         sections_written.append("code_areas")
 
     new_text = _replace_auto_block(new_text, "auto:session_log", _render_session_log(eligible))
-    if standups or reflects:
+    if {"standup_post", "reflect_note"} & eligible_types:
         sections_written.append("session_log")
 
     projected = sum(1 for e in eligible if e.get("event_type") in PROJECTED_EVENT_TYPES)
