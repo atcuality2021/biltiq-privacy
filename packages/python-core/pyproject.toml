@@ -71,6 +71,15 @@ strict = true
 python_version = "3.11"
 files = ["biltiq_privacy"]
 
+# Third-party libraries without published type stubs.
+# Presidio Analyzer ships no PEP 561 stubs as of v2.2 (upstream issue
+# microsoft/presidio#1199 tracks the gap); the project is type-hinted
+# internally but does not export the markers mypy needs to discover them.
+# We confine the override to the presidio packages we import.
+[[tool.mypy.overrides]]
+module = ["presidio_analyzer", "presidio_analyzer.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"

@@ -41,7 +41,7 @@ The library core (`packages/python-core/biltiq_privacy/`) is framework-free. No 
 - **spacy ≥ 3.7** + **en_core_web_sm** — NER model bundled via pyproject dep on `en-core-web-sm`.
 
 Extension points used:
-- `presidio_analyzer.PatternRecognizer` — for the 7 Indian recognisers (Aadhaar, PAN, ABHA, GSTIN, Voter, IFSC, phone) and future EU/US/UK packs.
+- `presidio_analyzer.PatternRecognizer` — for the 8 Indian recognisers (Aadhaar, PAN, ABHA, GSTIN, Voter, IFSC, phone, Medical Registration; BILTIQ-002) and future EU/US/UK packs.
 - `presidio_analyzer.EntityRecognizer` — base class for any ML/contextual recogniser (v0.4.0+).
 - `presidio_anonymizer.operators.Operator` — for our HMAC-token pseudonymiser.
 
@@ -57,7 +57,8 @@ Extension points used:
 
 | What | Module | Purpose |
 |---|---|---|
-| Residual-scan regex set | `biltiq_privacy.core.pii_patterns` | Single source of truth for Aadhaar / PAN / phone / email / ABHA regexes. |
+| Indian PII regex set + pure-stdlib redactor | `biltiq_privacy.indian.patterns` (BILTIQ-002) | Eight `Final[str]` constants (Aadhaar, PAN, ABHA, GSTIN, Voter ID, IFSC, Phone, Medical Registration), compiled `PATTERNS` dict, and `redact()` honouring `_REDACT_ORDER` (ABHA before AADHAAR). No Presidio / spaCy import — light enough for logging-filter use. |
+| Indian Presidio adapter + engine factory | `biltiq_privacy.indian.recognisers.build_engine(nlp_engine=None)` (BILTIQ-002) | Builds a fresh `AnalyzerEngine` with the eight Indian `PatternRecognizer`s registered. Default-None branch constructs `NlpEngineProvider` pinned to `en_core_web_sm` (ADR-0002). No module-global singleton. |
 | Logging redaction | `biltiq_privacy.core.log_filter.RedactionFilter` | `logging.Filter` subclass — scrubs `record.msg`, `record.args`, `extra=` fields. |
 | HMAC pseudonymisation | `biltiq_privacy.core.doc_hasher.hmac_pseudonymise(text, *, key)` | Key as kwarg, no global state. |
 | Pseudonymiser (text → tokens) | `biltiq_privacy.core.pseudonymiser.Pseudonymiser` | Replaces detected entities with deterministic HMAC tokens. |
@@ -66,7 +67,7 @@ Extension points used:
 | Detector ABC | `biltiq_privacy.detectors.base.Detector` | Implement to add a new detection backend. |
 | Default detector | `biltiq_privacy.detectors.presidio_backend.PresidioDetector` | Wraps `AnalyzerEngine`. |
 | Regime ABC | `biltiq_privacy.regimes.base.Regime` | Implement to add a new regulatory framework. |
-| Recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=["india"])` | Convenience factory; assembles a `RecognizerRegistry`. |
+| Multi-region recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=[...])` (v0.2.0+) | Convenience factory wrapping per-region adapters; planned for when EU/US/UK packs land. For Indian-only use today, call `biltiq_privacy.indian.recognisers.build_engine()` directly. |
 | Memory-spine writer | `scripts._memory_writer.write_event(event_type, payload)` | POSIX-atomic append to `.biltiq/memory-stream.jsonl`; consumed by `scripts/_memory_curator.py` to project session signal into `MEMORY.md`. See `AGENT_RULES.md` § Memory. |
 
 [PROJECT: add new internal modules here in the same PR they're created.]
@@ -99,6 +100,21 @@ Tests must:
 - Run with no network access (mark `pytest -m "not network"` as default).
 - Use synthetic PII only — never real identifiers, never copied from real documents.
 - Hit ≥ 90% line coverage on `core/` and `recognisers/`.
+
+### Running tests
+
+Two equivalent invocations:
+
+- **Per-package (what CI runs):** `pytest packages/python-core/tests` or `pytest packages/python-server/tests`. CI's matrix uses this form (`pytest packages/${{ matrix.package }}/tests/`).
+- **Repo-root (developer convenience):** bare `pytest` from `/`. Collects both package suites plus `tests/scripts/` (BILTIQ-003 memory-spine).
+
+The repo-root invocation relies on three pieces of plumbing (added in BILTIQ-002 Step 9):
+
+1. `[tool.pytest.ini_options].pythonpath` in `/pyproject.toml` puts both `packages/<pkg>/` roots on `sys.path` so `from biltiq_privacy.indian...` and `from tests.fixtures...` resolve.
+2. `consider_namespace_packages = true` switches pytest's `--import-mode=importlib` from "synthesise parent package from directory walk" to "use Python's full import system" — required so the regular-package `packages/python-core/tests/__init__.py` is honoured. Without it, pytest synthesises a `tests` namespace pointing only at `<repo>/tests/` (which holds `tests/scripts/`) and `tests.fixtures` resolves to nothing.
+3. `packages/python-core/tests/__init__.py` is a regular package (it owns the `tests.fixtures.india` module used by `test_patterns.py`). `packages/python-server/tests/` and `tests/scripts/` remain PEP 420 namespace dirs — pytest's importlib mode loads their test files anonymously, so they don't need `__init__.py`.
+
+If you add a new package under `packages/`, append its root to the `pythonpath` list and decide whether its `tests/` needs an `__init__.py` (only if other test files import from it via a `tests.<subpath>` path).
 
 ---
 

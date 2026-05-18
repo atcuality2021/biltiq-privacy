@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reflect: BILTIQ-002 — Indian PII recognisers (regex + Presidio)</title>
+  <style>
+    :root {
+      --color-shipped:   #16a34a;
+      --color-wip:       #d97706;
+      --color-blocker:   #dc2626;
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-well:      #16a34a;
+      --color-wrong:     #dc2626;
+      --color-missed:    #7c3aed;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h2.well   { border-left: 4px solid var(--color-well);   }
+    h2.wrong  { border-left: 4px solid var(--color-wrong);  }
+    h2.missed { border-left: 4px solid var(--color-missed); }
+    h2.neutral{ border-left: 4px solid var(--color-border); }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 0.5rem 0;
+    }
+    .metric-card {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      text-align: center;
+    }
+    .metric-label { font-size: 0.75rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; }
+    .metric-note  { font-size: 0.75rem; color: var(--color-muted); margin-top: 0.2rem; }
+    .match   { color: var(--color-shipped); }
+    .over    { color: var(--color-blocker); }
+    .under   { color: var(--color-wip);    }
+    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 1.5rem; }
+    .timeline::before { content:""; position:absolute; left:0.4rem; top:0; bottom:0; width:2px; background:var(--color-border); }
+    .tl-item { position: relative; padding: 0.4rem 0 0.4rem 0.75rem; }
+    .tl-item::before { content:""; position:absolute; left:-1.1rem; top:0.75rem; width:0.6rem; height:0.6rem; border-radius:50%; background:var(--color-muted); border:2px solid var(--color-bg); }
+    .tl-time  { font-size: 0.75rem; color: var(--color-muted); }
+    .tl-label { font-size: 0.875rem; }
+    .checklist { list-style: none; padding: 0; }
+    .checklist li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.25rem 0; font-size: 0.875rem; }
+    .check { flex-shrink: 0; margin-top: 0.1rem; }
+    code { background: var(--color-bg-subtle); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } .metrics-grid { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Reflect: BILTIQ-002 &mdash; Indian PII recognisers (regex + Presidio surfaces)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-002</dd></div>
+      <div><dt>Author</dt><dd>@harish</dd></div>
+      <div><dt>Closed</dt><dd>2026-05-18 (PR opened, pending merge)</dd></div>
+      <div><dt>PRs merged</dt><dd>#4 (open, CI matrix running)</dd></div>
+      <div><dt>Tests shipped</dt><dd>34 &rarr; 127 repo-root / 95 python-core</dd></div>
+    </dl>
+  </header>
+
+  <section id="metrics">
+    <h2 class="neutral">Estimation Actuals</h2>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Wall-clock</div>
+        <div class="metric-value match">L</div>
+        <div class="metric-note">spec: L &rarr; actual: L (~3.5h active, 13 commits in 3h35m from c4e0528 14:38 to d060d90 16:26 + 30m PR open)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Tokens</div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (one /compact mid-task between b4faae1 12:55 and active build, no /compact during active build)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Tool calls</div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: (not declared) &rarr; actual: M (parallel review dispatch + per-step verification cycles)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Iteration cycles</div>
+        <div class="metric-value over">11</div>
+        <div class="metric-note">spec: 10 &rarr; actual: 11 (one extra: the Step 4 review doc-drift fix d060d90)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Human review (min)</div>
+        <div class="metric-value over">~40</div>
+        <div class="metric-note">spec: 25 &rarr; actual: ~40 (3 review-slice reads + 5 question-prompt selections + age question detour)</div>
+      </div>
+    </div>
+    <p style="font-size: 0.8rem; color: var(--color-muted); margin-top: 0.5rem;">
+      Variance summary: wall-clock <strong class="match">match</strong>, tokens <strong class="match">match</strong>, iteration_cycles <strong class="over">up_one (+10%)</strong>, human_review <strong class="over">up_one (+60%)</strong>. The iteration-cycle overshoot tracks to the one Step-4-review fix commit; the human-review overshoot tracks to the unplanned "presidio + age" question detour and the parallel-review-slice triage. Per-axis log entry queued for <code>.biltiq/estimates-history.jsonl</code> via memory-spine.
+    </p>
+  </section>
+
+  <section id="what-went-well">
+    <h2 class="well">What Went Well</h2>
+    <ul>
+      <li><strong>Parallel review dispatch.</strong> Three <code>biltiq-code-reviewer</code> subagents ran simultaneously over the 21-file / 2,444-LOC diff, sliced by cognitive concern (production code / tests+fixtures / docs+harness). The per-slice briefs let me embed the user's standing real-PII forbidden-values list in the test-reviewer's prompt specifically &mdash; a single inline reviewer would have had a harder time keeping that hot. The grep returned not-found for all six forbidden values; if that had failed it would have been the highest-stakes find of the PR.</li>
+      <li><strong>AC5 lazy-import contract paid off in a real way.</strong> Splitting <code>patterns.py</code> (stdlib <code>re</code> only) from <code>recognisers.py</code> (Presidio + spaCy) means a hot-path logging-filter consumer can <code>import biltiq_privacy.indian.patterns</code> and get the 8 regexes + <code>redact()</code> at sub-millisecond cost. Verified by a subprocess-isolated test with a positive control (<code>test_recognisers_import_does_load_presidio</code>) that catches vacuous-pass if the probe itself ever breaks. Worth repeating for any future regional pack (EU, US, UK).</li>
+      <li><strong>CDSCO-RegAI provenance attribution in module docstrings.</strong> Every regex was a port, not a reinvention. Naming the source files (<code>backend/utils/pii_patterns.py</code>, <code>backend/modules/anonymisation/presidio_engine.py</code>) makes "where did this come from" traceable for the next maintainer. AC11 enforced this; without the explicit AC, the port could have looked like an original.</li>
+      <li><strong>Step-9 harness diagnostic discipline.</strong> The <code>tests/</code> namespace collision under repo-root <code>pytest</code> took four attempts to fix (PEP 420 namespace, then <code>pythonpath</code>, then regular <code>__init__.py</code>, then <code>consider_namespace_packages=true</code>). Diagnostic technique: temporary <code>conftest.py</code> print statements at three pytest lifecycle points (rootconftest load, <code>pytest_configure</code>, <code>pytest_collectstart</code>) pinpointed exactly when <code>sys.modules['tests']</code> got locked with the wrong <code>__path__</code>. Without that, blind-guessing would have continued. Worth codifying as a "pytest namespace-collision diagnostic" recipe in a future skill.</li>
+      <li><strong>AC3 invariant test via import-by-name.</strong> The chosen mitigation for "no regex string duplication" was structural &mdash; <code>recognisers.py</code> imports <code>AADHAAR_PATTERN</code> by name and passes it to <code>Pattern(regex=...)</code>. The test asserts <code>_AADHAAR.patterns[0].regex == AADHAAR_PATTERN</code> (equality, deliberately not identity &mdash; Python string interning for non-pool strings is implementation-defined). A regression like inlining the literal in <code>recognisers.py</code> would still fail this test. The structural-plus-test combination is stronger than either alone.</li>
+    </ul>
+  </section>
+
+  <section id="what-went-wrong">
+    <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
+    <table>
+      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Doc drift &mdash; <code>design.html</code> &sect; Files to touch claimed <code>packages/python-core/pyproject.toml</code> was "no edit", but Step 9 added a 9-line <code>[[tool.mypy.overrides]]</code> stanza for <code>presidio_analyzer</code>.</td>
+          <td>Step 4 Review &mdash; Slice C (docs+harness)</td>
+          <td>Updated the design.html row in commit <code>d060d90</code> to mark it EDIT with rationale (upstream microsoft/presidio#1199 missing PEP-561 stubs).</td>
+        </tr>
+        <tr>
+          <td>AP #8 (Magic Values) &mdash; per-recogniser confidence scores 0.95/0.9/0.85/0.7/0.6 in <code>recognisers.py</code> are explained at module-docstring level (CDSCO-RegAI prod, MED_REG=0.6 locked by spec &sect;7) but not annotated inline at each <code>score=</code> call.</td>
+          <td>Step 4 Review &mdash; Slice A (production code)</td>
+          <td>Reviewer called it "future polish, not a blocker". Logged as tech debt; not fixed in this PR.</td>
+        </tr>
+        <tr>
+          <td>Pytest 9 deprecation &mdash; <code>pytest_pycollect_makemodule</code> used the old signature with <code>path: py.path.local</code> (deprecated in pytest 9).</td>
+          <td>Step 9 (during Build)</td>
+          <td>Removed <code>path</code> parameter from the temporary diagnostic <code>conftest.py</code>; final <code>conftest.py</code> doesn't use the hook.</td>
+        </tr>
+        <tr>
+          <td>Pytest's <code>--import-mode=importlib</code> default behavior &mdash; synthesises parent packages from directory walk, ignoring regular <code>__init__.py</code> files.</td>
+          <td>Step 9 (during Build, 4th attempt)</td>
+          <td>Added <code>consider_namespace_packages = true</code> (pytest 8.1+ opt-in) to repo-root pyproject.toml; switches discovery to Python's full import system, which honours the regular package.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="what-we-missed">
+    <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
+    <table>
+      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>stack.md</code> &sect; Encryption row drift &mdash; line 52 documents <code>age (system binary)</code> wrapped via <code>subprocess.Popen</code> and references <code>scripts/install-age.sh</code>, but the script does not exist and no Python code invokes <code>age</code>. The row was inherited from an earlier roadmap doc.</td>
+          <td>User question mid-PR-open ("presidio and age &mdash; how are they working?")</td>
+          <td>None for BILTIQ-002 (the row is forward-looking, not load-bearing). But a contributor reading stack.md cannot tell shipped state from planned state.</td>
+          <td>Logged as BILTIQ-004 tech debt; PR body's "Tech debt added" section calls it out. Process change proposed below: split stack.md into Shipped / Planned tables.</td>
+        </tr>
+        <tr>
+          <td>Build skill blindspot &mdash; when a Build step touches a file that <code>design.html</code> &sect; Files to touch lists as "no edit", the Build skill should auto-update design.html in the same step. Step 9 added a mypy override to python-core/pyproject.toml without updating design.html; the drift surfaced only at Review.</td>
+          <td>Step 4 Review &mdash; Slice C (docs+harness)</td>
+          <td>Doc drift, harmless this round. If undetected at review, would have surfaced as confusion the next time someone read design.html (or as a code-explorer false-negative on the next task touching the same file).</td>
+          <td>Caught + fixed at Review. Process change proposed below: extend the Build skill to grep design.html &sect; Files to touch for the file being edited and flag if the row says "no edit".</td>
+        </tr>
+        <tr>
+          <td>AC2 surface ambiguity &mdash; <code>build_engine()</code> constructs <code>AnalyzerEngine()</code> which loads Presidio's <strong>default global recognisers</strong> (UK_NHS, PERSON, ORGANIZATION, PHONE_NUMBER, US_BANK_NUMBER, US_DRIVER_LICENSE, etc.) in addition to the 8 IN_* ones. Spec says "registers them" not "only them" &mdash; technically AC2 holds &mdash; but a consumer expecting India-only output would be surprised.</td>
+          <td>Step 5 Test &mdash; AC2 manual demo with <code>engine.analyze(text="My PAN is ABCDE1234F and Aadhaar 1234-5678-9012, phone +91 9876543210")</code> returned 9 entity types, only 3 of which were IN_*.</td>
+          <td>Future consumers may file confused tickets ("why is my Indian-phone string also tagged UK_NHS?").</td>
+          <td>Logged as tech debt: future ticket for <code>build_engine(india_only=True)</code> flag that disables Presidio's global recognisers.</td>
+        </tr>
+        <tr>
+          <td><code>gh pr view --json checksUrl</code> field doesn't exist on the current gh CLI version &mdash; the JSON query failed silently with an "Available fields" listing.</td>
+          <td>Step 6 Ship &mdash; first PR-state check</td>
+          <td>None &mdash; <code>gh pr checks 4</code> gave the same info in 4 seconds. But the failed JSON query consumed a tool round-trip and would have been confusing without the fallback.</td>
+          <td>None applied. Reference note: prefer <code>gh pr checks &lt;N&gt;</code> over <code>--json checksUrl</code> on gh &lt;= 2.59.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="timeline">
+    <h2 class="neutral">Step-by-Step Timeline</h2>
+    <div class="timeline">
+      <div class="tl-item"><div class="tl-time">2026-05-18 06:26</div><div class="tl-label">Initial spec/design/plan committed (<code>6ba9479</code>) &mdash; 11 ACs, 8 entities, 2-module split locked.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 12:55</div><div class="tl-label">Post-/compact design.html + plan.html re-draft (<code>b4faae1</code>).</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 13:00</div><div class="tl-label">Step 1 &mdash; scaffold <code>indian/</code> sub-package + <code>tests/indian/</code> (<code>427edc0</code>).</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 13:08</div><div class="tl-label">Step 2 &mdash; fixture file structure, 16 typed empty tuples (<code>0060df2</code>).</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 13:17</div><div class="tl-label">Step 3 &mdash; <code>test_patterns.py</code> RED (<code>222d80b</code>) &mdash; locks test surface for AC2/AC6.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 14:30</div><div class="tl-label">Realignment &mdash; spec.html canonical entity list re-checked (<code>4151bba</code>).</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 14:38</div><div class="tl-label">Step 4 &mdash; populate <code>patterns.py</code> + fixtures (<code>c4e0528</code>) &mdash; RED &rarr; GREEN, 44/44 pass.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 15:05</div><div class="tl-label">Step 5 &mdash; <code>recognisers.py</code> (<code>b9e7568</code>) &mdash; 8 PatternRecognizers + <code>build_engine()</code>, 78/78 pass.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 15:17</div><div class="tl-label">Step 6 &mdash; AC3 invariant test (<code>6519351</code>) &mdash; <code>_&lt;ENTITY&gt;.patterns[0].regex == &lt;ENTITY&gt;_PATTERN</code> for all 8.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 15:20</div><div class="tl-label">Step 7 &mdash; AC5 lazy-import test (<code>4203e86</code>) &mdash; subprocess-isolated, with positive control.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 15:23</div><div class="tl-label">Step 8 &mdash; doc deltas (<code>4ed751c</code>) &mdash; overview, stack, design.html scores, CHANGELOG.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 16:05</div><div class="tl-label">Step 9 &mdash; repo-root pytest harness (<code>315effc</code>) &mdash; <code>consider_namespace_packages</code> + regular-package <code>tests/__init__.py</code>, 127/127 + 1 skipped.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 16:26</div><div class="tl-label">Step 4 Review fix &mdash; design.html files-to-touch drift (<code>d060d90</code>).</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 ~16:35</div><div class="tl-label">PR #4 opened against <code>main</code>; 8-cell CI matrix kicked off. Boundary check (AC9) passed at 4s; library/server clean of FastAPI/Starlette/uvicorn.</div></div>
+      <div class="tl-item"><div class="tl-time">2026-05-18 ~17:00</div><div class="tl-label">Reflect.html written (this file).</div></div>
+      <div class="tl-item"><div class="tl-time">TBD</div><div class="tl-label">PR merged &mdash; v0.2.0-rc1 (pending CI matrix + reviewer approval).</div></div>
+    </div>
+  </section>
+
+  <section id="process-changes">
+    <h2 class="neutral">Process Changes Proposed</h2>
+    <ol>
+      <li><strong>AGENT_RULES.md &mdash; new rule under &sect; Build discipline:</strong> "When a Build step edits a file, grep <code>design.html</code> &sect; Files to touch for that file path. If the row says 'no edit' or is missing, update the row in the same step. Doc-drift findings at Review are cheaper to prevent at Build." (Trigger: BILTIQ-002 Step 4 Review caught the mypy-override drift; would have been zero cost to fix at Step 9 if the Build skill had checked.)</li>
+      <li><strong>stack.md split into Shipped vs Planned tables.</strong> Current single-table format mixes shipped state (Presidio, RedactionFilter, biltiq_privacy.indian.*) with forward-looking rows (age, future <code>core.time</code> wrapper, v0.5.0+ encryption). A contributor reading stack.md cannot tell which is which without grepping the codebase. Proposal: add a <code>(planned, v0.5.0+)</code> tag column, or split into <code>## Shipped</code> and <code>## Planned</code> sections.</li>
+      <li><strong>Skill change &mdash; <code>code-reviewer</code> brief: bake in standing PII forbidden-values list.</strong> The Slice B (test+fixtures) review caught the no-real-PII guarantee because the brief explicitly named the six forbidden values from the user's earlier-session standing constraint. A future review where I forget to copy that list into the brief would silently lose this check. Proposal: have <code>code-reviewer</code> skill always emit a <code>grep -F</code> step against a per-repo <code>.biltiq/forbidden-values.txt</code> file (gitignored, per-machine) for test-fixture review slices.</li>
+      <li><strong>Skill change &mdash; document the pytest namespace-collision diagnostic recipe.</strong> The Step-9 four-attempt loop cost ~40 minutes of human-review time. A new skill <code>pytest-import-mode-debug</code> codifying the three-lifecycle-print-statement technique (rootconftest, pytest_configure, pytest_collectstart) would short-circuit future occurrences.</li>
+    </ol>
+  </section>
+
+  <section id="cleanup-confirmation">
+    <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
+    <ul class="checklist">
+      <li><input class="check" type="checkbox" checked disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>, <code>test_scratch_*</code> files left in repo. <code>find packages/ -type f \( -name "*_v2.*" -o ... \)</code> returned empty at 2026-05-18 16:50.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>Throwaway scripts deleted. The temporary diagnostic <code>conftest.py</code> from Step 9 (with three lifecycle print statements) was replaced by the final 21-line two-role version before commit <code>315effc</code>.</span></li>
+      <li><input class="check" type="checkbox" disabled><span>Branch <code>feature/biltiq-002-pii-patterns</code> deletion pending merge.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No banned vocabulary in code, comments, docstrings, or commit messages. Banned-vocab gate ran silent (no hits) at Step 5 Test.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>Library boundary clean &mdash; <code>scripts/check-boundaries.sh</code> PASS; <code>packages/python-core/biltiq_privacy/</code> clean of <code>fastapi|starlette|uvicorn</code> imports.</span></li>
+    </ul>
+  </section>
+
+  <section id="tech-debt">
+    <h2 class="neutral">Tech Debt Logged</h2>
+    <ol>
+      <li><strong>BILTIQ-004 (TBD) &mdash; age install + Python wrapper.</strong> <code>docs/architecture/stack.md:52</code> documents <code>age</code> wrapped via <code>subprocess.Popen</code> for <code>pg_dump | age</code> pipelines and references <code>scripts/install-age.sh</code>. Neither exists. Two paths: (a) write the installer + wrapper now and align stack.md with reality; (b) downgrade the row to <code>(planned, v0.5.0+)</code> until someone actually needs it. Decide before any encryption-related task lands.</li>
+      <li><strong>Inline confidence-score rationale</strong> &mdash; <code>recognisers.py</code> lines 85-141, eight <code>score=</code> literals (0.95/0.9/0.85/0.7/0.6). Annotate each with a one-line CDSCO-RegAI provenance comment so AP #8 review is satisfied at the call site, not just module-docstring level. Future polish PR &mdash; not urgent, not a regression risk.</li>
+      <li><strong>India-only mode for <code>build_engine()</code></strong> &mdash; <code>build_engine(india_only=True)</code> flag that disables Presidio's default global recognisers (UK_NHS, PERSON, ORGANIZATION, PHONE_NUMBER, US_BANK_NUMBER, US_DRIVER_LICENSE). Spec.html AC2 says "registers them", not "only them", so this is forward-looking. File the ticket when a consumer asks for it.</li>
+      <li><strong>Cross-region <code>build_engine(regions=[...])</code> factory</strong> &mdash; stack.md row already exists for the future cross-region surface at <code>biltiq_privacy.recognisers</code> level (v0.2.0+). When EU/US/UK packs land, the wrapper should call into the per-region <code>build_engine()</code> functions. Not a BILTIQ-002 concern; flagging here so the next regional pack's design.html references it.</li>
+    </ol>
+  </section>
+
+  <section id="change-history">
+    <h2 class="neutral">Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2026-05-17</td>
+          <td>all</td>
+          <td>Initial template stub from scaffolding script.</td>
+          <td>BILTIQ-002 spec dir creation</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>all</td>
+          <td>Filled in &mdash; metrics, what-went-well/wrong/missed, timeline, process changes, cleanup confirmation, tech debt logged.</td>
+          <td>BILTIQ-002 Step 7 Reflect (Attack Loop)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
