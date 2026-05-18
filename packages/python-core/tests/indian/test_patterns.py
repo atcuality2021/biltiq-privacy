@@ -27,7 +27,7 @@ import logging
 
 import pytest
 
-from biltiq_privacy.indian.patterns import PATTERNS
+from biltiq_privacy.indian.patterns import PATTERNS, redact
 from tests.fixtures import india as fixtures
 
 logger = logging.getLogger(__name__)
@@ -86,4 +86,43 @@ def test_pattern_rejects_false_positives(entity: str, value: str) -> None:
     pattern = PATTERNS[entity]
     assert pattern.search(value) is None, (
         f"{entity} regex incorrectly matched false-positive: {value!r}"
+    )
+
+
+def test_redact_preserves_structure() -> None:
+    """redact() replaces PII spans with [REDACTED-<ENTITY>] tags but preserves
+    surrounding text (AC4 — redaction surface contract)."""
+    text = "Aadhaar 1234 5678 9011 and PAN ABCDE1234F end."
+    result = redact(text)
+    # PII spans removed
+    assert "1234 5678 9011" not in result, "Aadhaar span leaked into output"
+    assert "ABCDE1234F" not in result, "PAN span leaked into output"
+    # Replacement tags present
+    assert "[REDACTED-AADHAAR]" in result, "AADHAAR tag not emitted"
+    assert "[REDACTED-PAN]" in result, "PAN tag not emitted"
+    # Surrounding text preserved verbatim
+    assert result.startswith("Aadhaar "), "leading non-PII text mangled"
+    assert " and PAN " in result, "interstitial text mangled"
+    assert result.endswith(" end."), "trailing non-PII text mangled"
+
+
+def test_redact_order_abha_before_aadhaar() -> None:
+    """ABHA must be detected as ABHA, not as embedded AADHAAR (AC4 + _REDACT_ORDER).
+
+    The ABHA format NN-NNNN-NNNN-NNNN contains a substring matching the
+    AADHAAR pattern NNNN-NNNN-NNNN after the leading NN-. Without
+    ABHA-first ordering, redact() would tag only the embedded 12-digit
+    span and leak the leading 2-digit ABHA prefix.
+    """
+    text = "12-3456-7890-1234"  # synthetic ABHA fixture shape
+    result = redact(text)
+    assert "[REDACTED-ABHA]" in result, (
+        f"ABHA-shaped input redacted incorrectly — got {result!r}"
+    )
+    assert "[REDACTED-AADHAAR]" not in result, (
+        f"AADHAAR matched embedded substring of ABHA — got {result!r}"
+    )
+    # And the digits themselves should be gone.
+    assert "3456" not in result and "7890" not in result, (
+        f"ABHA digit groups leaked — got {result!r}"
     )
