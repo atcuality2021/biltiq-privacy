@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: Port Indian PII recognisers (regex + Presidio) into biltiq_privacy</title>
+  <style>
+    :root {
+      --color-shipped:   #16a34a;
+      --color-wip:       #d97706;
+      --color-blocker:   #dc2626;
+      --color-ac-open:   #d97706;
+      --color-ac-done:   #16a34a;
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    p, li { color: var(--color-text); margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    .ac-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+    .ac-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius);
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+    }
+    .ac-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ac-open  { background: #fef3c7; color: var(--color-ac-open); border: 1px solid #fcd34d; }
+    .ac-done  { background: #dcfce7; color: var(--color-ac-done); border: 1px solid #86efac; }
+    .ac-label { font-size: 0.85rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--color-border);
+    }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: Port Indian PII recognisers (regex + Presidio) into biltiq_privacy</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-002</dd></div>
+      <div><dt>Owner</dt><dd>@harish</dd></div>
+      <div><dt>Created</dt><dd>2026-05-17</dd></div>
+      <div><dt>Wall-clock</dt><dd>L</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Iteration cycles</dt><dd>10</dd></div>
+      <div><dt>Human review (min)</dt><dd>25</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.7 (1M context)</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>
+      biltiq-privacy v0.1.0&rsquo;s differentiator is the Indian-context PII recogniser set
+      (Aadhaar, PAN, ABHA, GSTIN, Voter ID, IFSC, Phone, Medical Registration). These regexes
+      currently live inside CDSCO-RegAI in two coupled source files:
+      <code>backend/utils/pii_patterns.py</code> (pure-<code>re</code>, used by the logger for
+      DPDP-&sect;4 redaction &mdash; hot path) and
+      <code>backend/modules/anonymisation/presidio_engine.py</code> (Presidio
+      <code>PatternRecognizer</code> + spaCy <code>AnalyzerEngine</code> singleton &mdash; heavy
+      path). Both contain framework glue (CDSCO module layout, vLLM-adjacent settings, a
+      module-global <code>_engine</code>) that disqualifies them as library code. Without
+      this port, every BiltIQ consumer (CDSCO-RegAI v2, ManthanQuant, ATC CommandCenter)
+      reimplements the same eight regexes &mdash; with drift risk and no shared test surface.
+    </p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>
+      After this ships, a downstream consumer writes
+      <code>from biltiq_privacy.indian.patterns import redact</code> (zero-cost regex hot path
+      &mdash; no Presidio, no spaCy import) or
+      <code>from biltiq_privacy.indian.recognisers import INDIAN_RECOGNISERS, build_engine</code>
+      (heavy NLP-context path) and gets the eight India-context recognisers as a tested,
+      typed, framework-free dependency. CDSCO-RegAI&rsquo;s
+      <code>backend/utils/log.py</code> can drop its inline <code>_redact_pii</code> import and
+      use <code>biltiq_privacy.indian.patterns.redact</code> verbatim. The library&rsquo;s
+      &ldquo;Indian PII out-of-the-box&rdquo; promise becomes real.
+    </p>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC1</strong> &mdash; <code>biltiq_privacy/indian/patterns.py</code>
+        exports eight named regex constants (<code>AADHAAR_PATTERN</code>, <code>PAN_PATTERN</code>,
+        <code>ABHA_PATTERN</code>, <code>GSTIN_PATTERN</code>, <code>VOTER_ID_PATTERN</code>,
+        <code>IFSC_PATTERN</code>, <code>PHONE_IN_PATTERN</code>, <code>MEDICAL_REG_PATTERN</code>)
+        as <code>str</code> values, a <code>PATTERNS: dict[str, re.Pattern[str]]</code> mapping
+        of entity-name &rarr; compiled pattern, and a <code>redact(text: str) -&gt; str</code>
+        function that returns <code>[REDACTED-&lt;TYPE&gt;]</code> for each match.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC2</strong> &mdash; <code>biltiq_privacy/indian/recognisers.py</code>
+        exports eight <code>presidio_analyzer.PatternRecognizer</code> objects with entity types
+        <code>IN_AADHAAR</code>, <code>IN_PAN</code>, <code>IN_ABHA</code>, <code>IN_GSTIN</code>,
+        <code>IN_VOTER_ID</code>, <code>IN_IFSC</code>, <code>IN_PHONE</code>,
+        <code>IN_MEDICAL_REG</code>; an <code>INDIAN_RECOGNISERS</code> list constant; and a
+        <code>build_engine(nlp_engine=None) -&gt; AnalyzerEngine</code> factory that registers
+        them. No module-global engine singleton.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC3</strong> &mdash; <code>recognisers.py</code> consumes regex
+        strings from <code>patterns.py</code> (no string duplication). Invariant test:
+        <code>_GSTIN.patterns[0].regex == GSTIN_PATTERN</code> (and equivalent for all eight).</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC4</strong> &mdash; <code>redact()</code> preserves
+        ABHA-before-AADHAAR ordering. Input <code>"12-3456-7890-1234"</code> redacts to
+        <code>"[REDACTED-ABHA]"</code>, not <code>"[REDACTED-AADHAAR]"</code>. Verified by an
+        explicit ordering test.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC5</strong> &mdash; Importing
+        <code>biltiq_privacy.indian.patterns</code> does <em>not</em> transitively import
+        <code>presidio_analyzer</code> or <code>spacy</code>. Verified by a test that asserts
+        <code>"presidio_analyzer" not in sys.modules</code> after a fresh import of
+        <code>patterns</code> in a subprocess.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC6</strong> &mdash; Test surface has &ge;32 fixture cases
+        (3&ndash;5 per pattern), covering: positive, negative, known false-positive (e.g.,
+        12-digit non-Aadhaar invoice number, 3-letter-7-digit non-Voter-ID order code),
+        boundary (start-of-string, embedded in URL), and the cross-pattern
+        ABHA-before-AADHAAR invariant. Total &ge;40 test cases counting invariants.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC7</strong> &mdash; <code>mypy --strict</code> passes on both
+        files. No <code>Any</code>, no <code># type: ignore</code> without an inline
+        justification.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC8</strong> &mdash; CI matrix (Python 3.11&ndash;3.14 &times;
+        pip&nbsp;|&nbsp;uv) passes for the new files. <code>presidio-analyzer&gt;=2.2,&lt;3</code>
+        and <code>presidio-anonymizer&gt;=2.2,&lt;3</code> already in
+        <code>packages/python-core/pyproject.toml</code> (added in BILTIQ-001).</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC9</strong> &mdash; <code>CHANGELOG.md</code> [Unreleased]
+        gains a line: <code>- feat: India PII recognisers &mdash; patterns + Presidio surfaces (BILTIQ-002)</code>.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC10</strong> &mdash; No Anti-Pattern #7 residue
+        (<code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>,
+        <code>test_scratch_*</code>). No banned vocabulary in code, comments, docstrings, or
+        commit messages.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC11</strong> &mdash; Both files carry module-level
+        docstrings naming source files (<code>CDSCO-RegAI:backend/utils/pii_patterns.py</code>,
+        <code>CDSCO-RegAI:backend/modules/anonymisation/presidio_engine.py</code>) and the
+        BILTIQ-002 task ID for provenance.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>The <code>_engine</code> module-global singleton pattern from CDSCO&rsquo;s
+        <code>presidio_engine.py</code>. <code>build_engine()</code> is a pure factory; consumers
+        manage singleton lifecycle in their own app code.</li>
+      <li>The <code>detect_pii_rules()</code> helper from CDSCO &mdash; deferred to a later task
+        that defines the canonical detection-result schema (currently a bespoke dict shape:
+        <code>{entity_type, start, end, score, text, source}</code>).</li>
+      <li>EU/US recognisers (GDPR/HIPAA/CCPA entities like SSN, NHS Number, EU passport,
+        IBAN). Separate task, separate module (<code>biltiq_privacy/eu/</code>,
+        <code>biltiq_privacy/us/</code>).</li>
+      <li>Anonymisation primitives beyond <code>redact()</code> (k-anonymity, pseudonymisation,
+        age encryption, format-preserving encryption). Separate tasks.</li>
+      <li>Custom user-supplied regex patterns at runtime &mdash; v0.2.0+.</li>
+      <li>Updating CDSCO-RegAI to consume <code>biltiq_privacy</code>. That migration is a
+        CDSCO repo task, not a biltiq-privacy task.</li>
+      <li>Med Reg confidence tuning. Ships at 0.6 to match CDSCO prod; consumers can
+        re-register a custom recogniser with a different score.</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li>Build cannot start until PR #1 (BILTIQ-001 packages/ skeleton) merges. Plan can be
+        finalised on this branch; Build waits for merge then rebases. &mdash; @harish</li>
+      <li>Should <code>build_engine()</code> accept a callable
+        <code>nlp_engine_factory</code> (lazy) or a pre-built <code>NlpEngine</code> instance
+        (eager)? Leaning eager &mdash; consumers can wrap in a factory themselves. Confirm
+        in design.html. &mdash; @harish</li>
+      <li>Do we want a top-level <code>from biltiq_privacy import redact</code> shortcut, or
+        is <code>from biltiq_privacy.indian.patterns import redact</code> the only blessed
+        import path? Leaning sub-module-only to keep <code>biltiq_privacy/__init__.py</code>
+        empty &mdash; matches BILTIQ-001 metapackage discipline. Confirm in design.html. &mdash; @harish</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Section</th>
+          <th>What Changed</th>
+          <th>Trigger</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-17</td>
+          <td>all</td>
+          <td>Initial draft &mdash; scope broad (8 recognisers), two-module layout, curated edge-case test surface.</td>
+          <td>BILTIQ-002 Step 1 Think (Socratic Q1&ndash;Q4)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
