@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Design: [TASK_TITLE]</title>
+  <title>Design: BILTIQ-002 — Port Indian PII recognisers (regex + Presidio) into biltiq_privacy</title>
   <style>
     :root {
       --color-border:    #e5e7eb;
@@ -66,7 +66,7 @@
       font-size: 0.85rem;
       margin: 0.5rem 0;
     }
-    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
     th { background: var(--color-bg-subtle); font-weight: 600; }
     .tag {
       display: inline-block;
@@ -80,95 +80,285 @@
     .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
     .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
     .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .ac-ref { display: inline-block; font-size: 0.72rem; font-weight: 600; color: var(--color-muted); background: var(--color-bg-subtle); border: 1px solid var(--color-border); padding: 0.05rem 0.35rem; border-radius: 4px; margin-right: 0.25rem; }
     @media (max-width: 600px) { .meta { flex-direction: column; } }
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Design: [TASK_TITLE]</h1>
+    <h1>Design: BILTIQ-002 — Port Indian PII recognisers (regex + Presidio) into biltiq_privacy</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-002</dd></div>
+      <div><dt>Author</dt><dd>@claude (code-architect)</dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+      <div><dt>Spec ref</dt><dd><code>docs/specs/BILTIQ-002/spec.html</code></dd></div>
+      <div><dt>Compliance mode</dt><dd><code>on_prem_preferred</code></dd></div>
     </dl>
   </header>
 
   <section id="approach">
     <h2>Approach</h2>
     <h3>Name</h3>
-    <p class="placeholder">One-line name for the chosen approach.</p>
+    <p><strong>Two-module Indian PII pack under <code>biltiq_privacy/indian/</code>: <code>patterns.py</code> as the regex single-source-of-truth + zero-dep <code>redact()</code> hot path, <code>recognisers.py</code> as a thin Presidio adapter consuming the same strings.</strong></p>
     <h3>Description</h3>
-    <p class="placeholder">Chosen approach narrative — why this option, what it trades off, what it preserves. 3–6 sentences.</p>
+    <p>The spec locks four invariants — eight Indian entity types, a two-module split (<code>patterns.py</code> pure-regex + <code>recognisers.py</code> Presidio adapter), no string duplication between the two (AC3), and lazy import of <code>presidio_analyzer</code> / <code>spacy</code> when only <code>patterns</code> is in use (AC5). Those four together force a specific topology: <code>patterns.py</code> imports nothing from the Presidio stack at module level; <code>recognisers.py</code> imports <code>presidio_analyzer</code> at module level and references the regex strings by name from <code>patterns</code>. <code>build_engine()</code> is a pure factory — no module-global <code>_engine</code>, no caching — so consumers own the singleton lifecycle (the same posture <code>detectors/presidio_backend.py</code> will take in v0.4.0+).</p>
+    <p>The eight regex constants land as <code>Final[str]</code>; the eight <code>PatternRecognizer</code> instances land as a module-level tuple typed <code>Final[Sequence[PatternRecognizer]]</code>. The <code>PATTERNS: dict[str, re.Pattern[str]]</code> mapping is compiled <em>at module load</em> in <code>patterns.py</code> (eight one-time <code>re.compile</code> calls; deterministic, no side effects). <code>redact(text)</code> walks <code>PATTERNS</code> in a fixed order, ABHA-before-AADHAAR (AC4), and substitutes each match with <code>[REDACTED-&lt;TYPE&gt;]</code>. The ordering is encoded by an explicit <code>_REDACT_ORDER: Final[tuple[str, ...]]</code> sequence — not by dict-insertion order — so the contract is impossible to break by a reflexive alphabetical-sort refactor.</p>
+    <p>The eight Presidio recognisers consume the compiled <code>re.Pattern</code> via <code>PATTERNS[name].pattern</code> (the raw string the recogniser stores on <code>Pattern.regex</code>), keeping the AC3 invariant test (<code>_GSTIN.patterns[0].regex == GSTIN_PATTERN</code>) trivially true. Each <code>PatternRecognizer</code> ships with a fixed confidence score (Aadhaar 0.85, PAN 0.9, ABHA 0.85, GSTIN 0.9, Voter 0.7, IFSC 0.9, Phone 0.7, Med Reg 0.6 to match CDSCO prod per spec § Out of Scope §7) and a small Indian-context word list for Presidio's context-boost. <code>build_engine(nlp_engine=None)</code> instantiates a fresh <code>AnalyzerEngine</code>, registers all eight, and returns it — pure factory, no caching, no env reads, no I/O. Per spec open-question §2 the design locks the <strong>eager</strong> interpretation: callers pass a pre-built <code>NlpEngine</code> or <code>None</code> for Presidio's default — they do not pass a factory callable. Per spec open-question §3 the design locks the <strong>sub-module-only import path</strong>: <code>biltiq_privacy/__init__.py</code> stays as it is (no <code>redact</code> re-export). Both interpretations are flagged in § Open Questions Confirmed for explicit dev approval before plan.html lands.</p>
+    <p>The trade-off accepted: the dual surface (<code>patterns.redact</code> for hot path, <code>recognisers.build_engine</code> for NLP path) is mildly redundant — patterns and recognisers detect the same eight types. The redundancy is the point. CDSCO-RegAI's <code>backend/utils/log.py</code> needs sub-millisecond redaction inside the logging filter (no spaCy model load, no AnalyzerEngine construction); ATC CommandCenter's anonymisation pipeline needs Presidio's confidence-scored, context-aware detection. Collapsing the two into a single Presidio-only surface fails the hot path; collapsing into a single regex-only surface fails the NLP-context path. AC5 (lazy import) plus AC3 (no string duplication) together codify this trade-off as a checkable invariant rather than a comment.</p>
   </section>
 
   <section id="alternatives">
     <h2>Alternatives Considered</h2>
+
+    <h3>Module layout (chosen: two modules under <code>biltiq_privacy/indian/</code>)</h3>
     <table>
-      <thead>
-        <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
-      </thead>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
-        <tr><td>2</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
+        <tr><td>1</td><td>Single-module design with regex + Presidio recognisers fused into one <code>biltiq_privacy/recognisers/india.py</code> per existing <code>docs/architecture/overview.md</code> § Components.</td><td>Fails AC5 directly — importing the file pulls <code>presidio_analyzer</code> and <code>spacy</code> into <code>sys.modules</code>, blowing the hot-path budget for the CDSCO-RegAI logger. Also collapses AC3's no-string-duplication invariant into a tautology (one file always self-consistent), removing the cross-module check that protects against future drift.</td></tr>
+        <tr><td>2</td><td>Three modules — <code>patterns.py</code> + <code>recognisers.py</code> + a top-level <code>__init__.py</code> that re-exports <code>redact</code> as <code>biltiq_privacy.indian.redact</code>.</td><td>Re-exports tempt callers into <code>from biltiq_privacy.indian import redact, build_engine</code>, which transitively imports the recognisers module and breaks AC5 lazy-import. Sub-module <code>__init__.py</code> stays minimal (docstring + <code>__all__ = []</code>); callers reach for the leaf module they need.</td></tr>
+        <tr><td>3</td><td>Keep recognisers under the existing <code>biltiq_privacy/recognisers/india.py</code> path documented in <code>docs/architecture/overview.md</code> and <code>docs/architecture/stack.md</code>, and put the regex set under <code>biltiq_privacy/core/pii_patterns.py</code> (also pre-listed in overview.md).</td><td>Matches the overview/stack docs but contradicts the spec — AC1 and AC2 both literally name <code>biltiq_privacy/indian/patterns.py</code> and <code>biltiq_privacy/indian/recognisers.py</code>. Spec is locked. Resolution: add the new <code>biltiq_privacy/indian/</code> sub-package as the canonical regional layout going forward and update overview.md / stack.md in the same PR (see § Files to Touch — Documentation deltas). EU / US / UK packs follow this pattern in later tasks (<code>biltiq_privacy/eu/</code>, <code>biltiq_privacy/us/</code>, <code>biltiq_privacy/uk/</code>).</td></tr>
+        <tr><td>4 ✓</td><td><strong>Two modules under <code>biltiq_privacy/indian/</code>: <code>patterns.py</code> (regex strings + compiled mapping + <code>redact()</code>) and <code>recognisers.py</code> (Presidio adapter + factory) (chosen).</strong></td><td>Direct match to AC1 + AC2. AC3 enforces no string duplication across the two via a name-equality test. AC5 enforces lazy NLP import via a sys.modules check after subprocess-fresh import of <code>patterns</code>. The two files form an enforceable interface, not a convention.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Ordering enforcement for ABHA-vs-AADHAAR (chosen: explicit ordered tuple)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Rely on Python 3.7+ dict-insertion-order semantics — declare ABHA before AADHAAR in the <code>PATTERNS</code> literal and iterate the dict directly in <code>redact()</code>.</td><td>Order is implicit and disappears under a sort-keys refactor or an alphabetical rename (e.g. a future <code>ruff</code> rule that sorts dict literals). Invisible coupling between source-line position and runtime behaviour is a maintenance trap, particularly on the AC4 invariant test ("input <code>12-3456-7890-1234</code> redacts to <code>[REDACTED-ABHA]</code>").</td></tr>
+        <tr><td>2</td><td>Build a single combined regex with named groups (<code>(?P&lt;ABHA&gt;...)|(?P&lt;AADHAAR&gt;...)|...</code>) and rely on alternation left-to-right matching.</td><td>Tighter and faster, but: (a) one giant regex is hostile to AC3's per-name string export, (b) ABHA-before-AADHAAR is one of several ordering constraints we may need over time (IFSC vs PAN both have 4-letter prefixes; phone vs Aadhaar both have 10-digit overlap), and a flat alternation hides which alternative wins for which input, (c) Presidio recognisers want one regex per entity type — combining them here makes <code>recognisers.py</code>'s consumption awkward.</td></tr>
+        <tr><td>3 ✓</td><td><strong>Explicit <code>_REDACT_ORDER: Final[tuple[str, ...]] = ("ABHA", "AADHAAR", "PAN", "GSTIN", "VOTER_ID", "IFSC", "PHONE_IN", "MEDICAL_REG")</code> consumed by <code>redact()</code> (chosen).</strong></td><td>Order is data, not source-line position. AC4's invariant test asserts on the tuple value itself ("ABHA index &lt; AADHAAR index"). Future ordering tweaks land as a single-line change. Iteration cost on the hot path is 8 fixed regex sweeps per input string — same as the dict-iteration alternative.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Lazy import enforcement (chosen: zero-import patterns.py + subprocess assertion)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Function-level <code>import presidio_analyzer</code> inside <code>redact()</code> ("lazy import at call time").</td><td>Misreads AC5. The spec says importing <code>patterns</code> must not load Presidio, not that <code>redact()</code> must not load Presidio. <code>redact()</code> uses no Presidio at all — it's a pure-<code>re</code> path. Function-level Presidio imports add complexity to a hot path for no benefit.</td></tr>
+        <tr><td>2</td><td><code>TYPE_CHECKING</code>-gated Presidio imports in <code>patterns.py</code> for type-hint purposes.</td><td>Unneeded — <code>patterns.py</code> has no Presidio types in its signatures. <code>redact(text: str) -&gt; str</code>, <code>PATTERNS: dict[str, re.Pattern[str]]</code>. All standard-library types.</td></tr>
+        <tr><td>3 ✓</td><td><strong><code>patterns.py</code> imports only <code>re</code> and <code>typing</code> from stdlib; <code>recognisers.py</code> imports <code>presidio_analyzer</code> at module level. AC5 verified by a subprocess test that imports <code>biltiq_privacy.indian.patterns</code> and asserts <code>"presidio_analyzer" not in sys.modules</code> (chosen).</strong></td><td>The subprocess isolation is what makes the test reliable — same-process tests can be poisoned by another test in the suite that imported Presidio first. Pattern already used in the wider Python ecosystem (e.g. <code>numpy</code>'s lazy-import tests). Adds ~150 ms per test invocation, run once per CI matrix cell.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Test surface shape (chosen: parametrised pytest with one fixture module per entity)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>One monolithic <code>test_indian_patterns.py</code> with 40+ tests inline.</td><td>Works but mixes positive / negative / boundary / cross-pattern cases into one file — hard to read, hard to extend, hard to keep the 5-cases-per-pattern count auditable against AC6.</td></tr>
+        <tr><td>2</td><td>Hypothesis-based generative tests for positive cases (e.g. random valid Aadhaar Verhoeff numbers).</td><td>Out of scope. AC6 explicitly names "fixture cases" (concrete strings), not generative properties. Verhoeff-checksum-aware generation is also a maintenance overhead the spec does not ask for. Synthetic fixtures are sufficient and auditable; stack.md § Test fixtures already names <code>sample_indian_pii</code> as the convention.</td></tr>
+        <tr><td>3 ✓</td><td><strong>One fixture module <code>tests/fixtures/india.py</code> (per stack.md naming) defining a <code>CASES: dict[str, list[Case]]</code> of named test cases per entity, consumed by parametrised tests in <code>tests/indian/test_patterns.py</code> and <code>tests/indian/test_recognisers.py</code>. A separate <code>test_invariants.py</code> covers AC3 (string equality across modules), AC4 (ABHA-before-AADHAAR), and AC5 (subprocess lazy-import) (chosen).</strong></td><td>Clean per-AC mapping. Fixture module is reusable for v0.2.0+ work (EU pack imports the same fixture pattern). AC6's "≥32 fixture cases" auditable by <code>sum(len(v) for v in CASES.values()) &gt;= 32</code> in a meta-test.</td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="files-to-touch">
     <h2>Files to Touch</h2>
+
     <h3>New <span class="tag tag-new">CREATE</span></h3>
     <table>
-      <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+      <thead><tr><th>File</th><th>Purpose</th><th>ACs</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What it does.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/indian/__init__.py</code></td><td>Sub-package marker. Docstring naming the regional pack and BILTIQ-002 provenance. <code>__all__: list[str] = []</code> — no symbol re-exports (forces callers to <code>from biltiq_privacy.indian.patterns import ...</code> or <code>.recognisers import ...</code> and preserves AC5 lazy-import semantics).</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC2</span><span class="ac-ref">AC5</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/indian/patterns.py</code></td><td>Eight <code>Final[str]</code> regex constants (<code>AADHAAR_PATTERN</code>, <code>PAN_PATTERN</code>, <code>ABHA_PATTERN</code>, <code>GSTIN_PATTERN</code>, <code>VOTER_ID_PATTERN</code>, <code>IFSC_PATTERN</code>, <code>PHONE_IN_PATTERN</code>, <code>MEDICAL_REG_PATTERN</code>); <code>PATTERNS: dict[str, re.Pattern[str]]</code> mapping entity name → compiled pattern (compiled once at import); <code>_REDACT_ORDER: Final[tuple[str, ...]]</code> with ABHA before AADHAAR; <code>redact(text: str) -&gt; str</code> walking <code>_REDACT_ORDER</code> and substituting <code>[REDACTED-&lt;NAME&gt;]</code>. Module docstring names <code>CDSCO-RegAI:backend/utils/pii_patterns.py</code> + BILTIQ-002 (AC11). Imports: only <code>re</code> and <code>typing</code> from stdlib + <code>__future__ annotations</code>. No Presidio, no spaCy.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC4</span><span class="ac-ref">AC5</span><span class="ac-ref">AC7</span><span class="ac-ref">AC11</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/indian/recognisers.py</code></td><td>Eight module-level <code>PatternRecognizer</code> instances (<code>_AADHAAR</code>, <code>_PAN</code>, <code>_ABHA</code>, <code>_GSTIN</code>, <code>_VOTER_ID</code>, <code>_IFSC</code>, <code>_PHONE</code>, <code>_MED_REG</code>) with entity types <code>IN_AADHAAR</code>, <code>IN_PAN</code>, <code>IN_ABHA</code>, <code>IN_GSTIN</code>, <code>IN_VOTER_ID</code>, <code>IN_IFSC</code>, <code>IN_PHONE</code>, <code>IN_MEDICAL_REG</code>; per-entity confidence score (locked to CDSCO prod values per spec § Out of Scope §7); per-entity Indian-context word list for Presidio context boost; regex strings sourced via <code>from .patterns import AADHAAR_PATTERN, ...</code> (AC3 invariant). <code>INDIAN_RECOGNISERS: Final[Sequence[PatternRecognizer]] = (...)</code> tuple constant. <code>build_engine(nlp_engine: NlpEngine | None = None) -&gt; AnalyzerEngine</code> factory — instantiates a fresh <code>AnalyzerEngine</code>, registers all eight, returns it. No module-global engine, no caching, no env reads. Module docstring names <code>CDSCO-RegAI:backend/modules/anonymisation/presidio_engine.py</code> + BILTIQ-002 (AC11).</td><td><span class="ac-ref">AC2</span><span class="ac-ref">AC3</span><span class="ac-ref">AC7</span><span class="ac-ref">AC11</span></td></tr>
+        <tr><td><code>packages/python-core/tests/indian/__init__.py</code></td><td>Empty marker for the regional test sub-package.</td><td><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/fixtures/__init__.py</code></td><td>Empty marker for the shared-fixture package (stack.md § Test fixtures convention).</td><td><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/fixtures/india.py</code></td><td>Synthetic fixture data per stack.md § Test fixtures (<code>sample_indian_pii</code>). Defines a small frozen dataclass <code>Case</code> (<code>text: str</code>, <code>should_match: bool</code>, <code>category: Literal["positive", "negative", "false_positive", "boundary"]</code>, <code>note: str = ""</code>) and a <code>CASES: dict[str, list[Case]]</code> mapping entity name → ≥4 cases per entity (8 × 4 = 32 minimum to satisfy AC6's "≥32 fixture cases"; plan.html targets 5 per entity = 40 to clear the bar with margin). Synthetic-only — no real Aadhaar / PAN / ABHA values, per stack.md § Test fixtures rule and AGENT_RULES.md § Code conventions (no PII in code).</td><td><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/indian/test_patterns.py</code></td><td>Parametrised pytest module consuming <code>CASES</code>. One test per <code>(entity, case)</code> pair asserting that <code>redact(case.text)</code> contains <code>[REDACTED-&lt;ENTITY&gt;]</code> iff <code>case.should_match</code>. Separately tests the <code>PATTERNS</code> dict's keys, each pattern compiles, and the <code>redact()</code> output shape is a <code>str</code> with no leftover original matches.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/indian/test_recognisers.py</code></td><td>Tests for <code>INDIAN_RECOGNISERS</code> tuple shape (8 entries, all <code>PatternRecognizer</code>, expected entity types), <code>build_engine(nlp_engine=None)</code> returns a fresh <code>AnalyzerEngine</code> with all 8 recognisers registered, and one happy-path detection per entity through the engine. Uses the <code>presidio_engine_indian</code> fixture from stack.md if available, otherwise constructs an engine inline. Network-free per stack.md § Test fixtures rules.</td><td><span class="ac-ref">AC2</span><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/indian/test_invariants.py</code></td><td>Three invariant tests: (a) AC3 — for each of the eight entities, <code>recognisers._&lt;ENTITY&gt;.patterns[0].regex == patterns.&lt;ENTITY&gt;_PATTERN</code>; (b) AC4 — <code>redact("12-3456-7890-1234") == "[REDACTED-ABHA]"</code> and <code>_REDACT_ORDER.index("ABHA") &lt; _REDACT_ORDER.index("AADHAAR")</code>; (c) AC6 sanity — <code>sum(len(v) for v in CASES.values()) &gt;= 32</code>. AC5 lives in its own file (next row) because it spawns a subprocess.</td><td><span class="ac-ref">AC3</span><span class="ac-ref">AC4</span><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/indian/test_lazy_import.py</code></td><td>AC5 subprocess test. Uses <code>subprocess.run([sys.executable, "-c", "import biltiq_privacy.indian.patterns; import sys; assert 'presidio_analyzer' not in sys.modules and 'spacy' not in sys.modules"], check=True)</code>. Isolation from in-process test pollution is the whole point — a regular same-process test would be fooled by any sibling test that already imported Presidio.</td><td><span class="ac-ref">AC5</span></td></tr>
       </tbody>
     </table>
+
     <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
     <table>
-      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <thead><tr><th>File</th><th>Change</th><th>ACs</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What changes.</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td>Append under <code>[Unreleased]</code>: <code>- feat: India PII recognisers — patterns + Presidio surfaces (BILTIQ-002)</code>. Single-line entry in keep-a-changelog style, no marketing copy, no banned vocab.</td><td><span class="ac-ref">AC9</span><span class="ac-ref">AC10</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/__init__.py</code></td><td><strong>No edit.</strong> Spec open-question §3 leans against a top-level <code>redact</code> re-export, and the chosen approach locks the sub-module-only import path. Surfaced here so the dev sees it was considered and skipped. (If dev flips the answer at review, the change is one line: <code>from .indian.patterns import redact</code> + <code>__all__</code> append — but this would import Presidio's sibling recogniser module's parent package, not Presidio itself, so AC5 still holds.)</td><td>—</td></tr>
+        <tr><td><code>packages/python-core/pyproject.toml</code></td><td><strong>No edit.</strong> <code>presidio-analyzer&gt;=2.2,&lt;3</code> and <code>presidio-anonymizer&gt;=2.2,&lt;3</code> are already pinned (BILTIQ-001). spaCy and en-core-web-sm same. Verified by reading the file at design time — spec AC8 says the same. Surfaced here as a negative claim for the dev to spot-check.</td><td><span class="ac-ref">AC8</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Documentation deltas <span class="tag tag-modified">EDIT</span></h3>
+    <p>These doc edits keep the architecture documentation in sync with the new sub-package introduced by BILTIQ-002. Land in the same PR.</p>
+    <table>
+      <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/architecture/overview.md</code></td><td><strong>EDIT</strong> — § Components: add <code>indian/patterns.py</code> and <code>indian/recognisers.py</code> rows; remove or rephrase the existing <code>recognisers/india.py</code> row (the existing line anticipated the old layout and is contradicted by AC1/AC2). § Where new code goes: add a row "A new regional PII pack → <code>packages/python-core/biltiq_privacy/&lt;region&gt;/patterns.py</code> + <code>recognisers.py</code> + tests in <code>tests/&lt;region&gt;/</code>." The old "<code>recognisers/&lt;region&gt;.py</code>" guidance becomes the EU/US/UK plan's contradiction and needs the same update.</td><td>Anti-Pattern #1 hygiene — keep docs and code in sync; future regional packs should follow the new pattern.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td><strong>EDIT</strong> — § Internal modules table: add rows for <code>biltiq_privacy.indian.patterns</code> (regex SSOT + <code>redact()</code>) and <code>biltiq_privacy.indian.recognisers</code> (Presidio adapter + <code>build_engine</code>). § Test fixtures: add row for <code>indian_cases</code> fixture from <code>tests/fixtures/india.py</code>. The existing <code>build_engine(regions=[...])</code> row under § Internal modules is for the future cross-region factory at <code>biltiq_privacy.recognisers</code> level — left untouched (different surface, future task).</td><td>Stack.md is the Anti-Pattern #1 defense surface; new internal modules must register here in the same PR.</td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top: 0.75rem;"><strong>Not touched (intentionally):</strong> <code>AGENT_RULES.md</code>, <code>MEMORY.md</code>, <code>LICENSE</code>, <code>.gitignore</code>, <code>README.md</code>, <code>.github/workflows/ci.yml</code>, <code>.github/workflows/biltiq-gates.yml</code>, <code>scripts/check-boundaries.sh</code> — all correct as-is for BILTIQ-002. CI already runs the matrix on every push; new tests are picked up automatically.</p>
+  </section>
+
+  <section id="entity-table">
+    <h2>Eight Entity Types</h2>
+    <p>The locked set per spec AC1/AC2. Confidence scores match CDSCO-RegAI prod (spec § Out of Scope §7); consumers re-register a recogniser with a different score if they need to.</p>
+    <table>
+      <thead><tr><th>#</th><th>Pattern constant</th><th>Presidio entity type</th><th>Recogniser private name</th><th>Confidence</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>AADHAAR_PATTERN</code></td><td><code>IN_AADHAAR</code></td><td><code>_AADHAAR</code></td><td>0.85</td><td>12-digit, formatted (<code>####-####-####</code> or <code>#### #### ####</code>) or plain.</td></tr>
+        <tr><td>2</td><td><code>PAN_PATTERN</code></td><td><code>IN_PAN</code></td><td><code>_PAN</code></td><td>0.9</td><td>5 letters + 4 digits + 1 letter (e.g. <code>ABCDE1234F</code>).</td></tr>
+        <tr><td>3</td><td><code>ABHA_PATTERN</code></td><td><code>IN_ABHA</code></td><td><code>_ABHA</code></td><td>0.85</td><td>14-digit (<code>##-####-####-####</code>). Must match before Aadhaar (AC4).</td></tr>
+        <tr><td>4</td><td><code>GSTIN_PATTERN</code></td><td><code>IN_GSTIN</code></td><td><code>_GSTIN</code></td><td>0.9</td><td>15 chars: 2-digit state code + 10-char PAN + 1 entity code + 1 alpha (default 'Z') + 1 checksum.</td></tr>
+        <tr><td>5</td><td><code>VOTER_ID_PATTERN</code></td><td><code>IN_VOTER_ID</code></td><td><code>_VOTER_ID</code></td><td>0.7</td><td>Election Commission EPIC: 3 letters + 7 digits.</td></tr>
+        <tr><td>6</td><td><code>IFSC_PATTERN</code></td><td><code>IN_IFSC</code></td><td><code>_IFSC</code></td><td>0.9</td><td>4 letters + '0' + 6 alphanumeric (the '0' position is reserved).</td></tr>
+        <tr><td>7</td><td><code>PHONE_IN_PATTERN</code></td><td><code>IN_PHONE</code></td><td><code>_PHONE</code></td><td>0.7</td><td>10-digit mobile starting 6/7/8/9, with optional <code>+91</code> / <code>0</code> prefix.</td></tr>
+        <tr><td>8</td><td><code>MEDICAL_REG_PATTERN</code></td><td><code>IN_MEDICAL_REG</code></td><td><code>_MED_REG</code></td><td>0.6</td><td>Medical Council Registration Number. Lower score per CDSCO prod — high false-positive baseline (numeric registration codes vary by state council).</td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="data-model">
     <h2>Data Model Changes</h2>
-    <p class="placeholder">Schema deltas, new JSONL fields, new SQLite tables. Write "None" if no model changes.</p>
+    <p><strong>None.</strong> No schemas, no JSONL fields, no SQLite tables, no audit-chain row changes. The <code>PATTERNS</code> dict and <code>INDIAN_RECOGNISERS</code> tuple are in-process Python data structures, not persisted state.</p>
+    <p>The fixture <code>Case</code> dataclass introduced under <code>tests/fixtures/india.py</code> is test-only and never published; it is not part of the v0.1.0 library surface.</p>
   </section>
 
   <section id="api-contract">
     <h2>API Contract Changes</h2>
-    <p class="placeholder">New or changed function signatures, CLI interfaces, env vars. Write "None" if no API changes.</p>
-    <pre><code class="placeholder"># Example:
-# function_name(param: type) -> return_type
+    <p>Two new public Python symbols ship in v0.1.0 (additive — no breaking changes; v0.1.0 itself is the first published version):</p>
+    <pre><code># biltiq_privacy.indian.patterns
+AADHAAR_PATTERN:      Final[str]
+PAN_PATTERN:          Final[str]
+ABHA_PATTERN:         Final[str]
+GSTIN_PATTERN:        Final[str]
+VOTER_ID_PATTERN:     Final[str]
+IFSC_PATTERN:         Final[str]
+PHONE_IN_PATTERN:     Final[str]
+MEDICAL_REG_PATTERN:  Final[str]
+PATTERNS:             dict[str, re.Pattern[str]]    # keys: AADHAAR | PAN | ABHA | GSTIN | VOTER_ID | IFSC | PHONE_IN | MEDICAL_REG
+redact(text: str) -&gt; str
+    """Substitute each Indian-PII match in `text` with `[REDACTED-&lt;TYPE&gt;]`.
+    ABHA is checked before AADHAAR (longer pattern, AC4). Returns `text` unchanged
+    if no matches. Pure regex; no Presidio / spaCy import."""
+
+# biltiq_privacy.indian.recognisers
+INDIAN_RECOGNISERS: Final[Sequence[PatternRecognizer]]   # length 8
+build_engine(nlp_engine: NlpEngine | None = None) -&gt; AnalyzerEngine
+    """Construct a fresh AnalyzerEngine and register all eight Indian recognisers.
+    Pure factory — no module-global cache, no env reads, no I/O.
+    Consumer owns singleton lifecycle. If `nlp_engine` is None, Presidio's default
+    spaCy-based engine is used."""
 </code></pre>
+    <p><strong>Import path contract:</strong> only the leaf-module paths are blessed. <code>from biltiq_privacy.indian.patterns import redact</code> and <code>from biltiq_privacy.indian.recognisers import INDIAN_RECOGNISERS, build_engine</code>. <code>biltiq_privacy/__init__.py</code> stays empty of these symbols (spec open-question §3 lock) so that <code>import biltiq_privacy</code> remains a sub-millisecond no-op.</p>
+    <p><strong>Structure preservation</strong> in <code>redact()</code> means: surrounding text, whitespace, punctuation, and ordering of non-PII tokens are unchanged. Only matched substrings are replaced. The substitution token <code>[REDACTED-&lt;TYPE&gt;]</code> is shorter than most matched substrings, so output is generally shorter than input — but no whole-line normalisation or trimming happens. This matches the CDSCO-RegAI source contract (where the logger's <code>_redact_pii</code> preserves the surrounding log-line shape).</p>
   </section>
 
   <section id="security-compliance">
     <h2>Security &amp; Compliance</h2>
     <ul>
-      <li class="placeholder">Compliance mode: <code>on_prem_preferred</code> — note any external call gating.</li>
-      <li class="placeholder">Secret handling: env vars only, never hardcoded.</li>
-      <li class="placeholder">Input escaping: note any user-controlled data embedded in output.</li>
+      <li><strong>Compliance mode: <code>on_prem_preferred</code>.</strong> This task introduces zero external AI / cloud API calls. Presidio runs locally; the spaCy model runs locally; no network reachability is required at runtime. <code>build_engine()</code> takes a <code>NlpEngine | None</code> — when <code>None</code>, Presidio constructs its default in-process spaCy engine. No HTTP client, no environment-variable reads, no <code>os.environ</code> access inside <code>packages/python-core/</code>.</li>
+      <li><strong>PII handling discipline.</strong> All fixture data under <code>tests/fixtures/india.py</code> is synthetic — no real Aadhaar, PAN, ABHA, IFSC, voter ID, GSTIN, or medical registration numbers (per AGENT_RULES.md § Code conventions + stack.md § Test fixtures). The fixture file gets a module-level docstring explicitly stating "synthetic only — never copy from real documents". Code review check: any 12-digit number in fixture data must not pass the Verhoeff checksum (the Aadhaar validation algorithm) — the easiest way to ensure this is to use the canonical test pattern <code>1234-5678-9123</code> documented by UIDAI as invalid.</li>
+      <li><strong>No PII in logs.</strong> <code>redact()</code> and the recogniser code do not log input strings (those <em>are</em> PII by definition). If diagnostic logging is added later, it routes through <code>biltiq_privacy.core.log_filter.RedactionFilter</code> (stack.md). For BILTIQ-002, neither module emits log records — they are pure data + pure functions.</li>
+      <li><strong>No secrets.</strong> No HMAC keys, no API tokens, no env reads. The pseudonymisation surface that needs HMAC keys lives in <code>core/pseudonymiser.py</code> (later task), not here.</li>
+      <li><strong>Library/server boundary.</strong> <code>packages/python-core/</code> only — no FastAPI / Starlette / uvicorn imports. <code>scripts/check-boundaries.sh</code> (BILTIQ-001) catches any accident in CI.</li>
+      <li><strong>License hygiene.</strong> SPDX header on every new <code>.py</code> file. All deps (Presidio, spaCy) are MIT / Apache-2.0; no GPL contamination risk. Per <code>approved-versions.md</code>: <code>python-Levenshtein</code> (GPL) and <code>pymupdf</code> (AGPL) banned — neither is touched here.</li>
+      <li><strong>No ADR required.</strong> This task introduces no new AI dependency, no new external service, no new schema, no compliance-mode override, no web-framework import. The chosen approach uses Presidio's <code>PatternRecognizer</code> (already pinned in pyproject.toml and listed under <code>approved-versions.md</code> § Presidio). Spec open-question §1 ("Build cannot start until PR #1 merges") is a process gate, not an ADR.</li>
     </ul>
   </section>
 
   <section id="performance">
     <h2>Performance Considerations</h2>
-    <p class="placeholder">Latency budget, data volume, hot paths. Write "None" if not applicable.</p>
+    <p>Two distinct latency budgets, one per import path:</p>
+    <ul>
+      <li><strong>Hot path — <code>from biltiq_privacy.indian.patterns import redact</code>.</strong> Import cost: ~5–15 ms (Python bytecode load + 8 × <code>re.compile</code>). Per-call cost: O(n × p) where n = input length in bytes, p = 8 patterns. Each <code>re.sub</code> is C-implemented in CPython's <code>_sre</code>; for typical CDSCO-RegAI log lines (~200 chars) the budget is well under 100 µs per <code>redact()</code> call. AC5 guarantees no Presidio / spaCy import overhead bleeds in.</li>
+      <li><strong>Heavy path — <code>from biltiq_privacy.indian.recognisers import build_engine</code>.</strong> Import cost: ~50–200 ms (Presidio's <code>AnalyzerEngine</code> module imports + 8 × <code>PatternRecognizer.__init__</code>). <code>build_engine()</code> call cost: ~2–4 s cold (Presidio loads spaCy <code>en_core_web_sm</code> model on first engine construction; matches overview.md § Data flow cold-start budget). Per-detection cost: ~10–40 ms per kilobyte of text (overview.md § Data flow). Consumers cache the engine — the spec explicitly bans a module-global singleton (spec § Out of Scope §1) so the caller owns the lifecycle.</li>
+      <li><strong>Compilation at module load.</strong> The <code>PATTERNS</code> dict comprehension runs eight <code>re.compile</code> calls at <code>patterns.py</code> import time. Each pattern is small (&lt; 100 chars source); compile cost is ~0.5–1 ms per pattern. Done once per process; never on the hot path. Alternative (lazy compile inside <code>redact()</code>) rejected — costs a per-call branch for no measurable win at typical workloads.</li>
+      <li><strong>Test-suite cost.</strong> 40+ parametrised tests through <code>redact()</code>: ~100 ms total. 8+ engine-backed tests through <code>build_engine()</code>: ~3–5 s total (cold-load amortised across tests if engine is reused via the <code>presidio_engine_indian</code> fixture). Lazy-import subprocess test: ~150–300 ms (subprocess startup dominates). Whole module under 5 s wall-clock; comfortably inside CI budget.</li>
+    </ul>
   </section>
 
   <section id="rollout">
     <h2>Rollout Plan</h2>
+    <p><strong>Single PR, multiple atomic commits.</strong> The two modules and their tests are tightly coupled (AC3's invariant test is cross-module; AC5's lazy-import test depends on the patterns module landing first). Splitting into separate PRs would leave intermediate states with red CI. Inside the PR, plan.html will land 4–6 atomic commits — patterns first, then recognisers, then tests, then docs deltas, then CHANGELOG. Exact split is plan.html's job.</p>
     <ol style="padding-left: 1.4rem;">
-      <li class="placeholder">Step 1 — first safe change to land.</li>
-      <li class="placeholder">Step 2 — next change, depends on step 1.</li>
+      <li><strong>Branch posture.</strong> Already on <code>feature/biltiq-002-pii-patterns</code>, rebased onto current <code>main</code>. plan.html will be written on this branch.</li>
+      <li><strong>Land code + tests + docs in one PR.</strong> Patterns module first (no dependencies); recognisers module second (depends on patterns); fixtures + parametrised tests third; invariant + lazy-import tests fourth; overview.md + stack.md + CHANGELOG deltas fifth. Each commit message follows <code>BILTIQ-002: &lt;step description&gt;</code> per AGENT_RULES.md § Working pattern rule 4.</li>
+      <li><strong>Local gate before push:</strong> <code>ruff check packages/python-core</code>, <code>mypy --strict packages/python-core</code>, <code>pytest packages/python-core/tests/</code>, <code>bash scripts/check-boundaries.sh</code>. All four green on Python 3.12 (dev default).</li>
+      <li><strong>CI gate:</strong> <code>.github/workflows/ci.yml</code> matrix-build on Python 3.11/3.12/3.13/3.14 × pip|uv (8 combos per BILTIQ-001 final state). Boundary check + banned-vocab + on-prem-compliance jobs from <code>biltiq-gates.yml</code> run alongside. AC8 explicitly demands the full matrix passes.</li>
+      <li><strong>Merge once green.</strong> No release tag — v0.1.0 PyPI publish is a separate ship task per BILTIQ-001 § Rollout.</li>
     </ol>
     <h3>Rollback</h3>
-    <p class="placeholder">How to undo if something goes wrong after merge.</p>
+    <p>Pure additive Python code under a new sub-package. Rollback is <code>git revert &lt;merge-sha&gt;</code> — no data migrations, no schema state, no external service contracts to unwind. No consumer has imported <code>biltiq_privacy.indian.*</code> yet (CDSCO-RegAI migration is a separate repo task per spec § Out of Scope §6). The only state revert leaves behind is a contributor virtualenv with the editable install still resolving the (now-removed) <code>indian/</code> path — auto-fixes on next <code>pip install -e</code> or <code>uv sync</code>.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>#</th><th>Risk</th><th>Severity</th><th>Detection / Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>Documentation drift between spec layout and overview.md/stack.md.</strong> <code>docs/architecture/overview.md</code> § Components currently anticipates <code>recognisers/india.py</code>, but spec AC1/AC2 lock the new layout under <code>biltiq_privacy/indian/</code>. If the doc edits are skipped, future devs onboarding from overview.md will look in the wrong place and may duplicate work — Anti-Pattern #1.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Detection: code-reviewer skill flags any new internal module not registered in <code>stack.md</code> § Internal modules. Mitigation: documentation deltas are explicit in § Files to Touch — both overview.md and stack.md edits land in the same PR. plan.html will include a doc-update commit before the CHANGELOG commit.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>AC5 false negatives from same-process test pollution.</strong> If <code>test_lazy_import.py</code> runs in the same Python process as <code>test_recognisers.py</code>, the in-process Presidio import bleeds across tests and the lazy-import assertion either fires falsely (positive) or never fires (negative). The subprocess isolation is what makes the test trustworthy; getting the subprocess invocation wrong silently invalidates AC5.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Detection: deliberate test that <em>force-imports</em> Presidio in the parent process before the subprocess assertion runs — if the assertion still passes, isolation is real. Mitigation: use <code>subprocess.run([sys.executable, "-c", &lt;script&gt;], check=True, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})</code> with no <code>PYTHONPATH</code> tampering; rely on the installed package. plan.html spec for this test includes both the success and the parent-process-poisoned-but-subprocess-clean variants.</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>Regex fidelity to CDSCO-RegAI source.</strong> The eight patterns ported from <code>backend/utils/pii_patterns.py</code> and <code>backend/modules/anonymisation/presidio_engine.py</code> must match byte-for-byte (or behaviour-for-behaviour) to preserve the CDSCO consumer's drop-in promise (spec § User Impact). Spec instruction is to not access the CDSCO repo from this session; pattern strings will be reconstructed from the user-provided source values during plan.html / Build.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Detection: AC6 fixture cases include the exact CDSCO production-cancel-set false-positives ("12-digit non-Aadhaar invoice number", "3-letter-7-digit non-Voter-ID order code") to lock the boundary. Mitigation: plan.html records the eight patterns as static data the dev pastes in during Step 3.1 Build; code-reviewer cross-checks against the dev-pasted source. If a pattern diverges from CDSCO prod (e.g. tighter checksum enforcement), it lands as a documented variance in the patterns module docstring, not silent.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>Presidio <code>PatternRecognizer.patterns[0].regex</code> attribute stability.</strong> AC3 invariant test depends on the <code>regex</code> attribute name on the <code>Pattern</code> object inside <code>PatternRecognizer.patterns</code>. If Presidio renames it across the &gt;=2.2 minor versions (unlikely given semver, but the pin is <code>&gt;=2.2,&lt;3</code>), AC3 fails.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: AC3 test exercises the attribute access directly — a Presidio version with a renamed attribute fails the test loudly. Mitigation: pin <code>&lt;3</code> already documented; if Presidio 2.3+ changes the attribute, the invariant test can switch to <code>recogniser.patterns[0].regex</code> if it's still a string, or to a regex-compare helper. Documented in <code>approved-versions.md</code> § Presidio.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>spaCy <code>en_core_web_sm</code> cold-load cost on CI matrix.</strong> The recogniser tests instantiate an <code>AnalyzerEngine</code> with the default spaCy NLP engine — adds ~2–4 s cold per matrix cell, ~32 s wall-clock across the 8-combo matrix. The <code>presidio_engine_indian</code> fixture from stack.md may not exist yet (BILTIQ-001 didn't create it); if not, the test creates one inline and accepts the cold cost.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: CI wall-clock comparison vs BILTIQ-001 baseline (~8 min). If overall CI grows by &gt;30 s/cell, surface as a finding. Mitigation: cache the engine per test module via a <code>@pytest.fixture(scope="module")</code>. spaCy model already pinned and pre-installed at <code>uv sync</code> time (BILTIQ-001) — no additional download cost on the CI cell.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><strong>Spec § Out of Scope §1 vs <code>build_engine()</code> ergonomics.</strong> Out of Scope §1 bans module-global engine singletons; spec § User Impact suggests <code>build_engine</code> as the "heavy NLP-context path" entry point. Consumers <em>will</em> want to cache the engine for performance — if the API gives no caching hook, they roll their own (Anti-Pattern #1) or build a wrong one (race conditions in multi-threaded servers).</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: consumer feedback once CDSCO-RegAI migrates. Mitigation: <code>build_engine()</code> docstring explicitly says "construct once, cache the return value yourself". The future <code>biltiq_privacy.detectors.presidio_backend.PresidioDetector</code> class (stack.md, v0.4.0+) is the canonical caching wrapper — this task's job is to keep the factory pure.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions Confirmed</h2>
+    <p>spec.html § Open Questions had three items. The design locks two of them and surfaces the third for the dev to acknowledge:</p>
+    <ul>
+      <li><strong>Q1 (process gate).</strong> "Build cannot start until PR #1 (BILTIQ-001) merges" — resolved. BILTIQ-001 is merged to main; this branch is rebased onto current main.</li>
+      <li><strong>Q2 (build_engine signature).</strong> "Callable factory vs pre-built NlpEngine instance" — <strong>locked to eager (pre-built instance)</strong> per spec's own lean. Signature: <code>build_engine(nlp_engine: NlpEngine | None = None) -&gt; AnalyzerEngine</code>. Consumers wrap in a factory themselves if they want laziness. Listed under § API Contract Changes.</li>
+      <li><strong>Q3 (top-level redact shortcut).</strong> "<code>biltiq_privacy.redact</code> shortcut vs sub-module-only path" — <strong>locked to sub-module-only</strong> per spec's own lean. <code>biltiq_privacy/__init__.py</code> stays as it is. Listed under § API Contract Changes. <em>Surfaced for explicit dev acknowledgement at design review</em> — if the dev wants to flip Q3 at review, the change is a one-line re-export and a fourth invariant test that the re-export does not break AC5.</li>
+    </ul>
+  </section>
+
+  <section id="anti-pattern-check">
+    <h2>Anti-Pattern Guardrails Honored</h2>
+    <ul>
+      <li><strong>#1 Duplication</strong> — regex strings live in <code>patterns.py</code> only; <code>recognisers.py</code> imports them by name. AC3 invariant test makes the no-duplication rule machine-checkable. The new <code>indian/</code> sub-package supersedes the prospective <code>recognisers/india.py</code> from overview.md/stack.md — documentation deltas land in the same PR so future devs don't create a parallel implementation.</li>
+      <li><strong>#2 Abstraction Bypass</strong> — use <code>presidio_analyzer.PatternRecognizer</code> and <code>presidio_analyzer.AnalyzerEngine</code> directly per <code>approved-versions.md</code> § Presidio and stack.md § PII detection engine. No hand-rolled regex matcher, no <code>re.findall</code> reimplementation of what Presidio already does.</li>
+      <li><strong>#3 Error Handling Gaps</strong> — <code>redact()</code> has no I/O so no try-except needed; <code>build_engine()</code> propagates Presidio's own errors (e.g. <code>MissingNERModelError</code> as documented in overview.md § Failure modes). No bare <code>except</code>.</li>
+      <li><strong>#4 Type Safety Violations</strong> — <code>Final[str]</code> for regex constants, <code>Final[tuple[str, ...]]</code> for <code>_REDACT_ORDER</code>, <code>Final[Sequence[PatternRecognizer]]</code> for <code>INDIAN_RECOGNISERS</code>, <code>dict[str, re.Pattern[str]]</code> for <code>PATTERNS</code>. No <code>Any</code>. No <code># type: ignore</code> planned. AC7 (mypy --strict) covers this.</li>
+      <li><strong>#5 Security Anti-Patterns</strong> — no SQL, no user-supplied regex (out of scope per spec — v0.2.0+), no secrets, no env reads. Fixture data is synthetic only.</li>
+      <li><strong>#6 Dead Code / Over-engineering</strong> — eight regex constants, eight recognisers, one redact function, one factory. Nothing speculative.</li>
+      <li><strong>#7 Debugging Residue</strong> — no <code>*_v2.py</code>, <code>*_new.py</code>, <code>*_old.py</code>, <code>*.bak</code>, <code>test_scratch_*.py</code>, no commented-out code. AC10 + biltiq-gates.yml residue check cover this.</li>
+      <li><strong>#8 Async Misuse</strong> — not applicable. Both modules are sync.</li>
+      <li><strong>#9 Deprecated API Usage</strong> — <code>presidio_analyzer.PatternRecognizer</code> and <code>AnalyzerEngine</code> per approved-versions.md. Python: <code>from __future__ import annotations</code>, <code>re.Pattern</code> generic, no <code>datetime.utcnow</code>, no <code>pkg_resources</code>. No deprecated Presidio APIs.</li>
+      <li><strong>#10 Fake Test Coverage</strong> — each parametrised test asserts one behaviour tied to one fixture case; AC3/AC4/AC5/AC6 invariants each have their own test file. No "smoke test" stand-ins.</li>
+      <li><strong>#11 HTML/MD boundary</strong> — clean. This file is <code>design.html</code>, paired with <code>spec.html</code> per the convention.</li>
+    </ul>
   </section>
 
   <section id="change-history">
@@ -179,10 +369,10 @@
       </thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-05-18</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft (re-drafted from scratch — prior session's design.html was never committed; on-disk file was the empty template). Locked four spec invariants (two-module split, eight entity types, lazy-import, ≥32 fixtures), confirmed open-question Q2 (eager NlpEngine) and Q3 (sub-module-only import path), enumerated file surface (9 new + 1 modified + 2 doc-delta files), surfaced 6 risks with mitigations, mapped each AC to a file/test. No ADR required.</td>
+          <td>BILTIQ-002 — Step 2 Plan, design.html re-draft after rebase onto main</td>
         </tr>
       </tbody>
     </table>

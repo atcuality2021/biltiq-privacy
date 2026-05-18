@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan: [TASK_TITLE]</title>
+  <title>Plan: BILTIQ-002 — Port Indian PII recognisers (regex + Presidio)</title>
   <style>
     :root {
       --color-border:    #e5e7eb;
@@ -68,82 +68,298 @@
       color: #0369a1;
       border: 1px solid #7dd3fc;
     }
-    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
+    .step-meta { font-size: 0.82rem; color: var(--color-muted); margin-bottom: 0.5rem; }
     .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
     .step-tests strong { color: var(--color-muted); }
+    .dev-input {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius);
+      padding: 0.5rem 0.75rem;
+      font-size: 0.82rem;
+      margin: 0.5rem 0;
+    }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
-    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
     th { background: var(--color-bg-subtle); font-weight: 600; }
     .risk-h { color: var(--color-risk-high); font-weight: 700; }
     .risk-m { color: var(--color-risk-med);  font-weight: 700; }
     .risk-l { color: var(--color-risk-low);  font-weight: 700; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
     @media (max-width: 600px) { .meta { flex-direction: column; } }
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Plan: [TASK_TITLE]</h1>
+    <h1>Plan: BILTIQ-002 — Port Indian PII recognisers (regex + Presidio) into biltiq_privacy</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Branch</dt><dd><!-- feature/xxx --></dd></div>
-      <div><dt>Base</dt><dd><!-- main --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-002</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-002-pii-patterns</dd></div>
+      <div><dt>Base</dt><dd>main (9cdcf72, BILTIQ-003 close-out)</dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+      <div><dt>Estimate (wall-clock)</dt><dd>~4 hours / 9 atomic steps</dd></div>
     </dl>
+
+    <p style="margin-top:0.75rem; padding:0.6rem 0.75rem; background:#fef3c7; border:1px solid #fcd34d; border-radius:6px; font-size:0.85rem;">
+      <strong>Prerequisites (verify before Step 2):</strong>
+      <code>.venv</code> active with workspace install (<code>pip install -e packages/python-core -e packages/python-server -e .</code> succeeded);
+      <code>presidio-analyzer&gt;=2.2,&lt;3</code> + <code>presidio-anonymizer&gt;=2.2,&lt;3</code> already in
+      <code>packages/python-core/pyproject.toml</code> from BILTIQ-001;
+      <code>en-core-web-sm 3.8.0</code> installable (ADR-0002).
+    </p>
+    <p style="margin-top:0.5rem; padding:0.6rem 0.75rem; background:#fef3c7; border:1px solid #fcd34d; border-radius:6px; font-size:0.85rem;">
+      <strong>Locked design decisions (per spec + dev confirmation 2026-05-18):</strong> two-module split <code>patterns.py</code> + <code>recognisers.py</code>;
+      sub-package layout <code>biltiq_privacy/indian/</code> becomes canonical for all regional packs;
+      public API is sub-module-only (<code>biltiq_privacy.indian.redact</code>, no top-level shortcut);
+      <code>build_engine()</code> is a pure factory (no module-global singleton);
+      regex strings supplied by dev at Step 3 (no CDSCO-RegAI access from this session).
+    </p>
   </header>
 
   <section id="steps">
     <h2>Build Sequence</h2>
     <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
-      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding.
+      Each step = one logical commit (<code>BILTIQ-002 step N: &lt;title&gt;</code>). TDD discipline: tests RED before implementation, GREEN before commit. Run <code>pytest -q</code> before proceeding to the next step.
     </p>
 
     <div class="step">
       <div class="step-header">
-        <span class="step-title">Step 1 — [Step title]</span>
-        <span class="band">M</span>
+        <span class="step-title">Step 1 — Scaffold <code>biltiq_privacy/indian/</code> + tests/ directories</span>
+        <span class="band">S</span>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step comes first.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files created / modified</span></p>
+      <p class="step-meta"><strong>Rationale:</strong> Empty sub-package and test tree first so subsequent steps have a settled file layout to write into. Establishes the public sub-module surface (<code>biltiq_privacy.indian.patterns</code>, <code>biltiq_privacy.indian.recognisers</code>) and the test directory mirroring it. Keeps Step 2's first commit minimally diff-y.</p>
+      <p class="step-meta"><strong>Files (all CREATE):</strong>
+        <code>packages/python-core/biltiq_privacy/indian/__init__.py</code>,
+        <code>packages/python-core/biltiq_privacy/indian/patterns.py</code> (header docstring + <code>from __future__ import annotations</code> only),
+        <code>packages/python-core/biltiq_privacy/indian/recognisers.py</code> (same),
+        <code>packages/python-core/tests/indian/__init__.py</code>,
+        <code>packages/python-core/tests/fixtures/__init__.py</code>.
+      </p>
       <div class="step-tests">
         <strong>Tests:</strong>
         <ul>
-          <li class="placeholder">test_function_name — asserts X (AC1)</li>
+          <li>Smoke import: <code>python -c "from biltiq_privacy.indian import patterns, recognisers"</code> exits 0.</li>
+          <li><code>pytest --collect-only packages/python-core/tests/indian</code> finds the new test dir.</li>
         </ul>
       </div>
-      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code class="placeholder">pytest tests/path/to/test.py</code> — GREEN</p>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>mypy --strict packages/python-core/biltiq_privacy/indian</code> GREEN; <code>ruff check</code> clean; banned-vocab clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 1: scaffold indian/ sub-package + tests/indian/ directory</code></p>
     </div>
 
     <div class="step">
       <div class="step-header">
-        <span class="step-title">Step 2 — [Step title]</span>
+        <span class="step-title">Step 2 — Fixture file structure (typed empty tuples)</span>
         <span class="band">S</span>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step follows step 1.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files</span></p>
+      <p class="step-meta"><strong>Rationale:</strong> Fixtures land before tests + before patterns. Test code in Step 3 references these tuples by name; defining empty <code>Final[tuple[str, ...]]</code> tuples now lets RED tests be written without dev-paste blocking commit. Step 3 then fills both the regex strings AND the tuple values in the same logical commit (DEV PASTE step).</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong>
+        <code>packages/python-core/tests/fixtures/india.py</code> — 16 typed tuples (8 entities × 2 lists: <code>{ENTITY}_VALID</code> and <code>{ENTITY}_FALSE_POSITIVES</code>), all initially empty. Entity names per design.html § Eight Entity Types: AADHAAR, ABHA, PAN, GSTIN, VOTER_ID, DRIVING_LICENSE, INDIAN_PASSPORT, INDIAN_PHONE.
+      </p>
       <div class="step-tests">
-        <strong>Tests:</strong> <span class="placeholder">none (static files — structural correctness verified by step N)</span>
+        <strong>Tests:</strong>
+        <ul>
+          <li>Module import smoke (already covered by Step 1's collection).</li>
+          <li>Static check: <code>mypy --strict</code> validates the <code>Final[tuple[str, ...]]</code> shape on all 16 constants.</li>
+        </ul>
       </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>mypy --strict packages/python-core</code> GREEN; <code>ruff check</code> clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 2: fixture file structure (16 typed empty tuples)</code></p>
     </div>
-    <!-- Add more steps by copying a .step block -->
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 3 — Write <code>tests/indian/test_patterns.py</code> (RED first)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> TDD: write the test surface that AC6 demands (≥32 fixture cases) BEFORE patterns.py has content. Tests must FAIL on every case at this commit. This locks the test expectations before the regex pasting in Step 4, so the dev's regex choices in Step 4 are driven by "what passes the locked tests" rather than "what regex feels right".</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong>
+        <code>packages/python-core/tests/indian/test_patterns.py</code> — parameterised tests:
+        <code>test_pattern_matches_valid_fixtures(entity, value)</code> driven by <code>{ENTITY}_VALID</code> tuples;
+        <code>test_pattern_rejects_false_positives(entity, value)</code> driven by <code>{ENTITY}_FALSE_POSITIVES</code> tuples.
+        Tests <code>import re</code> + the <code>PATTERNS</code> dict from <code>biltiq_privacy.indian.patterns</code>.
+      </p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>All tests RED at this commit because (a) fixture tuples are empty (Step 2) so parameterisation yields zero cases AND (b) <code>PATTERNS</code> dict doesn't exist yet.</li>
+          <li>Collection-only sanity: <code>pytest --collect-only tests/indian/test_patterns.py</code> reports the two parameterised test IDs (with zero cases until Step 4).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> tests collect; running them produces <code>ImportError: cannot import name 'PATTERNS'</code> (expected RED); mypy clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 3: test_patterns.py (RED — locks test surface for ≥32 cases)</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 4 — patterns.py + fixture values (DEV PASTE → GREEN)</span>
+        <span class="band">L</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> The substantive step. Dev pastes the 8 regex strings into <code>patterns.py</code> as <code>Final[str]</code> constants, then fills the 16 fixture tuples (≥4 valid + ≥1 false-positive per entity, per AC6 = 32+ total cases). Pure-<code>re</code> <code>redact()</code> lands here too (AC4 — structure preservation; explicit <code>_REDACT_ORDER</code> with ABHA before AADHAAR per design.html). At commit-time the test_patterns.py suite goes RED → GREEN.</p>
+      <div class="dev-input">
+        <strong>⚠️ DEV INPUT REQUIRED.</strong> When this step begins, I will halt and prompt you to paste:
+        <ol>
+          <li>The 8 regex strings for the entities listed in Step 2 (raw strings; <code>r"\b...\b"</code> form preferred).</li>
+          <li>≥4 known-valid fixture values per entity (real-shaped but synthetic — never real PII).</li>
+          <li>≥1 known false-positive per entity (a near-miss that the regex MUST reject).</li>
+        </ol>
+        Total fixture cases: 8 × 5 = 40 minimum (above AC6's 32 floor). I will not generate regex from training data — per spec § Out-of-Scope and dev confirmation 2026-05-18, the regex comes from you.
+      </div>
+      <p class="step-meta"><strong>Files (CREATE):</strong>
+        <code>packages/python-core/biltiq_privacy/indian/patterns.py</code> with:
+        Module-level docstring naming the CDSCO-RegAI source file <code>CDSCO-RegAI:backend/utils/pii_patterns.py</code> verbatim (per AC11 — spec audit greps for this exact string);
+        8 <code>Final[str]</code> regex constants;
+        <code>PATTERNS: dict[str, re.Pattern[str]]</code> compiled at import (Final mapping of entity name → compiled pattern);
+        <code>_REDACT_ORDER: Final[tuple[str, ...]]</code> (longest-match first; ABHA &gt; AADHAAR);
+        <code>def redact(text: str) -&gt; str</code> — pure-<code>re</code>, walks <code>_REDACT_ORDER</code>, replaces matches with <code>[REDACTED:&lt;ENTITY&gt;]</code> while preserving surrounding whitespace + punctuation.
+      </p>
+      <p class="step-meta"><strong>Files (MODIFY):</strong>
+        <code>packages/python-core/tests/fixtures/india.py</code> — fill the 16 tuples with dev-supplied values.
+      </p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>tests/indian/test_patterns.py</code> — RED → GREEN. All ≥32 fixture cases pass.</li>
+          <li>New: <code>test_redact_preserves_structure</code> — input <code>"Aadhaar: 1234 5678 9012 / PAN: ABCDE1234F"</code> → output retains punctuation, replaces only the PII spans (AC4).</li>
+          <li>New: <code>test_redact_order_abha_before_aadhaar</code> — a 14-digit ABHA string must be redacted as ABHA, not partially as AADHAAR.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest -q packages/python-core/tests/indian/test_patterns.py</code> GREEN (≥34 passed); <code>mypy --strict</code>; <code>ruff check</code>; banned-vocab clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 4: patterns.py — 8 Indian regex + fixture values + pure-re redact()</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 5 — recognisers.py (Presidio adapter)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Presidio adapter built ON TOP of the pure-<code>re</code> foundation from Step 4. Each <code>PatternRecognizer</code> imports its regex string by name from <code>patterns.py</code> — never duplicates the string literal (AC3 invariant tested in Step 6). <code>build_engine()</code> factory returns a fresh <code>AnalyzerEngine</code> per call (no module-global singleton, per spec § Out-of-Scope).</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong>
+        <code>packages/python-core/biltiq_privacy/indian/recognisers.py</code> with:
+        Module-level docstring naming the CDSCO-RegAI source file <code>CDSCO-RegAI:backend/modules/anonymisation/presidio_engine.py</code> verbatim (per AC11 — spec audit greps for this exact string);
+        8 <code>PatternRecognizer</code> module-level instances (e.g. <code>AADHAAR_RECOGNIZER = PatternRecognizer(...)</code>) each consuming <code>patterns.AADHAAR_REGEX</code>;
+        <code>RECOGNIZERS: Final[Sequence[PatternRecognizer]]</code> tuple containing all 8;
+        <code>def build_engine(nlp_engine: NlpEngine | None = None) -&gt; AnalyzerEngine</code> — registers all 8 + returns the engine.
+      </p>
+      <p class="step-meta"><strong>Files (CREATE):</strong>
+        <code>packages/python-core/tests/indian/test_recognisers.py</code> — for each entity: <code>build_engine().analyze(text=valid_fixture, language="en")</code> returns a result with <code>entity_type == EXPECTED</code>.
+      </p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_each_recogniser_detects_valid_fixture</code> — parameterised over (entity, valid_value) pairs from the fixture tuples. 32+ cases (AC6 + AC2).</li>
+          <li><code>test_build_engine_returns_fresh_instance</code> — two calls return distinct <code>AnalyzerEngine</code> objects (no singleton).</li>
+          <li><code>test_entity_type_surface_matches_spec</code> — the 8 entity types match the spec list exactly (no surprise drift).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest -q tests/indian/test_recognisers.py</code> GREEN; <code>mypy --strict</code>; <code>ruff check</code>.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 5: recognisers.py — 8 Presidio PatternRecognizers + build_engine()</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 6 — AC3 invariant test (no string duplication)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Standalone test file that asserts the regex strings in <code>recognisers.py</code> are <em>imported by name</em> from <code>patterns.py</code>, not duplicated as literals. Without this, a future "quick fix" could re-inline the regex into a recogniser and silently break the single-source-of-truth contract. Uses Python's <code>is</code> identity check (string interning) — same object, not just equal strings.</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>packages/python-core/tests/indian/test_invariants.py</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_no_string_duplication</code> — for each of the 8 entities: the regex string used by the PatternRecognizer is <code>is</code> the constant exported by <code>patterns.py</code>. Implementation: read each recogniser's <code>.patterns[0].regex</code> attribute and assert <code>is patterns.&lt;ENTITY&gt;_REGEX</code> (AC3).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest -q tests/indian/test_invariants.py</code> GREEN.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 6: AC3 invariant — no regex string duplication between patterns.py and recognisers.py</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 7 — AC5 lazy-import test (presidio not loaded by patterns.py)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Caller-side users of the pure-<code>re</code> <code>redact()</code> must NOT pay the cost of importing <code>presidio_analyzer</code> + <code>spacy</code> (a multi-second cold start). AC5 demands: <code>import biltiq_privacy.indian.patterns</code> must not transitively import <code>presidio_analyzer</code>. Verified by a subprocess test — same-process tests would already have presidio in <code>sys.modules</code> from earlier collection of recogniser tests.</p>
+      <p class="step-meta"><strong>Files (CREATE):</strong> <code>packages/python-core/tests/indian/test_lazy_import.py</code>.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_patterns_does_not_load_presidio</code> — subprocess: <code>python -c "import biltiq_privacy.indian.patterns; import sys; sys.exit(0 if 'presidio_analyzer' not in sys.modules else 1)"</code> exits 0.</li>
+          <li><code>test_patterns_does_not_load_spacy</code> — same with <code>spacy</code> (AC5 covers both).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest -q tests/indian/test_lazy_import.py</code> GREEN; both subprocess assertions hold.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 7: AC5 lazy-import test — patterns.py does not load presidio or spacy</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 8 — Doc deltas + CHANGELOG</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Architecture docs anticipate the older flat layout (<code>recognisers/india.py</code>) but the dev confirmed (2026-05-18) the sub-package layout <code>biltiq_privacy/&lt;region&gt;/</code> is canonical. Lands the supersession in the same PR to prevent AP #1 (duplication): without this delta, a future contributor reading <code>stack.md</code> would re-create <code>recognisers/india.py</code> next to <code>indian/</code>. CHANGELOG entry per AC9.</p>
+      <p class="step-meta"><strong>Files (MODIFY):</strong>
+        <code>docs/architecture/overview.md</code> — supersede the <code>recognisers/india.py</code> reference; add a "regional packs live in <code>biltiq_privacy/&lt;region&gt;/</code>" note.
+        <code>docs/architecture/stack.md</code> — register <code>biltiq_privacy.indian.patterns</code>, <code>biltiq_privacy.indian.recognisers</code>, and <code>tests/fixtures/india.py</code> as new wrapper rows.
+        <code>CHANGELOG.md</code> — append under <code>[Unreleased]</code>: <code>- feat: Indian PII recogniser pack (8 entities: Aadhaar, ABHA, PAN, GSTIN, Voter ID, Driving License, Indian Passport, Indian Phone) — regex + Presidio adapter under biltiq_privacy/indian/; pure-re redact() with lazy-import contract (BILTIQ-002)</code>.
+      </p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>Visual check: both docs render without broken cross-links.</li>
+          <li>Banned-vocab check: <code>python3 scripts/check-banned-vocab.py CHANGELOG.md docs/architecture/overview.md docs/architecture/stack.md</code> clean.</li>
+          <li><code>grep -c "recognisers/india.py" docs/architecture/</code> returns 0 (supersession complete).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> banned-vocab clean; cross-links resolve; AC9 satisfied.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 8: doc deltas (overview.md + stack.md) + CHANGELOG entry</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 9 — Full verification + push</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Pre-push gate sweep. Mirrors the 9-cell CI matrix locally as far as one machine can (single Python version locally; CI handles the matrix). No new code — just verification and observation.</p>
+      <p class="step-meta"><strong>Files:</strong> none (verification + push only).</p>
+      <div class="step-tests">
+        <strong>Gates (all must pass before push):</strong>
+        <ul>
+          <li><code>.venv/bin/python -m pytest -q</code> — expect <code>~70+ passed</code> (34 baseline + ≥36 new from Steps 3–7).</li>
+          <li><code>ruff check packages/ scripts/ tests/scripts/ conftest.py</code> — All checks passed!</li>
+          <li><code>mypy --strict packages/python-core/biltiq_privacy packages/python-server/biltiq_privacy_server scripts/</code> — no issues found.</li>
+          <li><code>bash scripts/check-boundaries.sh</code> — PASS (verifies <code>indian/recognisers.py</code> didn't accidentally import server-side packages).</li>
+          <li><code>python3 scripts/check-banned-vocab.py docs/specs/BILTIQ-002/ CHANGELOG.md packages/python-core/biltiq_privacy/indian/</code> — clean.</li>
+          <li><strong>AC11 source-attribution check:</strong> <code>grep -l 'CDSCO-RegAI:backend/utils/pii_patterns.py' packages/python-core/biltiq_privacy/indian/patterns.py</code> AND <code>grep -l 'CDSCO-RegAI:backend/modules/anonymisation/presidio_engine.py' packages/python-core/biltiq_privacy/indian/recognisers.py</code> — both return the file path (non-empty).</li>
+        </ul>
+        <strong>Then:</strong>
+        <ul>
+          <li><code>git push origin feature/biltiq-002-pii-patterns</code> (branch already pushed; this is the Step 4–8 commits).</li>
+          <li>Watch CI matrix: 4 Python versions × 2 packages + boundary = 9 jobs. Wait for GREEN.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> 5 local gates + 9 CI cells all GREEN. Branch ready for Review (Step 4 of Attack Loop).</p>
+      <p class="step-meta"><strong>Commit:</strong> none (verification step). If a gate fails: loop back to the relevant Step (3 for test gap, 4 for regex gap, 5 for recogniser issue, etc.).</p>
+    </div>
   </section>
 
   <section id="test-strategy">
     <h2>Test Strategy</h2>
     <table>
-      <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
+      <thead><tr><th>Layer</th><th>What</th><th>Files</th><th>AC coverage</th></tr></thead>
       <tbody>
-        <tr><td>Unit</td><td class="placeholder">function behavior</td><td class="placeholder">tests/path/test_foo.py</td></tr>
-        <tr><td>Integration</td><td class="placeholder">end-to-end round-trip</td><td class="placeholder">tests/path/test_integration.py</td></tr>
-        <tr><td>Manual</td><td class="placeholder">open in browser, verify rendered output</td><td>—</td></tr>
+        <tr><td>Unit (regex)</td><td>Each pattern matches ≥4 valid + rejects ≥1 false positive; <code>redact()</code> preserves structure and respects <code>_REDACT_ORDER</code></td><td><code>tests/indian/test_patterns.py</code> + <code>tests/fixtures/india.py</code></td><td>AC1, AC4, AC6</td></tr>
+        <tr><td>Unit (Presidio)</td><td>Each <code>PatternRecognizer</code> detects expected entity; <code>build_engine()</code> returns fresh instances; entity-type surface matches spec</td><td><code>tests/indian/test_recognisers.py</code></td><td>AC2, AC6</td></tr>
+        <tr><td>Invariant</td><td>Regex strings in recognisers.py are <code>is</code> the patterns.py constants (no duplication)</td><td><code>tests/indian/test_invariants.py</code></td><td>AC3</td></tr>
+        <tr><td>Isolation</td><td>Subprocess: importing <code>patterns</code> does not load <code>presidio_analyzer</code> or <code>spacy</code></td><td><code>tests/indian/test_lazy_import.py</code></td><td>AC5</td></tr>
+        <tr><td>Static</td><td><code>mypy --strict</code> on all new modules; no <code>Any</code>; no <code># type: ignore</code> without justification</td><td>n/a (CI)</td><td>AC7</td></tr>
+        <tr><td>Matrix</td><td>CI matrix 4 Python versions × 2 packages + boundary = 9 cells</td><td><code>.github/workflows/biltiq-gates.yml</code></td><td>AC8</td></tr>
+        <tr><td>Doc</td><td>Visual check rendered HTML; banned-vocab gate; module docstrings cite source files</td><td>spec.html, design.html, plan.html, overview.md, stack.md</td><td>AC9, AC10, AC11</td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="rollback-plan">
     <h2>Rollback Plan</h2>
-    <p class="placeholder">How to undo if something goes wrong. For additive-only changes: "Remove new files, revert text insertions. No data loss."</p>
+    <p>All changes are additive (new files + 3 doc/changelog edits). To roll back at any step before merge: <code>git reset --hard main</code> on the branch (acceptable here since this is a local feature branch with no peer review yet; once PR is opened, prefer <code>git revert</code>). To roll back after merge: revert the squash-merge commit on main — all 8–10 new files are removed and the 3 modified files (overview.md, stack.md, CHANGELOG.md) lose only the BILTIQ-002 additions. No data migrations, no schema changes, no runtime state. Existing tests are untouched; revert is safe.</p>
   </section>
 
   <section id="risks">
@@ -152,10 +368,40 @@
       <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">Risk description</td>
-          <td class="placeholder">1</td>
+          <td>Dev-supplied regex is wrong (false-negatives on real PII or excessive false-positives)</td>
+          <td>4</td>
+          <td><span class="risk-h">HIGH</span></td>
+          <td>Step 3 locks ≥32 fixture cases BEFORE regex is supplied — fixtures encode the contract. Step 6 invariant prevents string duplication so any regex fix in patterns.py flows to recognisers.py automatically.</td>
+        </tr>
+        <tr>
+          <td>ABHA / AADHAAR order ambiguity (14-digit ABHA contains a 12-digit AADHAAR substring)</td>
+          <td>4</td>
           <td><span class="risk-m">MED</span></td>
-          <td class="placeholder">How it is mitigated.</td>
+          <td><code>_REDACT_ORDER</code> tuple lands explicit in Step 4 with ABHA first; <code>test_redact_order_abha_before_aadhaar</code> case in Step 4 locks the contract.</td>
+        </tr>
+        <tr>
+          <td>Presidio v3 release during Build (current pin: <code>&gt;=2.2,&lt;3</code>)</td>
+          <td>5</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Pin is already in <code>packages/python-core/pyproject.toml</code> from BILTIQ-001; uv lockfile constrains. No change in this PR; if v3 ships during Build, plan.html stays correct.</td>
+        </tr>
+        <tr>
+          <td>Lazy-import test passes locally but fails in CI (transitive import order varies by Python version)</td>
+          <td>7</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Subprocess test isolates each invocation (no <code>sys.modules</code> leakage from earlier test collection). Step 9 verifies on the 4-cell matrix; if a specific version regresses, root-cause + fix patterns.py imports.</td>
+        </tr>
+        <tr>
+          <td>Doc supersession misses a reference site, leaving the AP #1 risk active</td>
+          <td>8</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Step 8 gate includes <code>grep -c "recognisers/india.py" docs/architecture/</code> must return 0. Catches any missed reference.</td>
+        </tr>
+        <tr>
+          <td>Banned vocabulary creeps into the dev-supplied fixture comments or docstrings</td>
+          <td>4, 8</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td><code>scripts/check-banned-vocab.py</code> gate at end of Steps 4 and 8.</td>
         </tr>
       </tbody>
     </table>
@@ -167,10 +413,10 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-05-18</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial real draft (template body replaced). 9 atomic steps mapping 11 ACs to commits; locked design decisions and dev confirmations referenced in header. Drafted after design.html was redrafted by biltiq-code-architect (post-compact recovery — earlier in-session drafts were never committed and lost across <code>/compact</code>).</td>
+          <td>BILTIQ-002 Step 2 (Plan)</td>
         </tr>
       </tbody>
     </table>
