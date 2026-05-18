@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reflect: [TASK_TITLE]</title>
+  <title>Reflect: Memory-spine tooling (writer + curator + post-commit hook)</title>
   <style>
     :root {
       --color-shipped:   #16a34a;
@@ -90,71 +90,92 @@
 <body>
 <main>
   <header>
-    <h1>Reflect: [TASK_TITLE]</h1>
+    <h1>Reflect: Memory-spine tooling (writer + curator + post-commit hook)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Closed</dt><dd><!-- YYYY-MM-DD --></dd></div>
-      <div><dt>PRs merged</dt><dd><!-- #N, #M --></dd></div>
-      <div><dt>Tests shipped</dt><dd><!-- before → after --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-003</dd></div>
+      <div><dt>Author</dt><dd>@don007rvs</dd></div>
+      <div><dt>Closed</dt><dd>2026-05-18</dd></div>
+      <div><dt>PRs merged</dt><dd>pending merge of the BILTIQ-003 PR</dd></div>
+      <div><dt>Tests shipped</dt><dd>0 &rarr; 31 (30 active + 1 opt-in perf gate)</dd></div>
     </dl>
   </header>
 
   <section id="metrics">
     <h2 class="neutral">Estimation Actuals</h2>
+    <p>Spec did not commit to a structured 5-axis estimate block; the freehand estimate was "1 day". Actuals captured from commit timestamps.</p>
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-label">Wall-clock</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- XL --> &rarr; actual: <!-- XL --></div>
+        <div class="metric-value match">~1 day</div>
+        <div class="metric-note">spec: ~1d &rarr; actual: ~1d</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Tokens</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- L --> &rarr; actual: <!-- L --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Tool calls</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- M --> &rarr; actual: <!-- M --></div>
+        <div class="metric-label">Commits</div>
+        <div class="metric-value">11</div>
+        <div class="metric-note">9 build steps + 1 CHANGELOG + 1 tech-debt closure</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Iteration cycles</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 7 --> &rarr; actual: <!-- 7 --></div>
+        <div class="metric-value">1</div>
+        <div class="metric-note">Review &rarr; slice-4 needs-revision &rarr; re-verify</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Human review (min)</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 45 --> &rarr; actual: <!-- 45 --></div>
+        <div class="metric-label">Tests / KLoC</div>
+        <div class="metric-value">31</div>
+        <div class="metric-note">writer 10 / curator 14 / hook 7</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Perf budget headroom</div>
+        <div class="metric-value match">10&times;</div>
+        <div class="metric-note">200ms budget &rarr; 0.02s actual on 1000-event stream</div>
       </div>
     </div>
-    <!-- Legend: match (green) = ±0 band, over (red) = +1+ bands, under (amber) = -1 bands -->
   </section>
 
   <section id="what-went-well">
     <h2 class="well">What Went Well</h2>
     <ul>
-      <li class="placeholder">Specific pattern to repeat — "the parallel subagent review in Step N found 3 findings the inline pass missed."</li>
-      <li class="placeholder">Add one item per genuinely repeatable insight. Do not write "it went smoothly."</li>
+      <li><strong>Parallel subagent review grouped by concern, not by line count.</strong> Four <code>biltiq-code-reviewer</code> subagents (Core Python / Shell / Tests / Docs) ran in parallel with slice-specific anti-pattern lenses. Slice 4 caught the AGENT_RULES.md:170 contract-drift that the inline correctness pass missed at Step 5. Pattern to repeat: dispatch subagents on conceptual axes, not file-count quotas.</li>
+      <li><strong>Sandbox-isolated AC demonstrations via <code>BILTIQ_REPO_ROOT</code>.</strong> All four byte-level ACs (AC1 event shape, AC2 manual-preservation, AC3 lock contention, AC4 vocabulary) were demonstrated in <code>mktemp -d</code> sandboxes &mdash; proving exact JSON output without polluting the real repo. AC3 specifically used external <code>flock -x</code> to hold the lock while the curator tried to acquire, producing the byte-for-byte <code>{"skipped": "another curator already running"}</code> output the spec required.</li>
+      <li><strong>Re-used existing POSIX-atomic JSONL convention.</strong> The writer's <code>O_APPEND</code> + single <code>os.write()</code> + PIPE_BUF cap pattern was lifted directly from the pre-existing <code>.biltiq/estimates-history.jsonl</code> shape. No new pattern invented &mdash; AP#1 (Duplication) closed via cross-reference, not via assumption.</li>
+      <li><strong><code>verification-before-completion</code> discipline held throughout.</strong> Every AC report quoted actual command output (md5sums, sha256s, exit codes, full JSON). Zero "I think it passes." claims. The Test step's full battery output was pasted verbatim into the PR body.</li>
     </ul>
   </section>
 
   <section id="what-went-wrong">
     <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
-    <ul class="checklist">
-      <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None caught — <em>only if you genuinely scanned for all 11 anti-patterns.</em></span>
-      </li>
-    </ul>
     <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
+      <thead><tr><th>Issue</th><th>Caught at</th><th>Fix applied</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">e.g. #4 Type Safety</td>
-          <td class="placeholder">Review</td>
-          <td class="placeholder">Replaced Any with proper Union type.</td>
+          <td>AGENT_RULES.md:170 + ADR-0001:10 still claimed "the hook writes a commit_metadata event" after Step 5's table fix at AGENT_RULES.md:143. Contract drift across three sites with only one fixed.</td>
+          <td>Review (slice 4)</td>
+          <td>Surgical doc edit in commit 12f848a; added plan.html Change History row 5; lesson: grep the whole document set when correcting contract claims.</td>
+        </tr>
+        <tr>
+          <td>AP#4 type-safety adjacent &mdash; <code>tests/scripts/test_memory_curator_io.py:107</code>: <code>spy_replace</code> was typed <code>src: object, dst: object</code>. <code>object</code> is a typing escape hatch broader than <code>Any</code>; the forwarded call to <code>original_replace()</code> failed mypy --strict.</td>
+          <td>Test gate (mypy --strict)</td>
+          <td>Tightened to <code>str | bytes | os.PathLike[str] | os.PathLike[bytes]</code> &mdash; the exact union <code>os.replace</code> accepts. Commit 817b37e.</td>
+        </tr>
+        <tr>
+          <td>ruff F401: unused <code>import pytest</code> in <code>test_hook_install.py:16</code> &mdash; file uses the <code>git_tmp_repo</code> fixture from <code>conftest.py</code> but never calls <code>pytest.raises</code> / <code>.fixture</code> / <code>.mark</code> directly.</td>
+          <td>Test gate (ruff)</td>
+          <td>Removed the import. Commit 817b37e. <strong>Lesson:</strong> Review's correctness pass and Test's lint/typecheck pass are orthogonal &mdash; Review didn't catch this and shouldn't be expected to.</td>
+        </tr>
+        <tr>
+          <td>AP#6 over-engineering &mdash; <code>_memory_curator.py:262-265</code> built four full list comprehensions just to check truthiness for <code>sections_written</code> membership.</td>
+          <td>Review (slice 1, non-blocking)</td>
+          <td>Closed in commit 66bbd44 (Ship-time tech-debt sweep). Replaced with one set comprehension + set-intersection / set-membership checks. Behaviour preserved; verified by existing tests.</td>
+        </tr>
+        <tr>
+          <td>AP#3 silent failure swallow &mdash; <code>install-curator-hook.sh:101</code>: <code>chmod +x ... 2>/dev/null || true</code> dropped chmod errors silently.</td>
+          <td>Review (slice 2, non-blocking)</td>
+          <td>Closed in commit 66bbd44. Converted to non-fatal warn-and-continue: install still succeeds (exit 0) but stderr surfaces a two-line warning if chmod fails.</td>
+        </tr>
+        <tr>
+          <td>Stale test docstrings &mdash; <code>test_curator_atomic_write_uses_replace</code> said "Step 2's projection is a stub" (false since Step 3); <code>test_hook_runs_curator_in_background</code> didn't say it stubs out the curator with a 2s sleep.</td>
+          <td>Review (slice 3, non-blocking)</td>
+          <td>Closed in commit 66bbd44. Both docstrings rewritten to reflect current behaviour.</td>
         </tr>
       </tbody>
     </table>
@@ -164,37 +185,63 @@
     <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
     <ul class="checklist">
       <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None missed</span>
+        <input class="check" type="checkbox" disabled checked>
+        <span>None missed yet &mdash; PR not merged at time of reflect-write. This section will be revised if CI on the open PR or post-merge production catches anything new.</span>
       </li>
     </ul>
-    <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="placeholder">e.g. #8 Async Misuse</td>
-          <td class="placeholder">CI load test</td>
-          <td class="placeholder">200ms latency spike</td>
-          <td class="placeholder">Wrapped in asyncio.to_thread().</td>
-        </tr>
-      </tbody>
-    </table>
+    <p><strong>Latent risk surfaced during the Ship sweep:</strong> the repo has no <code>pyproject.toml</code>, so default invocations of <code>pytest</code> and <code>ruff</code> hit <code>test-scaffolds/python/example_test.py</code> (a BILTIQ-000 polyglot template that imports a placeholder module). The Test step ran scoped to <code>tests/</code> and <code>scripts/</code>, which is correct but ad-hoc. A future contributor running <code>pytest</code> at the repo root will see a collection failure. Logged as tech debt below; out of scope for BILTIQ-003.</p>
   </section>
 
   <section id="timeline">
     <h2 class="neutral">Step-by-Step Timeline</h2>
     <div class="timeline">
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">Think + Plan locked</div>
+        <div class="tl-time">2026-05-18 (e528cef)</div>
+        <div class="tl-label">Think + Plan locked &mdash; spec.html (9 ACs), design.html, plan.html, ADR-0001</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label"><span class="placeholder">Step N shipped — commit hash</span></div>
+        <div class="tl-time">2026-05-18 (e28dfea)</div>
+        <div class="tl-label">Step 1 &mdash; writer module + 10 tests (POSIX-atomic JSONL append)</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">PR merged — v<!-- x.y.z-rcN --></div>
+        <div class="tl-time">2026-05-18 (3a74d79)</div>
+        <div class="tl-label">Step 2 &mdash; curator skeleton (lock, stub projection, CLI)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (f69039a)</div>
+        <div class="tl-label">Step 3 &mdash; curator projection + fail-closed markers</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (748bc73)</div>
+        <div class="tl-label">Step 4 &mdash; docs (AGENT_RULES.md, MEMORY.md, .gitignore, stack.md, overview.md)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (1570d2c)</div>
+        <div class="tl-label">Step 5 &mdash; opt-in post-commit hook + installer + 7 hook tests</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (420e270)</div>
+        <div class="tl-label">Step 6 &mdash; close AC5 manual gate, mark all ACs DONE</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (12f848a)</div>
+        <div class="tl-label">Review fix &mdash; complete contract-drift correction (slice 4)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (817b37e)</div>
+        <div class="tl-label">Test gate &mdash; lint (F401) + typecheck (mypy --strict on object hatch) fixes</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (07fb801)</div>
+        <div class="tl-label">Ship &mdash; CHANGELOG [Unreleased] entry</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (66bbd44)</div>
+        <div class="tl-label">Ship &mdash; close 3 non-blocking Review nits (tech-debt sweep)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-18 (pending)</div>
+        <div class="tl-label">PR opened against <code>main</code>; squash-merge after CI green</div>
       </div>
     </div>
   </section>
@@ -202,26 +249,43 @@
   <section id="process-changes">
     <h2 class="neutral">Process Changes Proposed</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No process changes needed for this task.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to <code>AGENT_RULES.md</code>: describe.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to skill: which one, what change.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed new CI gate: describe.</span></li>
+      <li>
+        <input class="check" type="checkbox" disabled>
+        <span><strong>Review checklist should include a static-analysis pass.</strong> Test gate uncovered F401 + mypy <code>object</code>-hatch issues that Review's correctness pass missed because they're orthogonal concerns. Running <code>ruff check</code> + <code>mypy --strict</code> against the staged diff during Review would catch these one step earlier. Proposed change to <code>biltiq-engineering:code-reviewer</code> skill.</span>
+      </li>
+      <li>
+        <input class="check" type="checkbox" disabled>
+        <span><strong>Contract-drift sweep: grep the whole document set, not just the most-visible site.</strong> Step 5's first fix updated AGENT_RULES.md:143 but left :170 and ADR-0001:10 stale. When fixing a wording claim that may exist in multiple documents (specs, ADRs, AGENT_RULES, MEMORY), require a repo-wide grep of the old wording before declaring the fix done. Proposed change to <code>biltiq-engineering:build</code> skill (which already has a similar rule for spec-renumber sweeps).</span>
+      </li>
+      <li>
+        <input class="check" type="checkbox" disabled>
+        <span><strong>Upstream plugin schema gap &mdash; <code>/biltiq-engineering:standup</code> payload mismatch.</strong> Plugin emits <code>{yesterday_summary, today_task, branch, blockers, trigger}</code>; spec expected <code>{date, did, doing, blockers}</code>. Curator tolerates unknown keys (renders <code>**Today (?):**</code>) but the schemas should harmonise. Proposed: file an upstream issue against <code>biltiq-engineering</code> plugin to reconcile.</span>
+      </li>
+      <li>
+        <input class="check" type="checkbox" disabled>
+        <span><strong>Repo lacks <code>pyproject.toml</code>.</strong> Default invocations of <code>pytest</code> / <code>ruff</code> at the repo root fail on <code>test-scaffolds/python/example_test.py</code> placeholder. Consider adding minimal config (<code>[tool.pytest.ini_options] testpaths = ["tests"]</code>, <code>[tool.ruff] extend-exclude = ["test-scaffolds"]</code>) in a separate BILTIQ task.</span>
+      </li>
     </ul>
   </section>
 
   <section id="cleanup-confirmation">
     <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Throwaway scripts deleted.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge.</span></li>
+      <li><input class="check" type="checkbox" disabled checked><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo. Verified by <code>git ls-files | grep -E '_(v2|new|old)\.|\.bak$|test_scratch_'</code> &rarr; empty.</span></li>
+      <li><input class="check" type="checkbox" disabled checked><span>Throwaway scripts deleted. Stale <code>.biltiq/curator.lock</code> (Step-0 residue, mode 0664) was removed during Review-fix; canonical <code>.biltiq/.curator.lock</code> (mode 0600) retained.</span></li>
+      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge &mdash; will be done as part of this Ship step's final <code>gh pr merge --squash --delete-branch</code> invocation.</span></li>
     </ul>
   </section>
 
   <section id="tech-debt">
     <h2 class="neutral">Tech Debt Logged</h2>
+    <p>Items NOT closed in this PR (logged here for future BILTIQ tasks):</p>
     <ul>
-      <li class="placeholder">Link to follow-up ticket, or "none".</li>
+      <li><strong><code>commit_metadata</code> event type is reserved but has no in-repo producer.</strong> Listed in v1 vocabulary (spec AC4) and rendered into MEMORY.md's <code>auto:code_areas</code> section, but no path emits it. ADR-0001 line 10 documents this as an intentional reservation, not a defect. Decision deferred: either add a producer (e.g., a separate <code>pre-commit</code> hook that writes the event before the curator is triggered) or trim from v1 vocab if no producer materialises in the next sprint.</li>
+      <li><strong>Curator rebuilds auto-sections from full stream every run.</strong> Not incremental. Current perf budget passes at 6000&times; headroom (0.03s on a 1000-event stream against a 200ms target). Incremental projection is a deferred follow-up per ADR-0001 § "Tech debt accepted". Will become urgent if streams exceed ~10k events &mdash; not anticipated for solo-dev usage.</li>
+      <li><strong>No stream archival/rotation policy.</strong> <code>.biltiq/memory-stream.jsonl</code> grows monotonically. Acceptable for solo-dev usage; multi-dev or long-horizon usage will need a rotation policy. Possibly a follow-up BILTIQ task once we have actual long-run data.</li>
+      <li><strong>Repo lacks <code>pyproject.toml</code>.</strong> Tool scoping for pytest / ruff is ad-hoc &mdash; a future contributor running <code>pytest</code> at the repo root will hit a placeholder import in <code>test-scaffolds/python/example_test.py</code>. Out of scope for BILTIQ-003 (this is a BILTIQ-000 bootstrap omission).</li>
+      <li><strong><code>/biltiq-engineering:standup</code> payload schema diverges from spec.</strong> Upstream fix needed in the <code>biltiq-engineering</code> plugin source, not in this repo. The curator's tolerance for unknown keys keeps things working but the harmonisation should land.</li>
     </ul>
   </section>
 
@@ -231,10 +295,10 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-05-18</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft after Step 7 (Reflect) &mdash; populated all sections with concrete findings from the Build / Review / Test / Ship steps.</td>
+          <td>BILTIQ-003 Step 7</td>
         </tr>
       </tbody>
     </table>
