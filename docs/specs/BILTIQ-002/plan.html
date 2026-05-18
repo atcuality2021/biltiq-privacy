@@ -173,19 +173,24 @@
       </div>
       <p class="step-meta"><strong>Rationale:</strong> TDD: write the test surface that AC6 demands (≥32 fixture cases) BEFORE patterns.py has content. Tests must FAIL on every case at this commit. This locks the test expectations before the regex pasting in Step 4, so the dev's regex choices in Step 4 are driven by "what passes the locked tests" rather than "what regex feels right".</p>
       <p class="step-meta"><strong>Files (CREATE):</strong>
-        <code>packages/python-core/tests/indian/test_patterns.py</code> — parameterised tests:
+        <code>packages/python-core/tests/indian/test_patterns.py</code> — three tests:
+        <code>test_patterns_dict_has_all_entity_keys</code> (surface contract, RED at step 3 → GREEN at step 4);
         <code>test_pattern_matches_valid_fixtures(entity, value)</code> driven by <code>{ENTITY}_VALID</code> tuples;
         <code>test_pattern_rejects_false_positives(entity, value)</code> driven by <code>{ENTITY}_FALSE_POSITIVES</code> tuples.
         Tests <code>import re</code> + the <code>PATTERNS</code> dict from <code>biltiq_privacy.indian.patterns</code>.
       </p>
+      <p class="step-meta"><strong>Files (MODIFY):</strong>
+        <code>packages/python-core/biltiq_privacy/indian/patterns.py</code> — augment step 1's scaffold with <code>PATTERNS: Final[dict[str, re.Pattern[str]]] = {}</code> placeholder (empty dict) so the test module imports without <code>ImportError</code>. Population happens in step 4.
+      </p>
       <div class="step-tests">
         <strong>Tests:</strong>
         <ul>
-          <li>All tests RED at this commit because (a) fixture tuples are empty (Step 2) so parameterisation yields zero cases AND (b) <code>PATTERNS</code> dict doesn't exist yet.</li>
-          <li>Collection-only sanity: <code>pytest --collect-only tests/indian/test_patterns.py</code> reports the two parameterised test IDs (with zero cases until Step 4).</li>
+          <li>RED signal: <code>test_patterns_dict_has_all_entity_keys</code> fails at this commit (PATTERNS is the empty placeholder; 8-entity surface is not yet present).</li>
+          <li>Parameterised tests yield 0 cases at this commit (fixture tuples are empty per step 2); they begin yielding cases in step 4 when fixtures + PATTERNS are filled together.</li>
+          <li>Collection-only sanity: <code>pytest --collect-only tests/indian/test_patterns.py</code> reports the three test IDs.</li>
         </ul>
       </div>
-      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> tests collect; running them produces <code>ImportError: cannot import name 'PATTERNS'</code> (expected RED); mypy clean.</p>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> tests collect; running <code>tests/indian/test_patterns.py</code> reports exactly one failure (<code>test_patterns_dict_has_all_entity_keys</code>) and zero parametrized cases; mypy clean; ruff clean.</p>
       <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-002 step 3: test_patterns.py (RED — locks test surface for ≥32 cases)</code></p>
     </div>
 
