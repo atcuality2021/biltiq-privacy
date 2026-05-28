@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: MIT
 """Tests for biltiq_privacy.backup.age_stream — the age system-binary wrapper.
 
-Step 2 lands AC1 (AgeNotInstalledError gate). Subsequent BILTIQ-004 Build
-steps extend this file with the round-trip, error-path, and positive-control
-tests; the AC10 static-grep meta-test lives in test_no_intermediate_files.py.
+Step 2 lands AC1 (AgeNotInstalledError gate). Step 3 adds AC2/AC3/AC5
+(round-trip). Subsequent BILTIQ-004 Build steps extend this file with the
+error-path and positive-control tests; the AC10 static-grep meta-test lives
+in test_no_intermediate_files.py.
 """
 from __future__ import annotations
 
@@ -51,3 +52,31 @@ def test_age_not_installed_raises_at_enter_for_reader(
             pytest.fail("body must not run when age binary is missing")
 
     assert isinstance(exc_info.value, FileNotFoundError)
+
+
+def test_round_trip_synthetic_plaintext(
+    age_test_keypair: tuple[Path, str],
+    tmp_path: Path,
+) -> None:
+    """AC2 + AC3 + AC5: write plaintext through the wrapper, read it back, verify byte-equal.
+
+    1024 bytes of synthetic plaintext (``b"\\x42" * 1024``) — no real PII.
+    The keypair is ephemeral (lives in ``tmp_path``) and never committed.
+    Plaintext is only ever resident in the writer's stdin pipe and the
+    reader's stdout pipe; the wrapper guarantees no plaintext lands on disk
+    (AC2/AC3 invariant, statically enforced by test_no_intermediate_files.py
+    in Step 6).
+    """
+    identity_path, recipient = age_test_keypair
+    ciphertext_path = tmp_path / "ciphertext.age"
+    plaintext_in = b"\x42" * 1024
+
+    with open_age_writer(ciphertext_path, recipient=recipient) as sink:
+        sink.write(plaintext_in)
+
+    assert ciphertext_path.stat().st_size > 0
+
+    with open_age_reader(ciphertext_path, identity_path=identity_path) as source:
+        plaintext_out = source.read()
+
+    assert plaintext_in == plaintext_out
