@@ -2,20 +2,28 @@
 """Tests for biltiq_privacy.backup.age_stream — the age system-binary wrapper.
 
 Step 2 lands AC1 (AgeNotInstalledError gate). Step 3 adds AC2/AC3/AC5
-(round-trip). Subsequent BILTIQ-004 Build steps extend this file with the
-error-path and positive-control tests; the AC10 static-grep meta-test lives
-in test_no_intermediate_files.py.
+(round-trip). Step 4 adds AC4 (AgeProcessError on invalid recipient and
+on corrupted ciphertext). The AC10 static-grep meta-test lives in
+test_no_intermediate_files.py.
 """
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from biltiq_privacy.backup import (
     AgeNotInstalledError,
+    AgeProcessError,
     open_age_reader,
     open_age_writer,
+)
+
+_skip_if_no_age = pytest.mark.skipif(
+    shutil.which("age") is None,
+    reason="age binary not on $PATH",
 )
 
 
@@ -80,3 +88,56 @@ def test_round_trip_synthetic_plaintext(
         plaintext_out = source.read()
 
     assert plaintext_in == plaintext_out
+
+
+@_skip_if_no_age
+def test_invalid_recipient_raises_age_process_error(tmp_path: Path) -> None:
+    """AC4: invalid recipient string causes age to exit non-zero; wrapper raises AgeProcessError.
+
+    Subclass contract: the exception is also a subprocess.CalledProcessError;
+    age's stderr is captured as bytes on `exc.stderr`.
+    """
+    out_path = tmp_path / "out.age"
+
+    with pytest.raises(AgeProcessError) as exc_info:
+        with open_age_writer(out_path, recipient="not-a-real-recipient") as sink:
+            sink.write(b"any plaintext")
+
+    exc = exc_info.value
+    assert isinstance(exc, subprocess.CalledProcessError)
+    assert isinstance(exc.stderr, bytes)
+    assert b"error" in exc.stderr.lower()
+    assert not out_path.exists(), "partial ciphertext must be unlinked on failure"
+
+
+@_skip_if_no_age
+def test_corrupted_ciphertext_raises_age_process_error(
+    age_test_keypair: tuple[Path, str],
+    tmp_path: Path,
+) -> None:
+    """AC4: a single byte flip in the ciphertext payload causes decrypt to fail with AgeProcessError.
+
+    Writes a fresh ciphertext, flips byte 256 (past the age v1 header for
+    single-recipient files, safely inside the encrypted payload), then
+    reads via open_age_reader. age's Poly1305 MAC rejects the tamper and
+    exits non-zero.
+    """
+    identity_path, recipient = age_test_keypair
+    ciphertext_path = tmp_path / "ciphertext.age"
+
+    with open_age_writer(ciphertext_path, recipient=recipient) as sink:
+        sink.write(b"\x42" * 1024)
+
+    raw = bytearray(ciphertext_path.read_bytes())
+    assert len(raw) > 256, "round-trip ciphertext shorter than expected"
+    raw[256] ^= 0xFF
+    ciphertext_path.write_bytes(bytes(raw))
+
+    with pytest.raises(AgeProcessError) as exc_info:
+        with open_age_reader(ciphertext_path, identity_path=identity_path) as source:
+            source.read()
+
+    exc = exc_info.value
+    assert isinstance(exc, subprocess.CalledProcessError)
+    assert isinstance(exc.stderr, bytes)
+    assert len(exc.stderr) > 0
