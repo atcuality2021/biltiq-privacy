@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: BILTIQ-004 — age system-binary wrapper + cross-OS install script</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .ac-ref { display: inline-block; font-size: 0.72rem; font-weight: 600; color: var(--color-muted); background: var(--color-bg-subtle); border: 1px solid var(--color-border); padding: 0.05rem 0.35rem; border-radius: 4px; margin-right: 0.25rem; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: BILTIQ-004 — age system-binary wrapper + cross-OS install script</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-004</dd></div>
+      <div><dt>Author</dt><dd>@claude (code-architect)</dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+      <div><dt>Spec ref</dt><dd><code>docs/specs/BILTIQ-004/spec.html</code></dd></div>
+      <div><dt>Compliance mode</dt><dd><code>on_prem_preferred</code></dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Approach</h2>
+    <h3>Name</h3>
+    <p><strong>Two streaming <code>subprocess.Popen</code> context managers under <code>biltiq_privacy.backup.age_stream</code>, plus a POSIX-<code>sh</code> autodetect installer and a manual-install runbook — ported in pattern from CDSCO-RegAI's <code>scripts/_backup_lib/age_stream.py</code>, re-derived for the library audience.</strong></p>
+    <h3>Description</h3>
+    <p>The spec locks five invariants: (1) module path <code>biltiq_privacy.backup.age_stream</code>; (2) two context managers (<code>open_age_writer</code>, <code>open_age_reader</code>) whose yielded handle is the subprocess pipe end &mdash; never a temporary plaintext file; (3) two exception classes (<code>AgeNotInstalledError</code> as a <code>FileNotFoundError</code> subclass; <code>AgeProcessError</code> as a <code>subprocess.CalledProcessError</code> subclass) raised at well-defined lifecycle points; (4) a cross-OS install script with a fixed autodetect order and an explicit "needs human" exit code; (5) a manual-install runbook covering OSes the script does not autodetect. Those five together force the topology below.</p>
+    <p>Both context managers wrap a single <code>subprocess.Popen(["age", ...], stdin=PIPE, stdout=...)</code> call. The writer's yielded handle is <code>proc.stdin</code> (caller writes plaintext bytes; ciphertext lands at <code>out_path</code> via age's <code>-o</code> flag). The reader's yielded handle is <code>proc.stdout</code> (caller reads decrypted plaintext bytes; ciphertext is piped in via <code>proc.stdin</code> from a file handle opened on <code>in_path</code>). Neither path materialises plaintext on disk &mdash; the AC2/AC3 invariant. <code>shutil.which("age")</code> is checked at <code>__enter__</code>; absence raises <code>AgeNotInstalledError</code>. At <code>__exit__</code> the subprocess is waited on under a <code>try/finally</code> that always closes <code>stdin</code>/<code>stdout</code>/<code>stderr</code>; non-zero exit raises <code>AgeProcessError</code> with <code>stderr</code> bytes captured. Exception propagation from the caller's <code>with</code> body (e.g. the consumer's writer raises mid-stream) tears the subprocess down cleanly via a <code>BaseException</code> handler that closes <code>stdin</code>, waits the process, and unlinks any partial ciphertext file before re-raising &mdash; this is the same pattern CDSCO-RegAI's <code>_backup_lib/age_stream.py</code> uses, re-derived for our exception hierarchy.</p>
+    <p>The install script (<code>scripts/install-age.sh</code>) is POSIX-<code>sh</code>, mirroring the style of <code>scripts/install-curator-hook.sh</code> (BILTIQ-003): <code>set -u</code>; explicit arg parser; <code>-h</code>/<code>--help</code> emits a slice of its own header; idempotent install with <code>--force</code> override; safe <code>--uninstall</code> that refuses to remove anything it did not place. Autodetect order is fixed per AC7: Linux package managers (<code>apt-get</code> → <code>dnf</code> → <code>pacman</code> → <code>snap</code>) → GitHub-release tarball with SHA256 verify; macOS Homebrew → GitHub-release tarball with SHA256 verify; Windows shells (MSYS2 / Cygwin / MinGW) → emit a directive to use <code>scoop</code> or <code>choco</code> and exit <code>2</code> (distinct from "script broken" exit <code>1</code>). The runbook (<code>docs/runbooks/install-age.md</code>) covers manual <code>curl</code>-based installs per (OS × arch) for the path the script does not autodetect &mdash; the GitHub-release URL pattern, the SHA256 check, the <code>$PATH</code> placement step, and a final <code>age --version</code> verification.</p>
+    <p>The trade-off accepted: the wrapper is a thin shell around <code>subprocess.Popen</code>; it adds error typing, lifecycle hygiene, and a <code>shutil.which</code> gate, but does not abstract age itself (no recipient-file resolution, no key generation, no manifest, no SHA256 of the ciphertext &mdash; those concerns live in the future v0.5.0 backup orchestrator per spec § Out of Scope §1, §2, §3). This deliberately keeps the surface stateless / IO-only: the recipient is a caller-supplied string; the identity path is a caller-supplied <code>Path</code>; nothing about keys, key custody, or recipient-file layout is the wrapper's business. Consumers wire those concerns themselves in BILTIQ-005+, which is when the CDSCO-RegAI <code>config/age-recipients/&lt;APPLIANCE_ID&gt;/</code> convention may be ported (or not) to this codebase.</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+
+    <h3>Encryption backend (chosen: system <code>age</code> binary via <code>subprocess.Popen</code>)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Pure-Python age library (e.g. a hypothetical <code>pyage</code> PyPI package or one of the partial ports on PyPI today).</td><td>Rejected. (a) No actively-maintained Python port at production quality as of 2026-05; the partial ports lag the age v1 spec on plugins / passphrase flows. (b) Adds a new runtime dependency to the library &mdash; auto-blocked by stack.md § "Library framework: NONE" without an ADR. (c) The library / sidecar's deploy story is "native pip + systemd, ~120 MB RAM" (AGENT_RULES.md § Project context); pulling X25519 + ChaCha20-Poly1305 into the Python process raises the supply-chain surface for what is fundamentally a one-static-binary problem. (d) <code>stack.md</code> line 52 already specifies "age (system binary) wrapped via <code>subprocess.Popen</code>" &mdash; the architectural decision is locked upstream of this ticket.</td></tr>
+        <tr><td>2</td><td><code>cryptography</code> library + hand-rolled X25519 / ChaCha20-Poly1305 pipeline implementing the age v1 wire format ourselves.</td><td>Rejected. (a) Re-implements a spec'd, audited binary protocol; one-engineer-year scope for a feature where the canonical implementation is a single static binary. (b) Format compatibility with downstream tooling (CDSCO-RegAI's restore script, sops-age, k8s sealed-secrets, drone-ci age plugins) would be a maintenance treadmill against the upstream age repo. (c) Adds <code>cryptography</code> as a hard runtime dep (it isn't one today). Brief §2 rule 1 ("depend, pin, never fork") applies by analogy: we depend on age the binary; we do not fork its protocol into Python.</td></tr>
+        <tr><td>3</td><td><code>NamedTemporaryFile</code> + non-streaming subprocess call: write plaintext to a tmp file, run <code>age</code> against the tmp file, delete the tmp.</td><td>Rejected. Plaintext materialises on disk for the duration of the age call &mdash; AC2 ("no <code>NamedTemporaryFile</code>, no buffer-to-disk; the plaintext exists only in pipe buffers and process memory") and AC3 (symmetric assertion for the reader) explicitly forbid this shape. Even with <code>tempfile</code> auto-unlink, an interrupted run leaves a window where the plaintext is on disk in a predictable temp location &mdash; defeating the whole point of streaming encryption. CDSCO-RegAI's ADR-0002 § Decision rule 3 ("encryptable from a <code>subprocess.Popen</code> pipeline so plaintext never lands on disk") is the prior-art source for the same rule.</td></tr>
+        <tr><td>4</td><td>FFI binding to the <code>age</code> Go library (via <code>ctypes</code> against a CGo-built <code>.so</code>/<code>.dylib</code>/<code>.dll</code>, or via a Python wrapper crate).</td><td>Rejected. (a) Adds a build-time dependency on the Go toolchain for every CI matrix cell &mdash; the static binary is exactly what FFI lets us avoid. (b) Cross-compile matrix (linux x86_64, linux arm64, macOS Intel + Apple Silicon, Windows) is 5+ binaries to ship per release; the system-binary path delegates this to the upstream age release page. (c) FFI surface adds segfault risk on the Python side for a class of problem (subprocess pipe streaming) where Python's stdlib is the right shape.</td></tr>
+        <tr><td>5 ✓</td><td><strong>System <code>age</code> binary invoked via <code>subprocess.Popen(["age", ...], stdin=PIPE, ...)</code> for the writer and <code>subprocess.Popen(["age", "-d", "-i", &lt;keyfile&gt;, &lt;ct&gt;], stdout=PIPE)</code> for the reader; absent binary raises <code>AgeNotInstalledError</code> at <code>__enter__</code>; non-zero exit raises <code>AgeProcessError</code> at <code>__exit__</code> (chosen).</strong></td><td>Direct match to AC1–AC4 + AC6. Direct match to <code>stack.md</code> line 52's pre-locked architectural commitment. Direct port of the CDSCO-RegAI <code>scripts/_backup_lib/age_stream.py</code> shape that has shipped 19/19 unit tests and a real backup pipeline. Zero runtime dependencies added to the library. Compliance-clean (no external AI / cloud calls). Trust model is "we trust the OS package manager that installed age" &mdash; surfaced explicitly under § Security &amp; Compliance.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Install-script strategy (chosen: POSIX-<code>sh</code> autodetect + GitHub-release fallback)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Pure Python installer (<code>scripts/install_age.py</code>) that detects the OS and runs the right package-manager subprocess.</td><td>Rejected. Bootstrap chicken-and-egg: the installer is the first thing a contributor or operator runs &mdash; before they have necessarily set up a Python virtualenv. Python is a heavier prerequisite than POSIX <code>sh</code> on the typical Linux / macOS appliance; on Windows the operator is in MSYS2/Cygwin/MinGW already (and has <code>sh</code>). <code>scripts/install-curator-hook.sh</code> (BILTIQ-003) set the POSIX-<code>sh</code> precedent for installer scripts in this repo.</td></tr>
+        <tr><td>2</td><td>Bash-only installer (<code>#!/usr/bin/env bash</code>) using arrays, <code>[[ ... ]]</code>, and <code>set -euo pipefail</code>.</td><td>Rejected. Excludes appliances running BusyBox or Alpine's <code>ash</code> (no Bash by default). The macOS default shell is still bash 3.2 (pre-arrays-with-<code>${arr[@]}</code> quirks); the Windows MSYS2 / Git Bash environment ships a recent bash but moving from POSIX <code>sh</code> to bash gains nothing AC7 demands. Matching <code>install-curator-hook.sh</code>'s POSIX-<code>sh</code> style keeps the convention.</td></tr>
+        <tr><td>3</td><td>Native PowerShell <code>.ps1</code> sibling for Windows, alongside the POSIX-<code>sh</code> for Unix.</td><td>Rejected by spec § Out of Scope §5. Windows path is "run from MSYS2 / Cygwin / MinGW shell" or follow the manual-install runbook. A native <code>.ps1</code> sibling is a follow-up if Windows-native operator demand materialises &mdash; explicitly carved out.</td></tr>
+        <tr><td>4</td><td>"Just <code>brew</code> / <code>apt</code> install age yourself" &mdash; no script, runbook only.</td><td>Rejected. AC7 requires the script. The runbook (AC8) covers the cases the script does not autodetect; the two artifacts are complementary, not substitutes. Operators on a fresh appliance benefit from "one command and it's installed".</td></tr>
+        <tr><td>5 ✓</td><td><strong>POSIX-<code>sh</code> script with fixed autodetect order (Linux: <code>apt-get</code> → <code>dnf</code> → <code>pacman</code> → <code>snap</code> → GitHub-release tarball + SHA256; macOS: Homebrew → GitHub-release tarball + SHA256; Windows shell: directive to <code>scoop</code>/<code>choco</code> and exit <code>2</code>), idempotent re-run, <code>--force</code> / <code>--uninstall</code> / <code>-h</code> flags, style mirroring <code>scripts/install-curator-hook.sh</code> (chosen).</strong></td><td>Direct match to AC7. Distinct exit codes (<code>0</code> success, <code>1</code> script broken, <code>2</code> needs human) make the script usable from outer automation. SHA256 verify is the only place the trust boundary is touched directly &mdash; everywhere else, we delegate trust to the OS package manager (§ Security &amp; Compliance).</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Exception hierarchy shape (chosen: subclasses of stdlib base classes)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Library-internal base class (e.g. <code>BackupError</code> / <code>RestoreError</code>) like CDSCO-RegAI's <code>scripts/_backup_lib/errors.py</code> shape.</td><td>Rejected. CDSCO-RegAI was an application; biltiq-privacy is a library. Library callers want to <code>except FileNotFoundError</code> (for missing binary) and <code>except subprocess.CalledProcessError</code> (for non-zero exit) without importing our private exception class. Subclassing the stdlib bases gives callers both surfaces without forcing an import.</td></tr>
+        <tr><td>2</td><td>Single <code>AgeError</code> class for both failure modes.</td><td>Rejected. Conflates two operationally-different conditions: "age isn't installed" (the operator needs to run the install script) versus "age exited non-zero" (a recipient / identity / ciphertext-corruption problem). Spec AC1 and AC4 keep them separate; the design preserves that.</td></tr>
+        <tr><td>3 ✓</td><td><strong><code>AgeNotInstalledError(FileNotFoundError)</code> raised at <code>__enter__</code> when <code>shutil.which("age") is None</code>; <code>AgeProcessError(subprocess.CalledProcessError)</code> raised at <code>__exit__</code> on non-zero exit, with <code>stderr</code> bytes carried through <code>exc.stderr</code> (chosen).</strong></td><td>Direct match to AC1 + AC4. Callers can <code>except FileNotFoundError</code> for the install gate (a familiar idiom for missing-binary checks) and <code>except subprocess.CalledProcessError</code> for the runtime gate (stdlib semantics, including <code>.returncode</code> and <code>.stderr</code> attributes). No new import burden on consumers who want broad handling; narrow handling via the typed subclasses works when callers want it.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+
+    <h3>New <span class="tag tag-new">CREATE</span></h3>
+    <table>
+      <thead><tr><th>Path</th><th>Change</th><th>Purpose</th><th>ACs</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/python-core/biltiq_privacy/backup/age_stream.py</code></td><td>CREATE</td><td>Wrapper module. Two <code>@contextmanager</code> functions (<code>open_age_writer</code>, <code>open_age_reader</code>), two exception classes (<code>AgeNotInstalledError</code>, <code>AgeProcessError</code>), one private helper (<code>_check_age_binary()</code> &mdash; <code>shutil.which</code> gate). Imports: <code>shutil</code>, <code>subprocess</code>, <code>contextlib.contextmanager</code>, <code>pathlib.Path</code>, <code>typing.IO</code>, <code>collections.abc.Iterator</code>, <code>from __future__ import annotations</code>. No third-party imports. Module docstring names the contract + the CDSCO-RegAI provenance (<code>scripts/_backup_lib/age_stream.py</code>) + BILTIQ-004 + ADR-0003. SPDX header.</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC2</span><span class="ac-ref">AC3</span><span class="ac-ref">AC4</span></td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/backup/__init__.py</code></td><td>UPDATE</td><td>Re-export the four public symbols: <code>open_age_writer</code>, <code>open_age_reader</code>, <code>AgeNotInstalledError</code>, <code>AgeProcessError</code>. Preserve existing docstring (the BILTIQ-001 scaffold contract) and append a line noting BILTIQ-004 closed the marker. Set <code>__all__ = ["open_age_writer", "open_age_reader", "AgeNotInstalledError", "AgeProcessError"]</code>. Imports gated by <code>from .age_stream import ...</code> at module top &mdash; the wrapper has no heavy deps, so eager import is safe (the entire module is <code>shutil</code> + <code>subprocess</code> + stdlib).</td><td><span class="ac-ref">AC1</span></td></tr>
+        <tr><td><code>packages/python-core/tests/backup/__init__.py</code></td><td>CREATE</td><td>Empty marker for the backup test sub-package. Mirrors <code>tests/indian/__init__.py</code> from BILTIQ-002.</td><td><span class="ac-ref">AC5</span><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/backup/test_age_stream.py</code></td><td>CREATE</td><td>Test module &mdash; round-trip + error-path coverage tied to AC5 / AC6 / AC4. Tests: (a) ephemeral keypair generated via <code>age-keygen</code> in <code>tmp_path</code>, synthetic plaintext bytes round-tripped through <code>open_age_writer</code> → <code>open_age_reader</code>, plaintext-in == plaintext-out (AC5); (b) module-level <code>pytest.mark.skipif(not shutil.which("age"), reason="age binary not on PATH")</code> gate matching <code>CDSCO-RegAI:tests/test_backup_pg_surface.py:27</code> pattern (AC6); (c) positive-control test (e.g. <code>test_age_present_or_skip_works</code>) asserts the skip mechanism runs &mdash; the suite is not silently empty when age is present (AC6); (d) writer raises <code>AgeProcessError</code> when given an invalid recipient string &mdash; assert <code>exc.stderr</code> is captured as <code>bytes</code> (AC4); (e) reader raises <code>AgeProcessError</code> on corrupted ciphertext (one byte flipped past the age header) &mdash; assert <code>isinstance(exc, subprocess.CalledProcessError)</code> (AC4); (f) <code>AgeNotInstalledError</code> raised at <code>__enter__</code> when <code>shutil.which</code> is monkey-patched to return <code>None</code> (AC1) &mdash; this test does <strong>not</strong> need the age binary on <code>$PATH</code> so it lives outside the skipif gate. Keys never committed; synthetic plaintext bytes only (no PII). Style mirrors <code>CDSCO-RegAI:tests/test_age_stream.py</code> (110 LOC, 5 test functions).</td><td><span class="ac-ref">AC1</span><span class="ac-ref">AC4</span><span class="ac-ref">AC5</span><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/backup/conftest.py</code></td><td>CREATE (small)</td><td>One fixture: <code>age_test_keypair(tmp_path) -&gt; tuple[Path, Path]</code>. Runs <code>age-keygen -o &lt;privkey&gt;</code> inside <code>tmp_path</code>, extracts the recipient public key (<code>age-keygen -y &lt;privkey&gt; &gt; &lt;pubkey&gt;</code>), returns <code>(privkey_path, pubkey_path)</code>. Gated by the same <code>pytest.mark.skipif(not shutil.which("age"))</code> at the fixture level so the fixture is unavailable when age is not on <code>$PATH</code>. Mirrors <code>CDSCO-RegAI:tests/conftest.py</code>'s <code>age_test_keypair</code> pattern (which spec § AC5 references implicitly via "test generates an ephemeral keypair via <code>age-keygen</code>").</td><td><span class="ac-ref">AC5</span><span class="ac-ref">AC6</span></td></tr>
+        <tr><td><code>packages/python-core/tests/backup/test_no_intermediate_files.py</code></td><td>CREATE</td><td>Static-grep meta-test enforcing the AC2/AC3 "no plaintext on disk" invariant. Opens <code>packages/python-core/biltiq_privacy/backup/age_stream.py</code> as text via <code>pathlib.Path.read_text(encoding="utf-8")</code> and asserts no occurrences of <code>NamedTemporaryFile</code>, <code>tempfile.mkstemp</code>, <code>tempfile.NamedTemporary</code>, <code>Path.write_bytes</code>, or <code>.write_text(</code>. ~20 LOC. Runs unconditionally — no <code>shutil.which("age")</code> gate, since the test reads source text rather than executing the binary. Lifts Risk #3 from MEDIUM (code-review-only invariant) to LOW (in-CI gate that fails the build if a future refactor introduces an intermediate plaintext file). Pattern is novel for this repo — no precedent yet; expect to revisit if the same shape recurs on other invariants (e.g. "no PII in logs").</td><td><span class="ac-ref">AC10</span></td></tr>
+        <tr><td><code>scripts/install-age.sh</code></td><td>CREATE</td><td>POSIX-<code>sh</code> autodetect installer. <code>set -u</code>; arg parser supporting <code>--force</code>, <code>--uninstall</code>, <code>-h</code>/<code>--help</code>; help emits a header slice via <code>sed -n '2,N p' "$0"</code> (matching <code>install-curator-hook.sh</code>). Functions: <code>_detect_os()</code> (uname-based), <code>_install_linux()</code> (<code>apt-get</code> → <code>dnf</code> → <code>pacman</code> → <code>snap</code> → GitHub-release tarball + SHA256), <code>_install_macos()</code> (Homebrew → GitHub-release tarball + SHA256), <code>_install_windows_shell()</code> (emit directive for <code>scoop</code>/<code>choco</code>, exit <code>2</code>), <code>_verify_age_version()</code> (parses <code>age --version</code>, refuses to install over an existing <code>≥ 1.2.0</code> unless <code>--force</code>), <code>_uninstall()</code> (refuses to remove a system-package-managed binary; only undoes a GitHub-release tarball install the script placed under <code>$HOME/.local/bin/</code> with a sentinel file). Exit codes: <code>0</code> success, <code>1</code> script broken (unexpected env), <code>2</code> needs human (Windows path, unrecognised OS, package manager exit). Source URL for tarball + SHA256 source URL pinned to the FiloSottile/age GitHub releases page; the script hard-codes a pinned version (<code>AGE_VERSION="1.2.0"</code>) so the SHA256 set committed in-script matches the tarballs it downloads.</td><td><span class="ac-ref">AC7</span></td></tr>
+        <tr><td><code>docs/runbooks/install-age.md</code></td><td>CREATE</td><td>Manual-install runbook (Markdown; not human-customer-facing &mdash; an operator playbook, so MD is allowed per AGENT_RULES.md anti-pattern #11 boundary: runbooks under <code>docs/runbooks/</code> are operator-facing artifacts that mirror <code>docs/runbooks/restore.md</code> in CDSCO-RegAI, not the <code>spec/design/plan/reflect</code> set that triggers the HTML rule). Sections: prereqs, OS × arch matrix (Linux x86_64, Linux arm64, macOS Intel, macOS Apple Silicon, Windows scoop / choco), per-row: GitHub-release URL pattern (with the pinned version placeholder), the <code>sha256sum -c</code> / <code>shasum -a 256 -c</code> verification command, <code>$PATH</code> placement (<code>$HOME/.local/bin/</code> or <code>/usr/local/bin</code>), final verification (<code>age --version</code>). Closing section: "When the autodetect script fails" troubleshooting table. Cross-link to ADR-0003 + <code>scripts/install-age.sh</code>.</td><td><span class="ac-ref">AC8</span></td></tr>
+        <tr><td><code>docs/adr/0003-age-streaming-pattern.md</code></td><td>CREATE</td><td>ADR locking the <code>subprocess.Popen</code> streaming choice over (pure-Python age library / hand-rolled cryptography / NamedTemporaryFile flow / FFI). Status <code>proposed</code> at design-write time; flipped to <code>accepted</code> at Step 6 Ship. Rationale source: CDSCO-RegAI's ADR-0002 (cross-linked, re-derived for the library audience &mdash; not copied verbatim). Per AGENT_RULES.md § Architectural decisions: "Any new external service integration requires an ADR" applies in the soft sense here (age is a system binary, not a service) but recording the architectural choice is good hygiene for a v0.5.0+ load-bearing decision.</td><td>&mdash;</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>Path</th><th>Change</th><th>Purpose</th><th>ACs</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/architecture/stack.md</code></td><td>EDIT</td><td>§ Encryption (v0.5.0+) line 52 row: replace forward-looking phrasing ("Install via <code>scripts/install-age.sh</code>") with a shipped-row layout referencing <code>biltiq_privacy.backup.age_stream</code> (the wrapper module path), <code>scripts/install-age.sh</code> (the installer), <code>docs/runbooks/install-age.md</code> (the runbook), and <code>docs/adr/0003-age-streaming-pattern.md</code> (the ADR). § Internal modules table: add a row for <code>biltiq_privacy.backup.age_stream</code> (purpose: "Streaming age (X25519 + ChaCha20-Poly1305) wrappers around the system <code>age</code> binary; no plaintext on disk; raises <code>AgeNotInstalledError</code> / <code>AgeProcessError</code>."). The stack.md § "Update rules" rule (every new internal module lands here in the same PR) is the gate.</td><td><span class="ac-ref">AC9</span></td></tr>
+        <tr><td><code>docs/architecture/overview.md</code></td><td>EDIT</td><td>§ Library layout line 43 anticipates <code>backup/{age_pipeline,manifest}.py</code> &mdash; replace with <code>backup/age_stream.py</code> (this ticket's actual module) and a note that <code>age_pipeline</code> / <code>manifest</code> land in BILTIQ-005+ (the orchestrator, out of scope here). § Failure modes line 156 anticipates <code>AgeBinaryNotFoundError</code> &mdash; rename to <code>AgeNotInstalledError</code> to match spec AC1's locked exception class name. Anti-Pattern #1 hygiene; both lines are stale in the opposite direction this PR settles.</td><td><span class="ac-ref">AC9</span></td></tr>
+        <tr><td><code>docs/architecture/approved-versions.md</code></td><td>EDIT</td><td>§ Currently approved adds a one-row entry for the age system binary: <code>age ≥ 1.2.0</code> (pinned in <code>stack.md</code> line 52 and <code>scripts/install-age.sh</code>'s <code>AGE_VERSION</code>). Lifts age into the anti-pattern #9 (deprecated APIs) defence surface alongside Python, Presidio, spaCy. Closes Risk #6 (the version-pin-drift risk that was MEDIUM at design-draft time). Per dev decision at design-review Q1.</td><td><span class="ac-ref">AC9</span></td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td>EDIT</td><td>Append under <code>[Unreleased]</code>: <code>- feat: age streaming wrapper — `biltiq_privacy.backup.age_stream` (`open_age_writer` / `open_age_reader` context managers around the system `age` binary; `AgeNotInstalledError` / `AgeProcessError` exception hierarchy) + `scripts/install-age.sh` POSIX autodetect installer (Linux / macOS / Windows-shell) + `docs/runbooks/install-age.md` manual-install runbook + ADR-0003 locking the `subprocess.Popen` streaming pattern (BILTIQ-004)</code>. Single keep-a-changelog entry, no marketing copy, no banned vocab.</td><td>&mdash;</td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top: 0.75rem;"><strong>Not touched (intentionally):</strong> <code>AGENT_RULES.md</code>, <code>MEMORY.md</code>, <code>LICENSE</code>, <code>.gitignore</code>, <code>README.md</code>, <code>packages/python-core/pyproject.toml</code>, <code>packages/python-server/pyproject.toml</code>, <code>.github/workflows/ci.yml</code>, <code>.github/workflows/biltiq-gates.yml</code>, <code>scripts/check-boundaries.sh</code> &mdash; no new runtime dependencies, no version bumps, no compliance-mode changes, no new banned-API surface. CI already runs the matrix on every push; the new tests are picked up automatically and the age-binary skipif gate keeps the matrix green on cells where age is not pre-installed.</p>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model Changes</h2>
+    <p><strong>None.</strong> The wrapper is stateless and IO-only. No schemas, no JSONL fields, no SQLite tables, no audit-chain row changes, no in-process caches, no module-global state. <code>open_age_writer</code> and <code>open_age_reader</code> are <code>@contextmanager</code>-decorated generator functions; each invocation owns its own subprocess and its own pipe-buffer state and tears both down at <code>__exit__</code>. Recipients and identities are caller-supplied at call time and are not persisted by the wrapper.</p>
+  </section>
+
+  <section id="api-contract">
+    <h2>API Contract Changes</h2>
+    <p>Four new public Python symbols ship under <code>biltiq_privacy.backup</code> (additive; the sub-package was a scaffold-empty marker in BILTIQ-001 with the docstring contract this ticket satisfies):</p>
+    <pre><code># biltiq_privacy.backup.age_stream
+
+class AgeNotInstalledError(FileNotFoundError):
+    """Raised at __enter__ when shutil.which("age") returns None.
+    Subclasses FileNotFoundError so callers can `except FileNotFoundError`
+    without importing this module's private exceptions."""
+
+class AgeProcessError(subprocess.CalledProcessError):
+    """Raised at __exit__ when the age subprocess exits non-zero.
+    Inherits .returncode, .cmd, .stderr (bytes) from the stdlib base.
+    No bare `except:` paths in the wrapper (AGENT_RULES.md anti-pattern #3)."""
+
+@contextmanager
+def open_age_writer(
+    out_path: Path,
+    *,
+    recipient: str,
+) -> Iterator[IO[bytes]]:
+    """Stream plaintext bytes through `age -r &lt;recipient&gt; -o &lt;out_path&gt;`.
+
+    Yields the subprocess stdin handle. Bytes written are encrypted
+    and land at `out_path`. Plaintext exists only in pipe buffers
+    and process memory &mdash; never on disk.
+
+    Raises:
+      AgeNotInstalledError: at __enter__ if `age` is not on $PATH.
+      AgeProcessError:      at __exit__ if `age` exits non-zero.
+    """
+
+@contextmanager
+def open_age_reader(
+    in_path: Path,
+    *,
+    identity_path: Path,
+) -> Iterator[IO[bytes]]:
+    """Stream ciphertext from `in_path` through `age -d -i &lt;identity_path&gt;`.
+
+    Yields the subprocess stdout handle. Reading from it returns
+    decrypted plaintext bytes. Symmetric with open_age_writer:
+    no plaintext on disk.
+
+    Raises:
+      AgeNotInstalledError: at __enter__ if `age` is not on $PATH.
+      AgeProcessError:      at __exit__ if `age` exits non-zero.
+    """
+</code></pre>
+    <p><strong>Import path contract:</strong> the four symbols are re-exported from <code>biltiq_privacy.backup</code> via the sub-package <code>__init__.py</code>. Callers may write <code>from biltiq_privacy.backup import open_age_writer, AgeNotInstalledError</code>; the leaf-module path <code>from biltiq_privacy.backup.age_stream import ...</code> remains valid (and is what AC1 names literally). <code>biltiq_privacy/__init__.py</code> stays empty of these symbols &mdash; consistent with the BILTIQ-002 sub-module-only import-path lock.</p>
+    <p><strong>CLI contract</strong> (<code>scripts/install-age.sh</code>): three flags (<code>--force</code>, <code>--uninstall</code>, <code>-h</code>/<code>--help</code>) and three exit codes (<code>0</code> success / <code>1</code> script broken / <code>2</code> needs human). Stable for the life of the script; downstream automation may key off the exit-code distinction.</p>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance</h2>
+    <ul>
+      <li><strong>Compliance mode: <code>on_prem_preferred</code>.</strong> This task introduces zero external AI / cloud API calls. The wrapper runs the local system <code>age</code> binary via <code>subprocess.Popen</code>; no HTTP client, no environment-variable reads inside <code>packages/python-core/</code>, no DNS lookups, no key material leaving the calling process. The on-prem-compliance gate (AGENT_RULES.md § Compliance mode) does not fire &mdash; no ADR-for-external-AI required.</li>
+      <li><strong>Trust model for the <code>age</code> binary.</strong> The wrapper executes whatever <code>age</code> binary is on the caller's <code>$PATH</code>. We trust the OS package manager that installed age (apt / dnf / pacman / snap / Homebrew / scoop / choco) to deliver an authentic binary. The single place this ticket touches that trust boundary directly is in <code>scripts/install-age.sh</code>'s GitHub-release tarball fallback path, which fetches the tarball + a SHA256 file from the FiloSottile/age release URL and verifies the checksum before placing the binary on <code>$PATH</code>. The SHA256 baseline for the pinned <code>AGE_VERSION</code> is committed in-script &mdash; tampering with the upstream release page alone is not sufficient to compromise the installer; the attacker would also need a matching SHA256 commit to the repo (visible in git blame). For package-manager paths, trust is delegated to the upstream package signing chain (apt / dnf / pacman / brew / snap / scoop / choco all sign their packages by default on modern installs); the install script does not re-verify what the package manager has already verified.</li>
+      <li><strong>Key material.</strong> The wrapper never persists, copies, or logs key material. Recipients (public keys) are passed as opaque strings (<code>recipient: str</code>); identities (private keys) are passed as <code>Path</code> objects and forwarded to <code>age -i &lt;path&gt;</code> verbatim. The wrapper never opens an identity file in Python &mdash; age handles that. Callers (BILTIQ-005+ backup orchestrator) own key custody; this ticket adds no opinion.</li>
+      <li><strong>No plaintext on disk &mdash; the AC2/AC3 invariant.</strong> Provable only by code review of the implementation, not by a runtime test (a test that asserts "no plaintext appeared in /tmp during the writer's lifetime" would race the writer's own pipe activity). Mitigation: the implementation in <code>age_stream.py</code> is small (under 100 LOC); the code-reviewer skill check at Step 4 verifies the absence of <code>NamedTemporaryFile</code>, <code>tempfile.mkstemp</code>, <code>Path.write_bytes</code> against plaintext, or any intermediate-file pattern. Recorded as Risk #3 below.</li>
+      <li><strong>No PII in logs.</strong> The wrapper does not log input bytes (those <em>are</em> PII when the consumer is the backup orchestrator). If diagnostic logging is added later, it routes through <code>biltiq_privacy.core.log_filter.RedactionFilter</code> (stack.md). For BILTIQ-004, the module emits no log records &mdash; pure data + pure functions modulo the subprocess effect.</li>
+      <li><strong>No secrets.</strong> No HMAC keys, no API tokens, no env reads inside <code>packages/python-core/</code>. The install script reads no secrets either; the only environment variables it touches are <code>$PATH</code> (read-only) and <code>$HOME</code> (for the <code>$HOME/.local/bin/</code> tarball-install fallback).</li>
+      <li><strong>Subprocess invocation hygiene.</strong> Every <code>subprocess.Popen</code> call passes an argv list, never <code>shell=True</code>. Caller-supplied values (<code>recipient</code> as <code>str</code>, paths as <code>Path</code>) are passed as separate argv elements; the shell never interpolates them. Removes the shell-injection class of bugs by construction.</li>
+      <li><strong>Library/server boundary.</strong> <code>packages/python-core/</code> only &mdash; no FastAPI / Starlette / uvicorn imports. <code>scripts/check-boundaries.sh</code> (BILTIQ-001) catches any accident in CI.</li>
+      <li><strong>License hygiene.</strong> SPDX header on every new <code>.py</code> file. age itself is BSD-3-Clause licensed (upstream); we depend on the binary at runtime, do not vendor, do not link. Per <code>approved-versions.md</code>: no GPL / AGPL contamination risk in this change.</li>
+      <li><strong>No ADR required for an external AI dependency</strong> (none introduced). ADR-0003 is written to lock the <code>subprocess.Popen</code> streaming pattern itself &mdash; an architectural-decision ADR, not a compliance-override ADR.</li>
+    </ul>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <ul>
+      <li><strong>Pipe-buffer throughput.</strong> The Linux default pipe buffer is 64 KiB (16 × 4 KiB pages; <code>PIPE_BUF</code> is the smaller atomic-write threshold). The wrapper does no buffering of its own; the caller writes directly to <code>proc.stdin</code> in whatever chunk size it chooses, and age reads from its stdin via its own internal loop. Per CDSCO-RegAI's 50 MiB streaming round-trip test (<code>test_age_stream_round_trip_50mb_streaming</code>), throughput is comfortably above 1 MB/s on commodity hardware &mdash; the bottleneck is ChaCha20-Poly1305 inside age, not Python or the pipe.</li>
+      <li><strong>GIL.</strong> The encrypt / decrypt work happens in the age subprocess, not in the calling Python process. The Python wrapper only serialises writes to <code>proc.stdin</code> (and reads from <code>proc.stdout</code> in the reader path). No GIL contention introduced; consumers can use the wrapper from a thread without blocking other threads on encryption work.</li>
+      <li><strong>Subprocess startup cost.</strong> One <code>fork+exec</code> per <code>open_age_*</code> invocation. On Linux that is sub-millisecond; on macOS it is in the low milliseconds. Negligible against any real-world plaintext volume. For the BILTIQ-005+ backup orchestrator's typical envelope (one age subprocess per surface &mdash; Postgres dump, Qdrant snapshot, uploads tar, config bundle, i.e. ~4 subprocesses per backup run), the aggregate cost is well under 100 ms of process-start overhead.</li>
+      <li><strong>Import cost.</strong> <code>from biltiq_privacy.backup.age_stream import open_age_writer</code> pulls only stdlib (<code>shutil</code>, <code>subprocess</code>, <code>contextlib</code>, <code>pathlib</code>, <code>typing</code>). Cost is dominated by Python bytecode load &mdash; sub-millisecond. No Presidio / spaCy bleed-in (those live under <code>biltiq_privacy.indian.*</code>, an unrelated sub-package).</li>
+      <li><strong>Test-suite cost.</strong> 6 tests in <code>test_age_stream.py</code>: the round-trip test runs age twice per invocation (encrypt + decrypt) for ~50 ms × 2 = ~100 ms; error-path tests run age once each. Whole test module under 1 s wall-clock; comfortably inside CI budget. The <code>age_test_keypair</code> fixture spawns <code>age-keygen</code> once per test (cheap; sub-100 ms); a module-scoped fixture would halve this but the spec does not require optimisation.</li>
+    </ul>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <p><strong>Single PR, multiple atomic commits.</strong> No feature flag &mdash; this is a new module with zero existing callers in this repo. The v0.5.0+ orchestrator (BILTIQ-005+) will be the first internal consumer; until that ships, the wrapper is dead-import-only and side-effect-free, so a partial merge cannot break existing functionality.</p>
+    <ol style="padding-left: 1.4rem;">
+      <li><strong>Branch posture.</strong> A new feature branch (<code>feature/biltiq-004-age-wrapper</code>) cut from current <code>main</code>. plan.html will be written on this branch.</li>
+      <li><strong>Land code + tests + docs + ADR in one PR.</strong> Wrapper module first (no dependencies), then sub-package <code>__init__.py</code> re-export, then conftest fixture, then test module, then install script, then runbook, then stack.md + overview.md edits, then CHANGELOG entry, then ADR (proposed). Each commit message follows <code>BILTIQ-004: &lt;step description&gt;</code> per AGENT_RULES.md § Working pattern rule 4.</li>
+      <li><strong>Local gate before push:</strong> <code>ruff check packages/python-core scripts</code>, <code>mypy --strict packages/python-core</code>, <code>pytest packages/python-core/tests/backup/</code>, <code>shellcheck scripts/install-age.sh</code>, <code>bash scripts/install-age.sh --help</code> (smoke), <code>bash scripts/check-boundaries.sh</code>. All green on Python 3.12 (dev default).</li>
+      <li><strong>CI gate:</strong> <code>.github/workflows/ci.yml</code> matrix-build on Python 3.11/3.12/3.13/3.14 × pip|uv. The age-binary <code>skipif</code> gate keeps cells where age is not pre-installed green &mdash; AC6 explicitly designs for this. Note: Risk #1 below records that the install script's macOS and Windows code paths are not exercised by GitHub-hosted CI; they will be verified manually at Step 5 (Test).</li>
+      <li><strong>ADR flip at Ship.</strong> ADR-0003 lands at <code>proposed</code> with the design PR. The Step 6 (Ship) commit flips <code>Status: proposed</code> → <code>Status: accepted</code> with the witness paragraph (matching the ADR-0001 + ADR-0002 precedent).</li>
+      <li><strong>Merge once green.</strong> No release tag &mdash; v0.5.0 PyPI publish is a separate ship task when the orchestrator (BILTIQ-005+) is ready.</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p>Pure additive Python code under an existing scaffolded sub-package, plus one shell script, one runbook, one ADR, three documentation edits, and one CHANGELOG entry. Rollback is <code>git revert &lt;merge-sha&gt;</code> &mdash; no data migrations, no schema state, no external service contracts to unwind, no consumers (the orchestrator hasn't shipped). The only state revert leaves behind is the operator's locally-installed <code>age</code> binary, which is harmless and remains useful for non-biltiq-privacy purposes; <code>scripts/install-age.sh --uninstall</code> remains the documented removal path even after revert (and the script is in git history if needed).</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>#</th><th>Risk</th><th>Severity</th><th>Detection / Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>Install-script paths only locally validated on Linux.</strong> AC7 mandates code paths for Linux (apt / dnf / pacman / snap / GitHub-release fallback), macOS (Homebrew / GitHub-release fallback), and Windows shells (scoop / choco directive + exit <code>2</code>). The dev's primary environment is Linux; GitHub-hosted CI runners exercise the Linux + macOS paths but not the Windows-shell branches. The Windows-shell branch is coded but not autoexecuted by CI &mdash; meaning the directive-and-exit-<code>2</code> behaviour is correct-by-inspection, not correct-by-test.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Detection: <code>shellcheck</code> in CI catches syntax / quoting bugs on all branches regardless of which OS runs. <code>bash scripts/install-age.sh --help</code> smoke runs on the Linux CI cell. Mitigation: at Step 5 (Test), the dev manually runs the macOS Homebrew path on a personal macOS device (or skips with a documented gap), and the Windows-shell branch is tested manually under MSYS2 (or skipped with a gap). Gaps land in the Step 6 (Ship) PR description's "known unvalidated paths" section so reviewers see what is and isn't proven. This pattern matches BILTIQ-002's CI-vs-platform-coverage gap honesty.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong><code>Popen</code> cleanup on exception requires careful context-manager finalisation.</strong> The <code>@contextmanager</code> function must close <code>proc.stdin</code>, drain <code>proc.stdout</code> / <code>proc.stderr</code>, and wait on the subprocess on every exit path &mdash; including when the caller's <code>with</code> body raises mid-stream. A bug here yields orphaned <code>age</code> subprocesses on disk (process table leak) and possibly a partial ciphertext file at <code>out_path</code>. CDSCO-RegAI's <code>age_stream.py</code> handles this via an explicit <code>except BaseException: proc.stdin.close(); proc.wait(); path.exists() and path.unlink(); raise</code> block; this design ports the same pattern.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Detection: a dedicated test ("writer body raises mid-stream") that opens the writer, writes some bytes, then raises a custom exception inside the <code>with</code> block; asserts (a) the custom exception propagates, (b) no orphan age process remains (<code>proc.poll()</code> returns a value), (c) the partial <code>out_path</code> is unlinked. AC4 only covers the non-zero-exit case; this risk's mitigation is one test beyond what AC4 explicitly demands. Mitigation: ports CDSCO-RegAI's exception-clean shape verbatim modulo the new exception class names. Code reviewer to verify the <code>try/except BaseException/finally</code> shape mirrors the source.</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>AC2 / AC3 "no plaintext on disk" — code-review invariant lifted to in-CI gate at design review.</strong> Originally MEDIUM: a runtime test that asserts "no plaintext appeared in /tmp during the writer's lifetime" would race the writer's own pipe activity and would not reliably catch a regression. At design review (dev decision Q2), AC10 was added to the spec: a static-grep meta-test (<code>tests/backup/test_no_intermediate_files.py</code>) opens <code>age_stream.py</code> as text and asserts no occurrences of <code>NamedTemporaryFile</code>, <code>tempfile.mkstemp</code>, <code>Path.write_bytes</code>, etc. The invariant is now a CI gate, not a code-review-only check.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: AC10's static-grep test fails the build if any forbidden pattern appears in <code>age_stream.py</code>. Additional defence: code-reviewer skill check at Step 4 explicitly looks for the same patterns; module docstring carries an explicit "DO NOT introduce intermediate plaintext files; AC2/AC3 invariant" warning. Three independent gates (CI test, skill check, in-source comment).</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>SHA256 baseline maintenance.</strong> <code>scripts/install-age.sh</code> hard-codes a pinned <code>AGE_VERSION</code> and the SHA256 baseline for each (OS × arch) tarball. When age publishes a new version (1.2.x → 1.3.x), the baseline goes stale &mdash; the GitHub-release fallback either downloads a still-valid pinned version (OK, install succeeds at the pinned version) or, if FiloSottile rotates artifacts (rare but allowed), starts failing the SHA256 check. The install script's correctness is now coupled to upstream release-pin policy.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: a follow-up maintenance check ("does <code>age --version</code> on a fresh-install Linux runner still report ≥ 1.2.0?") could be CI-scheduled, but out of scope for BILTIQ-004. Mitigation: the script's behaviour on SHA256-mismatch is to exit <code>1</code> with a clear message ("expected SHA256 X, got Y; refusing to install"), pointing the operator at <code>docs/runbooks/install-age.md</code> for the manual path. Operators are never silently exposed to a tampered tarball.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>Doc drift between overview.md and the chosen module name.</strong> <code>docs/architecture/overview.md</code> line 43 anticipated <code>backup/{age_pipeline,manifest}.py</code> (forward-looking from BILTIQ-001) and line 156 anticipated <code>AgeBinaryNotFoundError</code>. Neither matches the spec-locked names (<code>backup/age_stream.py</code> and <code>AgeNotInstalledError</code>). If the overview.md edit is skipped, future devs onboarding from overview.md will look in the wrong place / for the wrong exception &mdash; Anti-Pattern #1.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: code-reviewer skill flags any new internal module not registered in <code>stack.md</code> § Internal modules. Mitigation: documentation deltas are explicit in § Files to Touch &mdash; both stack.md and overview.md edits land in the same PR. plan.html will include the doc-update commit before the ADR commit. This pattern mirrors BILTIQ-002's overview.md drift fix.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><strong>age version pin in <code>approved-versions.md</code> — closed at design review.</strong> Originally LOW: <code>approved-versions.md</code> did not carry a row for the age binary, so the two pin locations (<code>stack.md</code> line 52 + the install script's <code>AGE_VERSION</code>) could drift without anti-pattern #9 defence catching it. At design review (dev decision Q1), AC9 was expanded to include <code>approved-versions.md</code>; the file now lands a one-row entry "<code>age ≥ 1.2.0</code> (system binary; pinned in <code>stack.md</code> + <code>scripts/install-age.sh</code>)". Three pin locations all in sync via the same PR.</td>
+          <td><span class="tag tag-risk-l">MITIGATED</span></td>
+          <td>Detection: code-reviewer skill checks for new external version pins; with <code>approved-versions.md</code> carrying the row, any drift in <code>stack.md</code> or the install script's <code>AGE_VERSION</code> shows up as an inconsistency the reviewer can flag. Future bumps (1.2.0 → 1.3.0) update all three locations in the same PR.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions &mdash; All Confirmed at Design Review</h2>
+    <p>spec.html § Open Questions records "None remaining" from the Step 1 scope-lock dialogue. Three follow-on items surfaced at design draft were confirmed with the dev on 2026-05-18:</p>
+    <ul>
+      <li><strong>Q1 &mdash; AGE_VERSION pin location.</strong> <span style="color: var(--color-new); font-weight: 600;">CONFIRMED:</span> add a row to <code>docs/architecture/approved-versions.md</code> § Currently approved so the anti-pattern #9 defence covers age. AC9 expanded in spec.html to cover three doc files (<code>stack.md</code> + <code>overview.md</code> + <code>approved-versions.md</code>). Risk #6 transitions from LOW to MITIGATED.</li>
+      <li><strong>Q2 &mdash; static-grep meta-test for the AC2/AC3 invariant.</strong> <span style="color: var(--color-new); font-weight: 600;">CONFIRMED:</span> AC10 added to spec.html. New test file <code>packages/python-core/tests/backup/test_no_intermediate_files.py</code> opens <code>age_stream.py</code> as text and asserts no occurrences of <code>NamedTemporaryFile</code>, <code>tempfile.mkstemp</code>, <code>tempfile.NamedTemporary</code>, <code>Path.write_bytes</code>, or <code>.write_text(</code>. Risk #3 transitions from MEDIUM to LOW. Runs unconditionally (no <code>shutil.which</code> gate &mdash; it reads source text, not the binary).</li>
+      <li><strong>Q3 &mdash; install-script <code>--uninstall</code> mechanism.</strong> <span style="color: var(--color-new); font-weight: 600;">CONFIRMED:</span> sentinel file at <code>$HOME/.local/share/biltiq-privacy/age-installed-by-script</code> records the install path + version. <code>--uninstall</code> reads the sentinel, removes only the listed binary, removes the sentinel; refuses if no sentinel exists (= not script-installed). Mirrors how <code>nvm uninstall</code> and <code>rustup self uninstall</code> work. plan.html will land this in the install-script atomic step.</li>
+    </ul>
+  </section>
+
+  <section id="anti-pattern-check">
+    <h2>Anti-Pattern Guardrails Honored</h2>
+    <ul>
+      <li><strong>#1 Duplication</strong> &mdash; the BILTIQ-001 scaffold pre-reserved <code>packages/python-core/biltiq_privacy/backup/__init__.py</code> with the exact docstring contract this ticket satisfies. We use the scaffold rather than creating a new sub-package, and we update its docstring to mark the BILTIQ-004 close-out. The wrapper does not reimplement what <code>biltiq_privacy.core.log_filter.RedactionFilter</code> or any existing utility already does &mdash; there is no overlap between subprocess streaming and the existing internal modules.</li>
+      <li><strong>#2 Abstraction Bypass</strong> &mdash; we invoke <code>subprocess.Popen</code> directly (no hand-rolled subprocess abstraction in the repo today); we use <code>shutil.which</code>, <code>pathlib.Path</code>, and <code>contextlib.contextmanager</code> per stack.md § Shared utilities. No hand-rolled <code>os.path</code> reimplementation and no shell-string interpolation.</li>
+      <li><strong>#3 Error Handling Gaps</strong> &mdash; <code>open_age_writer</code> and <code>open_age_reader</code> handle the four error modes explicitly: (a) binary absent → <code>AgeNotInstalledError</code> at <code>__enter__</code>, (b) non-zero exit → <code>AgeProcessError</code> at <code>__exit__</code> with stderr captured, (c) body raises mid-stream → cleanup via <code>except BaseException</code> + unlink-partial-file + re-raise, (d) caller closes the pipe early → handled by <code>proc.wait()</code> seeing EOF on stdin. No bare <code>except:</code>; no <code>except Exception: pass</code> swallow.</li>
+      <li><strong>#4 Type Safety Violations</strong> &mdash; <code>recipient: str</code>, <code>identity_path: Path</code>, <code>out_path: Path</code>, <code>in_path: Path</code>, return type <code>Iterator[IO[bytes]]</code> on both context managers. <code>AgeNotInstalledError</code> and <code>AgeProcessError</code> typed against their stdlib bases. No <code>Any</code>; no <code># type: ignore</code> planned (the wrapper has no third-party imports, so there's no missing-stubs gap).</li>
+      <li><strong>#5 Security Anti-Patterns</strong> &mdash; no SQL; <code>subprocess.Popen</code> is invoked with an argv list (never <code>shell=True</code>) so caller-supplied <code>recipient</code> and <code>identity_path</code> are never shell-interpolated; no secrets read or logged; the install script's GitHub-release tarball path verifies SHA256 against a committed-in-script baseline before placing the downloaded binary on <code>$PATH</code>. Trust boundary documented under § Security &amp; Compliance.</li>
+      <li><strong>#6 Dead Code / Over-engineering</strong> &mdash; two context managers, two exception classes, one private <code>_check_age_binary</code> helper. No speculative key-rotation hooks, no recipient-resolution machinery, no manifest interfaces (those are the v0.5.0+ orchestrator's job, explicitly carved out by spec § Out of Scope §1, §2, §3, §4).</li>
+      <li><strong>#7 Debugging Residue</strong> &mdash; no <code>*_v2.py</code>, <code>*_new.py</code>, <code>*_old.py</code>, <code>*.bak</code>, <code>test_scratch_*.py</code>, no commented-out code. biltiq-gates.yml residue check covers this.</li>
+      <li><strong>#8 Async Misuse</strong> &mdash; spec § Out of Scope §6 carves async out. Both context managers are sync; no <code>asyncio</code> imports.</li>
+      <li><strong>#9 Deprecated API Usage</strong> &mdash; <code>shutil.which</code>, <code>subprocess.Popen</code>, <code>contextlib.contextmanager</code>, <code>pathlib.Path</code>, <code>typing.IO</code>, <code>collections.abc.Iterator</code>: all current per <code>approved-versions.md</code>. <code>from __future__ import annotations</code> at the top of every new <code>.py</code> file. No <code>datetime.utcnow</code>, no <code>os.path</code>, no <code>print()</code>, no bare <code>except:</code>.</li>
+      <li><strong>#10 Fake Test Coverage</strong> &mdash; each test in <code>test_age_stream.py</code> asserts one behaviour tied to one AC (or one risk-mitigation contract). Round-trip test asserts byte equality, not just "didn't crash". Error-path tests assert the exception type AND the captured stderr (<code>isinstance(exc, subprocess.CalledProcessError)</code> AND <code>exc.stderr is not None</code>).</li>
+      <li><strong>#11 HTML/MD boundary</strong> &mdash; clean. This file is <code>design.html</code>; the runbook is <code>docs/runbooks/install-age.md</code> (operator-facing playbook, MD permitted &mdash; not in the <code>spec/design/plan/reflect</code> set that triggers the HTML rule); the ADR is <code>docs/adr/0003-age-streaming-pattern.md</code> (ADRs remain MD per the precedent of ADR-0001 and ADR-0002).</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-18</td>
+          <td>all</td>
+          <td>Initial draft. Locked the chosen approach (<code>subprocess.Popen</code> streaming via two <code>@contextmanager</code> functions, exception hierarchy subclassing stdlib bases, POSIX-<code>sh</code> installer mirroring <code>scripts/install-curator-hook.sh</code>). Four alternatives surfaced and rejected for the encryption backend; five for the install-script strategy; three for the exception hierarchy. Eight files to touch (5 new + 3 edits). Six risks documented with mitigations. Three open-question acknowledgements surfaced for dev review.</td>
+          <td>BILTIQ-004 Step 2 Plan, design.html initial draft</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>Files to Touch, Risks, Open Questions</td>
+          <td>Design amended after dev confirmations at design review (Q1 + Q2 + Q3 all confirmed). Added two artifacts to Files to Touch: <code>docs/architecture/approved-versions.md</code> (EDIT) for the age version row, and <code>packages/python-core/tests/backup/test_no_intermediate_files.py</code> (CREATE) for the static-grep meta-test enforcing the AC2/AC3 invariant. Risk #3 downgraded MEDIUM&rarr;LOW; Risk #6 downgraded LOW&rarr;MITIGATED. Open Questions section rewritten with the three CONFIRMED resolutions. Design now references 10 ACs (matching spec.html v2) and 10 files to touch (6 CREATE + 4 EDIT).</td>
+          <td>BILTIQ-004 Step 2 Plan, design-review Q1+Q2+Q3 dev confirmations</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

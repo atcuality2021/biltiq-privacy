@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan: BILTIQ-004 — age system-binary wrapper + cross-OS install script</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-step-bg:   #f0fdf4;
+      --color-step-bdr:  #bbf7d0;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
+    .step {
+      border: 1px solid var(--color-step-bdr);
+      background: var(--color-step-bg);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .step-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+    .step-title { font-weight: 700; font-size: 0.95rem; }
+    .band {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #7dd3fc;
+    }
+    .band-l { background: #fef3c7; color: #d97706; border-color: #fcd34d; }
+    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
+    .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
+    .step-tests strong { color: var(--color-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .risk-h { color: var(--color-risk-high); font-weight: 700; }
+    .risk-m { color: var(--color-risk-med);  font-weight: 700; }
+    .risk-l { color: var(--color-risk-low);  font-weight: 700; }
+    .ac-ref { display: inline-block; font-size: 0.72rem; font-weight: 600; color: var(--color-muted); background: var(--color-bg-subtle); border: 1px solid var(--color-border); padding: 0.05rem 0.35rem; border-radius: 4px; margin-right: 0.25rem; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Plan: BILTIQ-004 — age system-binary wrapper + cross-OS install script</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-004</dd></div>
+      <div><dt>Branch</dt><dd><code>feature/biltiq-004-age-wrapper</code></dd></div>
+      <div><dt>Base</dt><dd><code>main</code> @ <code>a2706d4</code></dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+      <div><dt>Spec</dt><dd><code>docs/specs/BILTIQ-004/spec.html</code> (10 ACs)</dd></div>
+      <div><dt>Design</dt><dd><code>docs/specs/BILTIQ-004/design.html</code> (10 files to touch)</dd></div>
+    </dl>
+  </header>
+
+  <section id="overview">
+    <h2>Overview</h2>
+    <p>Nine atomic Build steps. TDD per step (RED→GREEN before commit). Estimate: per-step compose at ~5.5h wall-clock — L band, matching the BILTIQ-002 actual (which also landed at L despite a similar AC count). Spec wall-clock band amended from M to L on 2026-05-18 to reflect the per-step sum. Step ordering: ADR first (locks rationale before any code lands) → wrapper module + AC1 (RED→GREEN proves the gate) → fixtures + AC5 round-trip → AC4 error-paths → AC6 positive-control → AC10 static-grep meta-test → install script (the L-band single step) → runbook → doc updates + CHANGELOG. Each step is one commit with the format <code>BILTIQ-004: step N: &lt;description&gt;</code>.</p>
+  </section>
+
+  <section id="steps">
+    <h2>Build Sequence</h2>
+    <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
+      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest packages/python-core/tests/backup/</code> before proceeding. <code>shellcheck</code> + <code>--help</code> smoke before committing the install-script step.
+    </p>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 1 — Land ADR-0003 (status: proposed)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Lock the architectural rationale (<code>subprocess.Popen</code> streaming over four rejected alternatives) before any code lands. Subsequent steps reference ADR-0003 in module docstrings and the install script's header comment.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>docs/adr/0003-age-streaming-pattern.md</code> (CREATE — already drafted by the code-architect; 113 LOC). Status remains <code>proposed</code> through Build/Review/Test; flipped to <code>accepted</code> at Step 6 Ship per the ADR-0001 / ADR-0002 precedent.</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>none (ADR file — verified by grep for the cross-reference to <code>spec.html</code> + <code>design.html</code>)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>grep -c 'spec.html' docs/adr/0003-age-streaming-pattern.md</code> ≥ 1; banned-vocab grep clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 1: ADR-0003 proposed — age subprocess.Popen streaming pattern</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 2 — Wrapper module + AC1 RED→GREEN (AgeNotInstalledError gate)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Land the full wrapper module (under 100 LOC) in one commit so the public symbols exist for downstream test steps to import. AC1 (the <code>shutil.which</code> gate) is the cheapest acceptance test to assert first since it doesn't require the age binary on <code>$PATH</code> — the test monkey-patches <code>shutil.which</code> to return None.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>packages/python-core/biltiq_privacy/backup/age_stream.py</code> (CREATE — exception classes + <code>_check_age_binary</code> helper + <code>open_age_writer</code> + <code>open_age_reader</code>; SPDX header; <code>from __future__ import annotations</code>; module docstring carries the "DO NOT introduce intermediate plaintext files; AC2/AC3 invariant" warning and the ADR-0003 cross-link);
+        <code>packages/python-core/biltiq_privacy/backup/__init__.py</code> (UPDATE — preserve existing docstring, append BILTIQ-004 close-out line; add <code>from .age_stream import open_age_writer, open_age_reader, AgeNotInstalledError, AgeProcessError</code>; set <code>__all__ = [...]</code>);
+        <code>packages/python-core/tests/backup/__init__.py</code> (CREATE — empty marker, mirrors <code>tests/indian/__init__.py</code>);
+        <code>packages/python-core/tests/backup/test_age_stream.py</code> (CREATE — only the AC1 test in this step; future steps extend).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_age_not_installed_raises_at_enter</code> — monkey-patch <code>shutil.which</code> to return <code>None</code>; assert <code>open_age_writer(tmp_path/"out.age", recipient="age1ssh-fake")</code> raises <code>AgeNotInstalledError</code> at <code>__enter__</code>; assert the exception is also a <code>FileNotFoundError</code> instance (subclass contract) (AC1)</li>
+          <li>Symmetric test for <code>open_age_reader</code> with the same monkey-patch (AC1)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/backup/test_age_stream.py -v</code> — both AC1 tests GREEN; <code>mypy --strict packages/python-core/biltiq_privacy/backup/</code> clean; <code>ruff check packages/python-core/biltiq_privacy/backup/</code> clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 2: wrapper module + AC1 AgeNotInstalledError gate</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 3 — age_test_keypair fixture + AC5 round-trip (RED→GREEN)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC5 is the load-bearing functional test — it proves the wrapper actually encrypts and decrypts, end-to-end. The ephemeral keypair fixture is shared infrastructure that AC4's error-path tests will also use, so it lands in this step.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>packages/python-core/tests/backup/conftest.py</code> (CREATE — <code>age_test_keypair(tmp_path) -&gt; tuple[Path, Path]</code> fixture running <code>age-keygen -o &lt;privkey&gt;</code> then <code>age-keygen -y &lt;privkey&gt;</code> to extract the recipient; gated by <code>pytest.mark.skipif(not shutil.which("age"))</code>);
+        <code>packages/python-core/tests/backup/test_age_stream.py</code> (UPDATE — add the round-trip test; module-level <code>pytest.mark.skipif</code> for tests that need the binary).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_round_trip_synthetic_plaintext</code> — use <code>age_test_keypair</code> fixture; synthetic 1024-byte plaintext (<code>b"\\x42" * 1024</code>); write via <code>open_age_writer</code>, read back via <code>open_age_reader</code>, assert <code>plaintext_in == plaintext_out</code>; assert <code>out_path.stat().st_size &gt; 0</code> (sanity); keys never committed (ephemeral <code>tmp_path</code>) (AC2, AC3, AC5)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/backup/ -v</code> — round-trip test GREEN locally (age installed at <code>/usr/bin/age</code> 1.2.1); skipped cleanly when age is absent.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 3: age_test_keypair fixture + AC5 round-trip test</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 4 — AC4 error-path tests (AgeProcessError, RED→GREEN)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC4 demands that non-zero exit from the age subprocess raises <code>AgeProcessError</code> at <code>__exit__</code> with stderr captured. Two failure modes to assert: (a) invalid recipient string (age refuses to encrypt to a malformed recipient); (b) corrupted ciphertext (one byte flipped past the header — age refuses to decrypt).</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/tests/backup/test_age_stream.py</code> (UPDATE — add 2 error-path tests).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_invalid_recipient_raises_age_process_error</code> — pass <code>recipient="not-a-real-recipient-string"</code>; assert <code>AgeProcessError</code> raised at <code>__exit__</code>; assert <code>isinstance(exc, subprocess.CalledProcessError)</code>; assert <code>exc.stderr</code> is <code>bytes</code> and contains the age error message substring (AC4)</li>
+          <li><code>test_corrupted_ciphertext_raises_age_process_error</code> — round-trip encrypt, flip one byte past the age header offset (e.g. byte 256), assert <code>AgeProcessError</code> on read; assert <code>isinstance</code> + stderr capture (AC4)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/backup/ -v -k "error_path or process_error"</code> — both GREEN locally.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 4: AC4 error-path tests for AgeProcessError</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 5 — AC6 positive-control test for skip mechanism</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC6 demands a positive-control test that asserts the <code>shutil.which("age")</code> skip mechanism actually runs (the test suite is not silently empty when age is present). Without this, a future regression that breaks the skipif gate would silently mark the whole suite as skipped and CI would stay green falsely.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/tests/backup/test_age_stream.py</code> (UPDATE — add 1 positive-control test).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_age_present_or_skip_works</code> — assert <code>shutil.which("age") is not None</code> when the test runs (i.e. the skip mechanism gated correctly). If age is absent, the test is skipped by the same module-level skipif; if age is present, the test passes by construction. Net effect: a green test in this slot proves the skip wiring works (AC6)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/backup/ -v -k "skip_works"</code> GREEN locally; <code>pytest packages/python-core/tests/backup/ --collect-only</code> shows the skip mechanism applies to age-dependent tests only (not the AC1 monkey-patch tests, not the AC10 static-grep test).</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 5: AC6 positive-control test for skip mechanism</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 6 — AC10 static-grep meta-test (RED→GREEN)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC10 lifts the "no plaintext on disk" invariant from a code-review-only check to an in-CI gate. The test opens <code>age_stream.py</code> as text and asserts no occurrences of <code>NamedTemporaryFile</code>, <code>tempfile.mkstemp</code>, <code>tempfile.NamedTemporary</code>, <code>Path.write_bytes</code>, or <code>.write_text(</code>. Runs unconditionally — no age binary needed.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/tests/backup/test_no_intermediate_files.py</code> (CREATE — ~20 LOC).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_no_intermediate_files_in_age_stream_source</code> — load <code>biltiq_privacy/backup/age_stream.py</code> via <code>Path(__file__).parent.parent.parent / "biltiq_privacy" / "backup" / "age_stream.py"</code>; assert no forbidden patterns in the source (one assertion per pattern with a clear failure message naming the AC2/AC3 invariant) (AC10)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/backup/test_no_intermediate_files.py -v</code> GREEN unconditionally (no skip — proves the gate is reachable on all CI cells, including those without the age binary).</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 6: AC10 static-grep test enforces no-plaintext-on-disk invariant</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 7 — scripts/install-age.sh POSIX autodetect installer</span>
+        <span class="band band-l">L</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> The largest single artifact in the plan (~250 LOC POSIX sh). All autodetect paths in one step to keep the script's control flow reviewable as a whole. Style mirrors <code>scripts/install-curator-hook.sh</code> (BILTIQ-003) — POSIX <code>sh</code>, <code>set -u</code>, explicit arg parser, <code>-h</code>/<code>--help</code> emits a header slice via <code>sed -n</code>. Sentinel-file mechanism (per Q3 confirmation) at <code>$HOME/.local/share/biltiq-privacy/age-installed-by-script</code>.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>scripts/install-age.sh</code> (CREATE — see design § Files to Touch for function breakdown).</p>
+      <p class="step-meta"><strong>Function topology (per design):</strong></p>
+      <ul style="font-size:0.82rem;color:var(--color-text);margin:0.25rem 0 0.5rem 0">
+        <li><code>_help()</code> — emits the script header slice via <code>sed -n '2,N p' "$0"</code>; matches <code>install-curator-hook.sh</code> idiom.</li>
+        <li><code>_detect_os()</code> — <code>uname -s</code> case branch returning <code>linux | macos | windows-shell | unknown</code>.</li>
+        <li><code>_verify_age_version()</code> — parses <code>age --version</code>; refuses to overwrite an existing <code>≥ 1.2.0</code> unless <code>--force</code>.</li>
+        <li><code>_install_linux()</code> — autodetect order <code>apt-get → dnf → pacman → snap → tarball</code>; falls through cleanly between branches.</li>
+        <li><code>_install_macos()</code> — Homebrew → tarball.</li>
+        <li><code>_install_windows_shell()</code> — emits scoop / choco directive; exit 2.</li>
+        <li><code>_install_tarball()</code> — fetches FiloSottile/age release for <code>AGE_VERSION="1.2.0"</code>, verifies SHA256 against committed-in-script baseline, places binary at <code>$HOME/.local/bin/age</code>, writes sentinel.</li>
+        <li><code>_uninstall()</code> — reads sentinel; removes only the listed binary + sentinel; refuses if no sentinel exists.</li>
+      </ul>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>shellcheck scripts/install-age.sh</code> — clean (CI gate; catches shell-quoting/syntax errors on all branches regardless of OS).</li>
+          <li>Smoke: <code>bash scripts/install-age.sh --help</code> — exit 0, prints header slice.</li>
+          <li>Smoke: <code>bash scripts/install-age.sh -h</code> — exit 0, identical output.</li>
+          <li>Smoke: <code>bash scripts/install-age.sh --unknown-flag</code> — exit 2 with usage error.</li>
+          <li>Dry-run (Linux dev machine): <code>BILTIQ_AGE_DRY_RUN=1 bash scripts/install-age.sh</code> — prints what would be installed without executing the package manager. (Note: dry-run env var should be implemented in this step.)</li>
+          <li>Manual: <code>bash scripts/install-age.sh --uninstall</code> on a Linux machine without the sentinel → exit 2 with "no script-installed age binary; refusing to uninstall".</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> all smoke runs above pass; <code>shellcheck</code> clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 7: install-age.sh POSIX autodetect installer (Linux/macOS/Windows-shell)</code></p>
+      <p class="step-meta"><strong>Note for the dev:</strong> Risk #1 (design.html) — macOS Homebrew and Windows MSYS2 branches are correct-by-inspection only at this step. Step 5 (Test) of the Attack Loop is where the dev manually validates those branches on a macOS device + an MSYS2 shell (or documents the gap in the PR description). The Linux paths can and should be validated locally on this machine.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 8 — docs/runbooks/install-age.md manual-install runbook</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Covers the OS × arch matrix the autodetect script does not address. Operator-facing playbook (MD permitted under <code>docs/runbooks/</code> per AGENT_RULES.md anti-pattern #11 boundary).</p>
+      <p class="step-meta"><strong>Files:</strong> <code>docs/runbooks/install-age.md</code> (CREATE).</p>
+      <p class="step-meta"><strong>Contents:</strong></p>
+      <ul style="font-size:0.82rem;color:var(--color-text);margin:0.25rem 0 0.5rem 0">
+        <li>Prereqs (curl or wget; sha256sum or shasum -a 256).</li>
+        <li>OS × arch matrix: Linux x86_64, Linux arm64, macOS Intel, macOS Apple Silicon, Windows scoop / choco.</li>
+        <li>Per-row: GitHub-release URL pattern (<code>https://github.com/FiloSottile/age/releases/download/v$AGE_VERSION/age-v$AGE_VERSION-$OS-$ARCH.tar.gz</code>); SHA256 verification command (<code>sha256sum -c</code> on Linux; <code>shasum -a 256 -c</code> on macOS); <code>$PATH</code> placement step (<code>$HOME/.local/bin/</code> or <code>/usr/local/bin</code>); verification (<code>age --version</code>).</li>
+        <li>Closing section: "When the autodetect script fails" troubleshooting table.</li>
+        <li>Cross-link to ADR-0003 + <code>scripts/install-age.sh</code>.</li>
+      </ul>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>none (docs only).</li>
+          <li>Verification: <code>grep -cE 'github.com/FiloSottile/age' docs/runbooks/install-age.md</code> ≥ 5 (one URL per OS × arch row); <code>grep -cE 'sha256sum|shasum' docs/runbooks/install-age.md</code> ≥ 2 (Linux + macOS verification idioms present); banned-vocab grep clean.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> verification commands above all pass; manual read-through for clarity.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 8: docs/runbooks/install-age.md manual-install runbook</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 9 — Doc updates (stack.md + overview.md + approved-versions.md) + CHANGELOG</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC9's three-doc update lands in one commit so the architecture story is internally consistent at every revision. CHANGELOG entry lands in the same commit per AGENT_RULES.md § Working pattern rule (CHANGELOG updated in the PR that introduces the feature).</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>docs/architecture/stack.md</code> (EDIT — line 52 row + § Internal modules row);
+        <code>docs/architecture/overview.md</code> (EDIT — line 43 forward-looking <code>backup/{age_pipeline,manifest}.py</code> → <code>backup/age_stream.py</code>; line 156 <code>AgeBinaryNotFoundError</code> → <code>AgeNotInstalledError</code>);
+        <code>docs/architecture/approved-versions.md</code> (EDIT — add <code>age ≥ 1.2.0</code> row to § Currently approved);
+        <code>CHANGELOG.md</code> (EDIT — append <code>[Unreleased]</code> entry per design § Files to Touch).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>none (docs only).</li>
+          <li>Verification: <code>grep -c 'biltiq_privacy.backup.age_stream' docs/architecture/stack.md</code> ≥ 1 (Internal modules row registered); <code>grep -c 'age_stream' docs/architecture/overview.md</code> ≥ 1 AND <code>grep -c 'age_pipeline\\|manifest' docs/architecture/overview.md</code> matches expected (only in the "lands in BILTIQ-005+" note); <code>grep -c 'age' docs/architecture/approved-versions.md</code> ≥ 1; <code>grep 'BILTIQ-004' CHANGELOG.md</code> non-empty; banned-vocab grep clean across all four files; <code>scripts/check-banned-vocab.py</code> green.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> all verification greps pass; <code>scripts/check-boundaries.sh</code> still green (no library/server boundary surprise from doc edits).</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-004: step 9: stack.md + overview.md + approved-versions.md + CHANGELOG</code></p>
+    </div>
+  </section>
+
+  <section id="test-strategy">
+    <h2>Test Strategy</h2>
+    <table>
+      <thead><tr><th>Layer</th><th>What</th><th>Files</th><th>ACs</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Unit — gate</td>
+          <td><code>AgeNotInstalledError</code> raised when <code>shutil.which</code> returns None; subclass of <code>FileNotFoundError</code>.</td>
+          <td><code>tests/backup/test_age_stream.py</code> (step 2)</td>
+          <td><span class="ac-ref">AC1</span></td>
+        </tr>
+        <tr>
+          <td>Integration — round-trip</td>
+          <td>Ephemeral keypair via <code>age-keygen</code>; synthetic 1024-byte plaintext encrypted → decrypted → byte-equal. Plaintext exists only in pipe buffers (no <code>NamedTemporaryFile</code> in the wrapper source).</td>
+          <td><code>tests/backup/conftest.py</code> + <code>tests/backup/test_age_stream.py</code> (step 3)</td>
+          <td><span class="ac-ref">AC2</span><span class="ac-ref">AC3</span><span class="ac-ref">AC5</span></td>
+        </tr>
+        <tr>
+          <td>Unit — error-path</td>
+          <td>Invalid recipient + corrupted ciphertext both raise <code>AgeProcessError</code> (<code>isinstance(CalledProcessError)</code>) at <code>__exit__</code>; <code>exc.stderr</code> captured as <code>bytes</code>.</td>
+          <td><code>tests/backup/test_age_stream.py</code> (step 4)</td>
+          <td><span class="ac-ref">AC4</span></td>
+        </tr>
+        <tr>
+          <td>Unit — positive-control</td>
+          <td>Asserts <code>shutil.which("age") is not None</code> when the test runs — proves the skip-mechanism wiring is reachable rather than silently empty.</td>
+          <td><code>tests/backup/test_age_stream.py</code> (step 5)</td>
+          <td><span class="ac-ref">AC6</span></td>
+        </tr>
+        <tr>
+          <td>Static — meta-test</td>
+          <td>Greps <code>age_stream.py</code> source for forbidden plaintext-intermediate patterns. Runs unconditionally — no age binary required, so all CI cells gate on this.</td>
+          <td><code>tests/backup/test_no_intermediate_files.py</code> (step 6)</td>
+          <td><span class="ac-ref">AC10</span></td>
+        </tr>
+        <tr>
+          <td>Shell — lint + smoke</td>
+          <td><code>shellcheck</code> clean on all branches; <code>--help</code> / <code>-h</code> / <code>--unknown-flag</code> / <code>--uninstall</code>-without-sentinel smoke runs assert exit codes and output shape.</td>
+          <td><code>scripts/install-age.sh</code> (step 7)</td>
+          <td><span class="ac-ref">AC7</span></td>
+        </tr>
+        <tr>
+          <td>Manual (Step 5 Test)</td>
+          <td>macOS Homebrew autodetect on a personal macOS device; Windows MSYS2 directive verification under MSYS2. Gaps documented in PR description per design Risk #1.</td>
+          <td>&mdash;</td>
+          <td><span class="ac-ref">AC7</span></td>
+        </tr>
+        <tr>
+          <td>Verification (no-test)</td>
+          <td>Runbook URL/SHA256 grep counts; doc-edit grep verification for the AC9 surface (stack.md + overview.md + approved-versions.md + CHANGELOG).</td>
+          <td>step 8, step 9 (verification commands in step body)</td>
+          <td><span class="ac-ref">AC8</span><span class="ac-ref">AC9</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--color-muted)">Per-AC coverage: every AC1–AC10 has at least one explicit test or verification command tied to a specific build step. No AC is unverified.</p>
+  </section>
+
+  <section id="rollback-plan">
+    <h2>Rollback Plan</h2>
+    <p>Pure additive change &mdash; no schema state, no data migrations, no external service contracts to unwind, no in-flight consumers (the v0.5.0+ backup orchestrator that will be the first internal consumer hasn't shipped). Rollback is <code>git revert &lt;merge-sha&gt;</code>. The only residue revert leaves behind is the operator's locally-installed <code>age</code> binary &mdash; harmless and remains useful for non-biltiq-privacy purposes. <code>scripts/install-age.sh --uninstall</code> remains the documented removal path even after revert (the script is in git history regardless). No feature flag, no toggleable behavior, no consumer to drain.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks (plan-specific; design Risks #1–6 apply at design-level)</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Step 7 install-script ~250 LOC overflows the ≤1 hour atomic-step budget on a cold start.</strong> The L band (165 min midpoint) accommodates it, but a junior dev encountering POSIX <code>sh</code> quoting edge cases for the first time could blow past 3 hours. The script's branch density (4 Linux package managers + tarball fallback + macOS Homebrew + tarball fallback + Windows directive + sentinel + flags) makes "one logical commit" defensible but tight.</td>
+          <td>7</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Pre-write the function topology (already in step 7 above) so the dev fills in function bodies rather than designing on the fly. Reference <code>scripts/install-curator-hook.sh</code> as the in-repo idiom source. If the step bleeds past 2 hours wall-clock, split at the OS-path boundary: step 7a Linux only, step 7b macOS + Windows-shell + tarball. Plan-reviewer may flag this as a "single-step-too-large" warning; the dev decides to pre-split or accept the L band.</td>
+        </tr>
+        <tr>
+          <td><strong>SHA256 baseline for the install-script tarball path requires fetching upstream artifacts at write-time</strong> — the script commits the SHA256 of each (OS × arch) tarball, which means the dev needs network access to <code>github.com/FiloSottile/age/releases/v1.2.0</code> at step 7 to compute the baselines.</td>
+          <td>7</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Repo dev machine has network access (<code>git push origin feature/biltiq-004-age-wrapper</code> requires it). Pinned to <code>AGE_VERSION="1.2.0"</code> per design; release artifacts are immutable on GitHub releases. If the upstream tags are rotated (rare), the SHA256-mismatch behaviour exits 1 with the manual-install runbook reference.</td>
+        </tr>
+        <tr>
+          <td><strong>Step 2 ships ~80 LOC of new Python in a single commit</strong> — slightly above the typical "60 LOC per atomic step" heuristic. The wrapper module is the project's first <code>subprocess.Popen</code> + <code>@contextmanager</code> + <code>BaseException</code> cleanup pattern; review density is higher than typical.</td>
+          <td>2</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Design § Approach narrates the exception-flow shape in three paragraphs; review eyes already have the source-of-truth context. The CDSCO-RegAI prior-art (<code>scripts/_backup_lib/age_stream.py</code>) is the line-by-line porting target — the dev cross-references during code-review. Split into 2a (exception classes + helper) + 2b (context managers) only if step 2 mid-flight feels too dense.</td>
+        </tr>
+        <tr>
+          <td><strong>AC6 positive-control test (step 5) is conceptually subtle</strong> — a test that proves "the skip mechanism runs" can be misread as "trivial happy-path assertion that age is installed". A future reviewer might delete it as redundant.</td>
+          <td>5</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>The test's docstring (added in step 5) explicitly names the regression class it guards against: "Without this test, a future regression that breaks the skipif gate would silently mark the whole suite as skipped and CI would stay green falsely. This test verifies the skip wiring; removing it removes the in-CI gate that the wiring works." Code-reviewer skill should preserve this comment if a future PR proposes test deletion.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="commit-sequence">
+    <h2>Commit Sequence Summary</h2>
+    <table>
+      <thead><tr><th>#</th><th>Commit</th><th>Band</th><th>ACs</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>BILTIQ-004: step 1: ADR-0003 proposed — age subprocess.Popen streaming pattern</code></td><td>S</td><td>—</td></tr>
+        <tr><td>2</td><td><code>BILTIQ-004: step 2: wrapper module + AC1 AgeNotInstalledError gate</code></td><td>M</td><td>AC1</td></tr>
+        <tr><td>3</td><td><code>BILTIQ-004: step 3: age_test_keypair fixture + AC5 round-trip test</code></td><td>M</td><td>AC2, AC3, AC5</td></tr>
+        <tr><td>4</td><td><code>BILTIQ-004: step 4: AC4 error-path tests for AgeProcessError</code></td><td>S</td><td>AC4</td></tr>
+        <tr><td>5</td><td><code>BILTIQ-004: step 5: AC6 positive-control test for skip mechanism</code></td><td>S</td><td>AC6</td></tr>
+        <tr><td>6</td><td><code>BILTIQ-004: step 6: AC10 static-grep test enforces no-plaintext-on-disk invariant</code></td><td>S</td><td>AC10</td></tr>
+        <tr><td>7</td><td><code>BILTIQ-004: step 7: install-age.sh POSIX autodetect installer (Linux/macOS/Windows-shell)</code></td><td>L</td><td>AC7</td></tr>
+        <tr><td>8</td><td><code>BILTIQ-004: step 8: docs/runbooks/install-age.md manual-install runbook</code></td><td>S</td><td>AC8</td></tr>
+        <tr><td>9</td><td><code>BILTIQ-004: step 9: stack.md + overview.md + approved-versions.md + CHANGELOG</code></td><td>S</td><td>AC9</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:0.5rem;font-size:0.85rem;color:var(--color-muted)">Per-step compose: 6×S (15 min ea = 90 min) + 2×M (60 min ea = 120 min) + 1×L (165 min) = 375 min ≈ <strong>L band</strong>. Spec wall-clock band amended from M to L on 2026-05-18 to reflect the per-step sum (the plan-reviewer's compose-vs-spec heuristic would otherwise warn).</p>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2026-05-18</td>
+          <td>all</td>
+          <td>Initial draft. Nine atomic Build steps mapped to the 10 ACs in spec.html (v2). One step per AC where the AC is a discrete test contract; the install script and the doc-edit cluster each consolidate into their own L / S step respectively. Per-step compose ~5.5h wall-clock = L band. Risks register identifies four plan-specific risks (atop the 6 design-level risks); all MED or LOW with explicit mitigations.</td>
+          <td>BILTIQ-004 Step 2 Plan, plan.html initial draft after spec + design lock</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
