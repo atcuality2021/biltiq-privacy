@@ -62,6 +62,23 @@ def test_age_not_installed_raises_at_enter_for_reader(
     assert isinstance(exc_info.value, FileNotFoundError)
 
 
+@_skip_if_no_age
+def test_age_present_or_skip_works() -> None:
+    """AC6: positive control — if this test runs, the skipif wiring is intact.
+
+    The module-level ``_skip_if_no_age`` marker skips this test when the age
+    binary is absent. So either: (a) age is present and ``shutil.which("age")``
+    returns a non-None path — the assertion passes by construction; or
+    (b) age is absent and pytest reports SKIPPED — also a healthy outcome.
+
+    The failure mode this guards against is the test suite silently turning
+    into a no-op because the skipif marker breaks (wrong binary name, wrong
+    condition, etc.); then this test would fail loudly on cells that lack
+    age instead of being cleanly skipped.
+    """
+    assert shutil.which("age") is not None
+
+
 def test_round_trip_synthetic_plaintext(
     age_test_keypair: tuple[Path, str],
     tmp_path: Path,
