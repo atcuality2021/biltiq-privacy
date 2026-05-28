@@ -115,7 +115,7 @@ def test_corrupted_ciphertext_raises_age_process_error(
     age_test_keypair: tuple[Path, str],
     tmp_path: Path,
 ) -> None:
-    """AC4: a single byte flip in the ciphertext payload causes decrypt to fail with AgeProcessError.
+    """AC4: a single byte flip in the ciphertext causes decrypt to raise AgeProcessError.
 
     Writes a fresh ciphertext, flips byte 256 (past the age v1 header for
     single-recipient files, safely inside the encrypted payload), then
