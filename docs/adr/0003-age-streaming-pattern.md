@@ -1,7 +1,8 @@
 # ADR 0003: age system-binary wrapper via `subprocess.Popen` streaming
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-05-18
+**Accepted:** 2026-05-29
 **Deciders:** @harish (dev), @claude (architect via biltiq-code-architect subagent)
 **Related task:** BILTIQ-004
 **Related ADRs:** [`CDSCO-RegAI:docs/adr/0002-age-encryption-for-backups.md`](../../../cdcso/CDSCO-RegAI/docs/adr/0002-age-encryption-for-backups.md) (the upstream rationale source, re-derived here for the library audience)
@@ -111,3 +112,4 @@ The CLI surface for operators is **`scripts/install-age.sh`** &mdash; POSIX-`sh`
 | Date | Section | What Changed | Trigger |
 |------|---------|--------------|---------|
 | 2026-05-18 | all | Initial draft &mdash; locks the `subprocess.Popen` streaming choice over four rejected alternatives for the encryption backend and two rejected alternatives for the exception hierarchy. Status `proposed`; flipped to `accepted` at BILTIQ-004 Step 6 Ship. | BILTIQ-004 Step 2 Plan, design.html § Files to Touch |
+| 2026-05-29 | header | Status flipped `proposed` &rarr; `accepted` after BILTIQ-004 Step 5 Test gates all green (106 python-core tests, 30 script tests, ruff, mypy strict, shellcheck) and Slice D review revisions landed. Implementation in `packages/python-core/biltiq_privacy/backup/age_stream.py` (`open_age_writer` / `open_age_reader` context managers, `AgeNotInstalledError` / `AgeProcessError` exception hierarchy) matches the decision recorded here. | BILTIQ-004 Step 6 Ship |
