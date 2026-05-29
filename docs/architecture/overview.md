@@ -40,7 +40,7 @@ biltiq-privacy/                                    (monorepo)
 - `detectors/base.py` — `Detector` ABC.
 - `detectors/presidio_backend.py` — default Presidio-backed detector.
 - `detectors/{llm_backend,hybrid}.py` — contextual + ensemble (v0.4.0+).
-- `backup/{age_pipeline,manifest}.py` — `age`-based encrypted backup (v0.5.0+).
+- `backup/age_stream.py` — streaming `age`-binary wrapper via `subprocess.Popen`; `open_age_writer` / `open_age_reader` context managers; `AgeNotInstalledError` / `AgeProcessError` exception hierarchy (BILTIQ-004, v0.5.0+). The full backup orchestrator (`age_pipeline` / `manifest`) lands with BILTIQ-005+.
 
 **`biltiq_privacy_server` (server, `packages/python-server/`):**
 - `app.py` — FastAPI app with routes `/anonymize`, `/validate`, `/healthz`, `/openapi.json`.
@@ -153,7 +153,7 @@ Services that depend on this repo:
 |---|---|---|
 | Presidio import error | install incomplete | Library raises `BiltiqPrivacyImportError` on first use; server returns 503 with diagnostic from `/healthz`. |
 | spaCy model missing | `en_core_web_sm` not installed | Library raises `MissingNERModelError` with install instructions; server `/healthz` returns 503. |
-| `age` binary missing | not on PATH | Backup module (v0.5.0+) raises `AgeBinaryNotFoundError`; v0.1.0 unaffected. |
+| `age` binary missing | not on PATH | Backup module (v0.5.0+) raises `AgeNotInstalledError`; v0.1.0 unaffected. |
 | Detector failure | upstream Presidio bug / OOM | Server returns 500 with hash-chain-logged audit row. No silent failure. |
 | HMAC key not set | env / config missing | Library raises `HMACKeyRequiredError` at constructor time, before any text is processed. |
 | Sidecar unreachable | SDK side | Native SDKs raise language-native connection error; consumer decides retry policy. |

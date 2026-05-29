@@ -41,6 +41,12 @@
 | `BackgroundTasks` for audit log flush | Audit chain | Not on the request path. |
 | `TestClient` for tests | Integration tests | No real network. |
 
+### System binaries
+
+| Binary | Version | Use | Notes |
+|---|---|---|---|
+| `age` | ≥ 1.2.0 | X25519 + ChaCha20-Poly1305 streaming encryption for backup pipelines (v0.5.0+) | Wrapped via `biltiq_privacy.backup.age_stream` (BILTIQ-004). Pinned in `docs/architecture/stack.md` § Encryption and in `scripts/install-age.sh`'s `AGE_VERSION`. Install via `scripts/install-age.sh` (autodetect) or `docs/runbooks/install-age.md` (manual). See ADR-0003. |
+
 ### Database / persistence
 
 **The library has no persistence layer.** Consumers wire `AuditChain` rows into whatever store they use (Postgres, SQLite, file). If you find yourself adding `sqlalchemy` or `psycopg` to `packages/python-core/`, stop and read `AGENT_RULES.md` § Library vs server boundary.
