@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reflect: [TASK_TITLE]</title>
+  <title>Reflect: age streaming wrapper (BILTIQ-004)</title>
   <style>
     :root {
       --color-shipped:   #16a34a;
@@ -90,13 +90,13 @@
 <body>
 <main>
   <header>
-    <h1>Reflect: [TASK_TITLE]</h1>
+    <h1>Reflect: age streaming wrapper (BILTIQ-004)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Closed</dt><dd><!-- YYYY-MM-DD --></dd></div>
-      <div><dt>PRs merged</dt><dd><!-- #N, #M --></dd></div>
-      <div><dt>Tests shipped</dt><dd><!-- before → after --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-004</dd></div>
+      <div><dt>Author</dt><dd>@harish</dd></div>
+      <div><dt>Closed</dt><dd>2026-05-29 (PR #5 open, awaiting merge)</dd></div>
+      <div><dt>PRs opened</dt><dd>#5</dd></div>
+      <div><dt>Tests shipped</dt><dd>95 &rarr; 106 (python-core); 30 (scripts, unchanged)</dd></div>
     </dl>
   </header>
 
@@ -105,77 +105,82 @@
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-label">Wall-clock</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- XL --> &rarr; actual: <!-- XL --></div>
+        <div class="metric-value match">L</div>
+        <div class="metric-note">spec: L &rarr; actual: L (multi-session, 2026-05-28 evening + 2026-05-29 morning)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tokens</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- L --> &rarr; actual: <!-- L --></div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (no precise count; estimated from session lengths)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tool calls</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- M --> &rarr; actual: <!-- M --></div>
+        <div class="metric-value placeholder">&mdash;</div>
+        <div class="metric-note">spec did not estimate; not tracked</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Iteration cycles</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 7 --> &rarr; actual: <!-- 7 --></div>
+        <div class="metric-value over">10</div>
+        <div class="metric-note">spec: 9 &rarr; actual: 10 (+1 for Step 4 Review revision after Slice D findings)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Human review (min)</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 45 --> &rarr; actual: <!-- 45 --></div>
+        <div class="metric-value placeholder">TBD</div>
+        <div class="metric-note">spec: 30 &rarr; PR #5 just opened, not yet reviewed by peers</div>
       </div>
     </div>
-    <!-- Legend: match (green) = ±0 band, over (red) = +1+ bands, under (amber) = -1 bands -->
+    <!-- Legend: match (green) = same band, over (red) = one or more bands higher, under (amber) = one band lower -->
   </section>
 
   <section id="what-went-well">
     <h2 class="well">What Went Well</h2>
     <ul>
-      <li class="placeholder">Specific pattern to repeat — "the parallel subagent review in Step N found 3 findings the inline pass missed."</li>
-      <li class="placeholder">Add one item per genuinely repeatable insight. Do not write "it went smoothly."</li>
+      <li><strong>Parallel 4-slice code review on the 19-file diff (Step 4) caught what inline review would have rolled past.</strong> Slice D found two doc-drift issues (ADR-0003 stating "9 ACs" when spec.html had grown to 10; plan.html missing a Change-History row for the plan-reviewer verdict). Both were 1-line fixes but real audit-trail gaps. The dispatch cost (4 subagents) was justified by the file count crossing the &ge; 10 trigger threshold.</li>
+      <li><strong>AC10 static-source-grep meta-test is a category of test we should reach for more often.</strong> The 5-parametrize test in <code>test_no_intermediate_files.py</code> greps the wrapper&rsquo;s own source for forbidden patterns (<code>NamedTemporaryFile</code>, <code>tempfile.mkstemp</code>, <code>Path.write_bytes</code>, etc.). It catches a class of regression (future contributor adds a tempfile shortcut) that no behavioral test can see at runtime. Worth proposing as a pattern for other security-invariant modules.</li>
+      <li><strong>ADR-0003 written at Step 1 / locked at Step 6 prevented Build-phase second-guessing.</strong> The four-alternatives-rejected encryption-backend decision and two-alternatives-rejected exception-hierarchy decision were settled in design.html + ADR-0003 before any wrapper code was written. Build phase had no &ldquo;should we switch to pyca/cryptography instead?&rdquo; detours.</li>
+      <li><strong>Plan-reviewer&rsquo;s compose-vs-spec heuristic was pre-empted at draft time, not surfaced at review time.</strong> plan.html&rsquo;s per-step compose summed to ~375 min (L band) vs spec.html&rsquo;s original M band. The 2026-05-18 spec amendment widened Wall-clock M &rarr; L pre-emptively so plan-reviewer didn&rsquo;t fire a &ldquo;single-step-too-large&rdquo; warning. Lesson: when plan-step compose lands in a higher band than spec, amend the spec at plan-draft time, not at review time.</li>
+      <li><strong>Step 7 install-age.sh shipped shellcheck-clean.</strong> One printf-format fix mid-dev was the only correction needed before commit. The POSIX-compliance discipline (no bashisms, every-branch-fallback, SHA256-pinned) paid for itself.</li>
     </ul>
   </section>
 
   <section id="what-went-wrong">
     <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
-    <ul class="checklist">
-      <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None caught — <em>only if you genuinely scanned for all 11 anti-patterns.</em></span>
-      </li>
-    </ul>
+    <p>Two minor doc-drift findings from Slice D of the parallel code review &mdash; both fixed in commit <code>e1ff61d</code> before merge:</p>
     <table>
       <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">e.g. #4 Type Safety</td>
-          <td class="placeholder">Review</td>
-          <td class="placeholder">Replaced Any with proper Union type.</td>
+          <td>#9 Deprecated/stale references &mdash; ADR-0003 line 103 stated &ldquo;9 ACs&rdquo; when spec.html had grown to 10 in the 2026-05-18 amendment</td>
+          <td>Review &mdash; Slice D (Specs + ADR)</td>
+          <td>Corrected to &ldquo;10 ACs&rdquo;; added 2026-05-29 ADR Change-History row recording the AC count fix alongside the Status flip</td>
+        </tr>
+        <tr>
+          <td>#6 Audit-trail gap &mdash; plan.html had no Change-History row recording the plan-reviewer verdict (verdict lived only in session memory)</td>
+          <td>Review &mdash; Slice D (Specs + ADR)</td>
+          <td>Appended 2026-05-28 plan.html Change-History row with verdict=approved + rationale</td>
         </tr>
       </tbody>
     </table>
+    <p>No Anti-Pattern #5 (Security) or #7 (Debugging Residue) findings &mdash; the two auto-block conditions both passed cleanly.</p>
   </section>
 
   <section id="what-we-missed">
-    <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
-    <ul class="checklist">
-      <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None missed</span>
-      </li>
-    </ul>
+    <h2 class="missed">What We Missed (caught at peer review or production)</h2>
+    <p>Two divergences from design.html caught by Slice A (Python wrapper) but recorded here as honest reflection rather than retroactively edited into design.html. The implementation choices are correct; the design document was authored slightly ahead of the final implementation shape.</p>
     <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
+      <thead><tr><th>Divergence</th><th>Caught at</th><th>Impact</th><th>Disposition</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">e.g. #8 Async Misuse</td>
-          <td class="placeholder">CI load test</td>
-          <td class="placeholder">200ms latency spike</td>
-          <td class="placeholder">Wrapped in asyncio.to_thread().</td>
+          <td>design.html § Return Types states the writer&rsquo;s return shape as <code>tuple[Path, Path]</code>; shipped wrapper returns <code>tuple[Path, str]</code> (path + recipient string, not path + path).</td>
+          <td>Review &mdash; Slice A</td>
+          <td>No runtime impact &mdash; the design intent (yield the working path + the identity-string the caller passed) is preserved; only the type annotation differed.</td>
+          <td>Reflect note (this entry). Not retro-editing design.html. Future Build steps in similar wrappers: validate the design&rsquo;s type signatures against current Python stdlib types at Step 2 before Build starts.</td>
+        </tr>
+        <tr>
+          <td>design.html § Helpers names the private path-resolution helper <code>_check_age_binary</code>; shipped wrapper uses <code>_resolve_age_binary</code>.</td>
+          <td>Review &mdash; Slice A</td>
+          <td>No runtime impact &mdash; name change reflects post-design realization that the helper does <em>path resolution</em> (via <code>shutil.which</code>), not just existence checking.</td>
+          <td>Reflect note (this entry). The rename is a correctness improvement and should not be reverted.</td>
         </tr>
       </tbody>
     </table>
@@ -185,16 +190,68 @@
     <h2 class="neutral">Step-by-Step Timeline</h2>
     <div class="timeline">
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">Think + Plan locked</div>
+        <div class="tl-time">2026-05-28 19:54</div>
+        <div class="tl-label">Think + Plan + Design + ADR-0003 draft committed (<code>2e782d6</code>)</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label"><span class="placeholder">Step N shipped — commit hash</span></div>
+        <div class="tl-time">2026-05-28 19:55</div>
+        <div class="tl-label">MEMORY.md refresh after 10-day gap (<code>dc43b49</code>) &mdash; PR #4 merge + BILTIQ-005/006 gap-logging</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">PR merged — v<!-- x.y.z-rcN --></div>
+        <div class="tl-time">2026-05-28 20:10</div>
+        <div class="tl-label">Step 2 &mdash; wrapper module + AC1 AgeNotInstalledError gate (<code>ed000ca</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-28 20:15</div>
+        <div class="tl-label">Step 3 &mdash; age_test_keypair fixture + AC5 round-trip test (<code>34e8fdb</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-28 20:30</div>
+        <div class="tl-label">Step 4 &mdash; AC4 error-path tests for AgeProcessError (<code>91da0fb</code>) + ruff E501 fixup (<code>10fe419</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-28 20:37</div>
+        <div class="tl-label">Step 5 &mdash; AC6 positive-control test for skip mechanism (<code>0b8f364</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-28 20:41</div>
+        <div class="tl-label">Step 6 &mdash; AC10 static-grep test enforces no-plaintext-on-disk invariant (<code>4a65abc</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-28 20:57</div>
+        <div class="tl-label">Step 7 &mdash; install-age.sh POSIX autodetect installer (<code>0dd1ed5</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-28 21:00</div>
+        <div class="tl-label">Step 8 &mdash; docs/runbooks/install-age.md manual-install runbook (<code>4d0b638</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-28 21:07</div>
+        <div class="tl-label">EOD record (<code>842f742</code>) &mdash; 8/9 steps committed, Step 9 staged but not committed</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-29 06:54</div>
+        <div class="tl-label">Step 9 &mdash; stack.md + overview.md + approved-versions.md + CHANGELOG (<code>f6f7164</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-29 ~07:30</div>
+        <div class="tl-label">Step 4 Review &mdash; 4-slice parallel dispatch; verdict <em>needs revision</em> (Slice D 2 findings)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-29 08:15</div>
+        <div class="tl-label">Step 4 Review revision &mdash; ADR-0003 AC count + plan.html plan-reviewer verdict (<code>e1ff61d</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-29 ~08:30</div>
+        <div class="tl-label">Step 5 Test &mdash; 106 + 11 + 30 tests GREEN; ruff + mypy + shellcheck clean</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-29 09:04</div>
+        <div class="tl-label">Step 6 Ship &mdash; ADR-0003 status proposed &rarr; accepted (<code>4ab6522</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-05-29 ~09:05</div>
+        <div class="tl-label">Step 6 Ship &mdash; <code>git push -u origin feature/biltiq-004-age-wrapper</code> + PR #5 opened</div>
       </div>
     </div>
   </section>
@@ -202,26 +259,30 @@
   <section id="process-changes">
     <h2 class="neutral">Process Changes Proposed</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No process changes needed for this task.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to <code>AGENT_RULES.md</code>: describe.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to skill: which one, what change.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed new CI gate: describe.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>AGENT_RULES.md addition</strong> &mdash; encode the &ldquo;static-source invariant&rdquo; test pattern (AC10-style meta-tests that grep the production module&rsquo;s own source) as a recommended discipline for any security/privacy-critical module. Worth a paragraph in the Testing section.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>code-reviewer skill bake-in</strong> &mdash; when a Review dispatches parallel subagents (&ge; 10 files), aggregator should explicitly check ADR/spec/plan AC counts for consistency. The Slice D findings here would have been caught by an automated count-cross-check, not require a human-attention reviewer slice.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>plan-reviewer skill addition</strong> &mdash; when compose-vs-spec heuristic almost-fires (within 1 band), surface that to dev as &ldquo;consider amending spec band&rdquo; rather than just passing silently. The 2026-05-18 spec amendment was correct but should have been auto-surfaced, not pre-empted manually.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>memory-curator fix (BILTIQ-006)</strong> &mdash; the projector erases curator-owned blocks (Recent decisions / Active task / Today&rsquo;s activity) when given <code>standup_post</code> events of the procedure schema. Worked around manually 2&times; during this task. File separate ticket.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>retention-writer addition (BILTIQ-005)</strong> &mdash; <code>scripts/_retention_writer.py</code> is referenced by the standup skill but doesn&rsquo;t exist. Either ship the module or remove the skill&rsquo;s reference. File separate ticket.</span></li>
     </ul>
   </section>
 
   <section id="cleanup-confirmation">
     <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Throwaway scripts deleted.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>, <code>test_scratch_*</code> files in repo &mdash; verified by <code>git ls-files</code> grep on commit.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No throwaway scripts left &mdash; only <code>scripts/install-age.sh</code> committed, which is a permanent artifact.</span></li>
+      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge &mdash; <em>pending PR #5 merge; will be cleaned up at that point.</em></span></li>
     </ul>
   </section>
 
   <section id="tech-debt">
     <h2 class="neutral">Tech Debt Logged</h2>
     <ul>
-      <li class="placeholder">Link to follow-up ticket, or "none".</li>
+      <li><strong>BILTIQ-005</strong> &mdash; <code>scripts/_retention_writer.py</code> referenced by <code>/biltiq-engineering:standup</code> skill but module doesn&rsquo;t exist. Standup currently skips the HTML retention-record sink rather than fabricating a fallback. (Surfaced 2026-05-28.)</li>
+      <li><strong>BILTIQ-006</strong> &mdash; <code>scripts/_memory_curator.py</code> projector schema-drift bug: erases curator-owned MEMORY.md blocks when given <code>standup_post</code> events of the procedure schema. Hand-reverted 2&times; during this task. (Surfaced 2026-05-28.)</li>
+      <li><strong>design.html divergence notes</strong> (see &ldquo;What We Missed&rdquo;) &mdash; two return-type / helper-name divergences will be noted in reflect.html only; design.html will not be retro-edited. If we add a future BILTIQ-004 v2 (e.g. async wrapper), reconcile then.</li>
+      <li><strong>Installer cross-OS validation</strong> &mdash; <code>install-age.sh</code>&rsquo;s macOS (brew/macports) and Windows-shell (scoop/chocolatey) branches are shellcheck-clean and code-reviewed but not end-to-end exercised in CI. Risk #1 in design.html was already booked for manual validation; reviewers asked to treat those branches as code-review-only.</li>
     </ul>
   </section>
 
@@ -231,10 +292,16 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-05-18</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial template stub committed at <code>2e782d6</code>.</td>
+          <td>BILTIQ-004 Step 1 Think planning bundle</td>
+        </tr>
+        <tr>
+          <td>2026-05-29</td>
+          <td>all</td>
+          <td>Filled with BILTIQ-004 reflection content: estimation actuals (iteration cycles 9 &rarr; 10 over due to Step 4 Review revision), 5 What-Went-Well items, 2 Slice D doc-drift findings, 2 Slice A design-vs-implementation divergences (honest notes, not retro-edited into design.html), full step-by-step timeline from <code>2e782d6</code> to PR #5 open, 5 proposed process changes, AP #7 cleanup confirmation, tech debt log (BILTIQ-005, BILTIQ-006, design.html divergences, installer cross-OS validation).</td>
+          <td>BILTIQ-004 Step 7 Reflect, post-Step-6 Ship</td>
         </tr>
       </tbody>
     </table>
