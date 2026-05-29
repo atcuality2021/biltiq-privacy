@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "doctor_install",
+  "description": "/biltiq-engineering:doctor invoked `pip install -r requirements.txt` (interactive `y` consent or --fix non-interactive path). Declines are non-events.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "trigger", "packages_installed", "exit_code"],
+  "properties": {
+    "schema":             {"const": "v1"},
+    "event_type":         {"const": "doctor_install"},
+    "ts":                 {"type": "string", "format": "date-time"},
+    "trigger":            {"enum": ["interactive_y", "fix_flag"]},
+    "packages_installed": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 200},
+      "maxItems": 50
+    },
+    "exit_code":          {"type": "integer", "minimum": 0, "maximum": 255}
+  }
+}

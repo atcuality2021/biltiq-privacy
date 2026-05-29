@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "standup_post",
+  "description": "Morning standup posted (auto-fired at 09:30 IST or manually via /biltiq-engineering:standup).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "today_task"],
+  "properties": {
+    "schema":            {"const": "v1"},
+    "event_type":        {"const": "standup_post"},
+    "ts":                {"type": "string", "format": "date-time"},
+    "yesterday_summary": {"type": "string", "maxLength": 1000},
+    "today_task":        {"type": "string", "maxLength": 200},
+    "branch":            {"type": "string", "maxLength": 200},
+    "blockers":          {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["summary"],
+        "properties": {
+          "summary": {"type": "string", "maxLength": 200},
+          "mention": {"type": "string", "maxLength": 100}
+        }
+      },
+      "maxItems": 10
+    },
+    "trigger":           {"enum": ["auto", "manual"]}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "compliance_flag",
+  "description": "on-prem-compliance skill flagged an external-AI or external-cloud-API call against the repo's declared compliance mode.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "severity", "mode", "rule", "file"],
+  "properties": {
+    "schema":     {"const": "v1"},
+    "event_type": {"const": "compliance_flag"},
+    "ts":         {"type": "string", "format": "date-time"},
+    "severity":   {"enum": ["block", "warn", "info"]},
+    "mode":       {"enum": ["on_prem_required", "on_prem_preferred", "cloud_ok"]},
+    "rule":       {"type": "string", "maxLength": 200},
+    "file":       {"type": "string"},
+    "line":       {"type": "integer", "minimum": 1},
+    "message":    {"type": "string", "maxLength": 500},
+    "needs_adr":  {"type": "boolean"}
+  }
+}

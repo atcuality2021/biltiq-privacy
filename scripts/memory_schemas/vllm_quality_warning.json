@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "vllm_quality_warning",
+  "description": "validate_vllm_output flagged a warn-tier heuristic on a vLLM-generated artifact (currently: snake_case violation in JSON/Python code blocks per ADR-M29-03). Fatal heuristics abort before this event fires.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "severity", "failures", "artifact_path"],
+  "properties": {
+    "schema":        {"const": "v1"},
+    "event_type":    {"const": "vllm_quality_warning"},
+    "ts":            {"type": "string", "format": "date-time"},
+    "severity":      {"enum": ["warn"]},
+    "failures": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 500},
+      "minItems": 1,
+      "maxItems": 50
+    },
+    "artifact_path": {"type": "string", "maxLength": 500}
+  }
+}

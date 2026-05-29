@@ -92,6 +92,17 @@ biltiq-privacy-server = { workspace = true }
 [tool.uv]
 constraint-dependencies = ["spacy<3.8.14"]
 
+# Validates vendored scripts/memory_schemas/ in tests/scripts/test_schemas_load.py
+# (BILTIQ-006 AC1). Dev-only; not a runtime dep of biltiq-privacy or -server.
+# PEP-735 form mirrors packages/python-core and packages/python-server, so uv
+# composes this with the member dev-groups instead of treating workspace-root
+# as a competing dev set (which would yank pytest/mypy/ruff at `uv sync`).
+[dependency-groups]
+dev = [
+    "jsonschema>=4.0",
+    "types-jsonschema>=4.0",
+]
+
 # Repo-root pytest config so `pytest` from the repo root collects both packages
 # AND the repo-level tooling tests under tests/scripts/ (BILTIQ-003 memory-spine).
 #

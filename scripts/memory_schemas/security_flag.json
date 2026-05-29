@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "security_flag",
+  "description": "security-pre-edit or security-review skill flagged a potential issue.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "severity", "rule", "file"],
+  "properties": {
+    "schema":     {"const": "v1"},
+    "event_type": {"const": "security_flag"},
+    "ts":         {"type": "string", "format": "date-time"},
+    "severity":   {"enum": ["critical", "high", "medium", "low", "info"]},
+    "rule":       {"type": "string", "maxLength": 200},
+    "file":       {"type": "string"},
+    "line":       {"type": "integer", "minimum": 1},
+    "message":    {"type": "string", "maxLength": 500},
+    "owasp_ref":  {"type": "string", "pattern": "^A[0-9]{2}:[0-9]{4}.*$"},
+    "cwe_ref":    {"type": "string", "pattern": "^CWE-[0-9]+$"}
+  }
+}

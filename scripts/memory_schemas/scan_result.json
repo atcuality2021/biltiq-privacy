@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "scan_result",
+  "description": "Result of running /biltiq-engineering:scan (anti-pattern scanner) over a path or staged diff.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "pass"],
+  "properties": {
+    "schema":         {"const": "v1"},
+    "event_type":     {"const": "scan_result"},
+    "ts":             {"type": "string", "format": "date-time"},
+    "pass":           {"type": "boolean"},
+    "anti_patterns":  {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pattern_id", "severity", "file"],
+        "properties": {
+          "pattern_id": {"type": "string", "pattern": "^AP[0-9]{2}$"},
+          "severity":   {"enum": ["block", "warn", "info"]},
+          "file":       {"type": "string"},
+          "line":       {"type": "integer", "minimum": 1},
+          "message":    {"type": "string", "maxLength": 500}
+        }
+      },
+      "maxItems": 100
+    },
+    "files_scanned": {"type": "integer", "minimum": 0},
+    "scope":         {"enum": ["staged", "path", "full_repo"]}
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "blocker_open",
+  "description": "A blocker was opened (dev cannot proceed without external resolution).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "id", "summary"],
+  "properties": {
+    "schema":     {"const": "v1"},
+    "event_type": {"const": "blocker_open"},
+    "ts":         {"type": "string", "format": "date-time"},
+    "id":         {"type": "string", "pattern": "^BLK-[0-9a-f]{8}$"},
+    "summary":    {"type": "string", "maxLength": 200},
+    "mention":    {"type": "string", "maxLength": 100},
+    "task_id":    {"type": "string", "pattern": "^(BILTIQ-[0-9a-z]+|M[0-9]+[a-z]?)$"},
+    "severity":   {"enum": ["high", "medium", "low"]}
+  }
+}

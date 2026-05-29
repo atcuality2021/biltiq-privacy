@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "routing_payload",
+  "description": "M29 AC15 — skill-routing payload format consumed by vLLM (and stable across Claude/vLLM dispatchers). Pre-baked on the Claude side per Q7 LOCKED; full vLLM-side routing deferred to v1.9.0 (TD-M29-05). snake_case throughout; mirrors the style of the 11 existing v1 event schemas (draft-07, snake_case keys, additionalProperties: false).",
+  "type": "object",
+  "required": [
+    "active_skill_name",
+    "skill_body_excerpt",
+    "expected_output_shape",
+    "fallback_to_claude_if"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "active_skill_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Slug of the skill the dispatcher selected (e.g., 'plan-reviewer'). Maps to skills/<active_skill_name>/SKILL.md on disk."
+    },
+    "skill_body_excerpt": {
+      "type": "string",
+      "description": "Excerpt of the selected skill's SKILL.md body, trimmed to fit the vLLM context budget. Empty string when the dispatcher could not resolve a skill."
+    },
+    "expected_output_shape": {
+      "type": "string",
+      "enum": [
+        "spec_html_section",
+        "single_ac_block",
+        "design_html_section",
+        "plan_html_step",
+        "reflect_html_section",
+        "free_text"
+      ],
+      "description": "Declared shape of the response the active skill expects from vLLM. Drives the AC18 quality-gate validator (validate_vllm_output)."
+    },
+    "fallback_to_claude_if": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of preconditions that, if present, instruct the vLLM caller to defer back to Claude instead of acting on the payload. Canonical markers: 'no_matching_skill', 'skill_body_too_large', 'output_shape_unknown'. Empty array means proceed."
+    }
+  }
+}

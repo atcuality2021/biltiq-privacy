@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "estimate_actual",
+  "description": "End-of-task estimate vs actual capture for the AI-aware estimation rubric (BILTIQ-022 AC6). Written at /biltiq-engineering:reflect time to <repo>/.biltiq/estimates-history.jsonl. Read by scripts/_estimates_lookup.py for shape-matched historical lookups.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "task_id", "estimated", "actual", "variance"],
+  "properties": {
+    "schema":     {"const": "v1"},
+    "event_type": {"const": "estimate_actual"},
+    "ts":         {"type": "string", "format": "date-time"},
+    "task_id":    {"type": "string", "pattern": "^(BILTIQ-[0-9a-z]+|M[0-9]+[a-z]?)$"},
+
+    "estimated": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What the spec.md Estimate block claimed at task start.",
+      "properties": {
+        "wall_clock_band":      {"enum": ["S", "M", "L", "XL"]},
+        "tokens_band":          {"enum": ["S", "M", "L"]},
+        "tool_calls_band":      {"enum": ["S", "M", "L"]},
+        "iteration_cycles":     {"type": "integer", "minimum": 0},
+        "human_review_minutes": {"type": "integer", "minimum": 0}
+      }
+    },
+
+    "actual": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Measured at /biltiq-engineering:reflect from M16 + M17 data + dev override. All axes optional (graceful degradation when source data is missing in v1).",
+      "properties": {
+        "wall_clock_band":      {"enum": ["S", "M", "L", "XL"]},
+        "tokens_band":          {"enum": ["S", "M", "L"]},
+        "tool_calls_band":      {"enum": ["S", "M", "L"]},
+        "iteration_cycles":     {"type": "integer", "minimum": 0},
+        "human_review_minutes": {"type": "integer", "minimum": 0}
+      }
+    },
+
+    "variance": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-axis delta. Band axes use string enums (match / up_N_band / down_N_band / n/a); numeric axes use signed integer.",
+      "properties": {
+        "wall_clock": {
+          "enum": ["match", "up_one_band", "up_two_band", "up_three_band",
+                   "down_one_band", "down_two_band", "down_three_band", "n/a"]
+        },
+        "tokens": {
+          "enum": ["match", "up_one_band", "up_two_band",
+                   "down_one_band", "down_two_band", "n/a"]
+        },
+        "tool_calls": {
+          "enum": ["match", "up_one_band", "up_two_band",
+                   "down_one_band", "down_two_band", "n/a"]
+        },
+        "iteration_cycles":     {"type": "integer"},
+        "human_review_minutes": {"type": "integer"}
+      }
+    },
+
+    "harness": {
+      "enum": [
+        "claude-code-opus-4-7",
+        "claude-code-sonnet-4-6",
+        "cursor",
+        "codex",
+        "gemini-cli",
+        "opencode"
+      ]
+    },
+
+    "shape": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Lookup metadata for shape-matching by scripts/_estimates_lookup.py. Optional in v1 — rows without shape metadata are skipped by the matcher. AC count is from spec.md; file-touch count is from the merged-PR diff stat; milestone is the M-tag if the task was promoted.",
+      "properties": {
+        "ac_count":         {"type": "integer", "minimum": 0},
+        "file_touch_count": {"type": "integer", "minimum": 0},
+        "milestone":        {"type": "string", "pattern": "^M[0-9]+[a-z]?$"}
+      }
+    },
+
+    "notes": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[\\x20-\\x7e]*$",
+      "description": "ASCII-printable only; max 200 chars. PII guard — no commit content, no prompt content, no file paths."
+    }
+  }
+}

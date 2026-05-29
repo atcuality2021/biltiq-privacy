@@ -129,20 +129,20 @@ The vendored spine + schemas are pinned at plugin v1.10.1 source SHA256 hashes r
 
 | File | SHA256 (filled at PR-open) |
 |------|----------------------------|
-| `scripts/memory_schemas/blocker_close.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/blocker_open.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/commit.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/compliance_flag.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/decision.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/doctor_install.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/eod_post.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/estimate_actual.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/routing_payload.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/scan_result.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/security_flag.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/standup_post.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/task_state_change.json` | `<sha256-hex>` |
-| `scripts/memory_schemas/vllm_quality_warning.json` | `<sha256-hex>` |
+| `scripts/memory_schemas/blocker_close.json` | `ffc88930ae2fee6ed65a0388b37d8545c80815635a288cfb69f99f2aaeb98cf6` |
+| `scripts/memory_schemas/blocker_open.json` | `a09d2b1e23facf8b9ba4b7acb73251986ed1a8d0a8daeda6fad7a6687e6538b4` |
+| `scripts/memory_schemas/commit.json` | `9e5cdab14c3d2417a5d3f5fa40a6a02480ab27ff7447c59993981c35deec41d2` |
+| `scripts/memory_schemas/compliance_flag.json` | `9c6d7bd3b767a377d5f549a132b29d60bf5d0b15518e667ebfc615ca2cd8b99e` |
+| `scripts/memory_schemas/decision.json` | `036754484089e7bc6799a35bd751289de01cf747f56344320800f51ee337fb98` |
+| `scripts/memory_schemas/doctor_install.json` | `bd7c0299f1c99a8555fb0da446db5b302b974c0a751910da04bb30f42bfaaca2` |
+| `scripts/memory_schemas/eod_post.json` | `000513caad3207c8f1cc7dee0715025faef1883219cf4b4ec6fa0f33315b2c8d` |
+| `scripts/memory_schemas/estimate_actual.json` | `b05df935f07acae31d8355d83cd40c2fd843ae8cb10fca923bf5b5622b41dd7c` |
+| `scripts/memory_schemas/routing_payload.json` | `5525f0f7aaa609d5425f754b29f7feb6a249f5eff5fef6d6860b64f881ea6f62` |
+| `scripts/memory_schemas/scan_result.json` | `b15f3b72540322548da741d650bd672bafccad466b0705db9136c3244e1c55d7` |
+| `scripts/memory_schemas/security_flag.json` | `4a62d41355f9ba0847d370395ef02b85d5a254335cbb1cb796db039715e65c64` |
+| `scripts/memory_schemas/standup_post.json` | `4d06f1e4579e077d777dba4e7b05a3a9dd10242766a104f1ff39b68315119ec4` |
+| `scripts/memory_schemas/task_state_change.json` | `eee221984513e1432cc56fda5b7d04ab8ecd2dfca0510273ae944b1c525c2be9` |
+| `scripts/memory_schemas/vllm_quality_warning.json` | `0e439ebc64f94608f396f205d4762f5d1637bba6ea3d8eb32afc6808eceee8f2` |
 
 The `<sha256-hex>` placeholders are replaced with concrete hashes at the start of BILTIQ-006 Build step 1, in the same commit that lands the schemas and the `pyproject.toml` jsonschema dep declaration. Spine module hashes are filled in at the start of each of Build steps 2–5 (one row per step). Filling these in is a pre-commit blocker for the corresponding step; the drift gate has nothing to compare against if any hash remains a placeholder at PR-open.
 

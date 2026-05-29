@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "task_state_change",
+  "description": "A task moved between Attack Loop steps (think -> plan -> build -> review -> test -> ship -> reflect).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "task_id", "to"],
+  "properties": {
+    "schema":     {"const": "v1"},
+    "event_type": {"const": "task_state_change"},
+    "ts":         {"type": "string", "format": "date-time"},
+    "task_id":    {"type": "string", "pattern": "^(BILTIQ-[0-9a-z]+|M[0-9]+[a-z]?)$"},
+    "from":       {"enum": ["think", "plan", "build", "review", "test", "ship", "reflect", "open"]},
+    "to":         {"enum": ["think", "plan", "build", "review", "test", "ship", "reflect", "closed"]},
+    "actor":      {"type": "string", "maxLength": 100}
+  }
+}

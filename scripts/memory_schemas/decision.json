@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "decision",
+  "description": "An explicit dev decision recorded — ADR adoption, scope cut, deferral, preference, or stable fact promoted from session memory by 017g.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "summary", "status"],
+  "properties": {
+    "schema":     {"const": "v1"},
+    "event_type": {"const": "decision"},
+    "ts":         {"type": "string", "format": "date-time"},
+    "summary":    {"type": "string", "maxLength": 500},
+    "status":     {"enum": ["active", "deferred", "superseded", "rejected"]},
+    "category":   {"enum": ["adr", "scope", "preference", "blocker_resolution", "stable_fact", "other"]},
+    "task_id":    {"type": "string", "pattern": "^(BILTIQ-[0-9a-z]+|M[0-9]+[a-z]?)$"},
+    "supersedes": {"type": "string", "description": "Hash or summary of prior decision this supersedes"},
+    "source":     {"enum": ["dev_explicit", "session_promotion", "adr_adoption"]}
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "blocker_close",
+  "description": "An open blocker was resolved.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "event_type", "ts", "id"],
+  "properties": {
+    "schema":     {"const": "v1"},
+    "event_type": {"const": "blocker_close"},
+    "ts":         {"type": "string", "format": "date-time"},
+    "id":         {"type": "string", "pattern": "^BLK-[0-9a-f]{8}$"},
+    "resolution": {"type": "string", "maxLength": 500}
+  }
+}
