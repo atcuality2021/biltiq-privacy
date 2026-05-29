@@ -121,7 +121,7 @@ The vendored spine + schemas are pinned at plugin v1.10.1 source SHA256 hashes r
 | File | Source path | SHA256 (filled at PR-open) |
 |------|-------------|----------------------------|
 | `scripts/_memory_curator.py` | `~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_memory_curator.py` | `<sha256-hex>` |
-| `scripts/_memory_writer.py` | `~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_memory_writer.py` | `<sha256-hex>` |
+| `scripts/_memory_writer.py` | `~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_memory_writer.py` | `5097c527946c4947c660e6391a5e1e62c8f76b78b29c28d393fee4082c860335` |
 | `scripts/_memory_reader.py` | `~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_memory_reader.py` | `<sha256-hex>` |
 | `scripts/_paths.py` | `~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_paths.py` | `7b98066c3a5926cccbec961455dcc3688602d199496557359d978b21fb6ba62e` |
 

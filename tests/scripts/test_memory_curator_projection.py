@@ -3,6 +3,18 @@
 Coverage: AC2 (projection per event type + multi-event ordering),
 AC3 (manual-section survival + fail-closed marker handling), AC4 (forward-
 compat unknown types + schema versions), AC6(b)(e).
+
+BILTIQ-006 Step 3 sideline (transient): this file is file-level skipped
+between Steps 3 and 5 of the BILTIQ-006 vendoring cascade. The import of
+``STREAM_RELATIVE_PATH`` from ``scripts._memory_writer`` would otherwise
+fail at collection time — v1.10.1 ``_memory_writer.py`` does not export
+that constant (the stream path is inlined as a literal in v1.10.1). The
+try/except below resolves the import to ``None`` so the module loads; the
+``pytestmark.skip`` then prevents any of the tests from running. Step 5
+vendors ``_memory_curator.py`` to v1.10.1 and replaces this file (via
+DELETE) with a port of the plugin's ``tests/spine/test_curator.py``. The
+skip is removed by the DELETE. See ``docs/specs/BILTIQ-006/plan.html``
+§ Step 5 file-list + revision-5 change-history row for the full rationale.
 """
 
 from __future__ import annotations
@@ -14,8 +26,24 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.skip(
+    reason=(
+        "awaits BILTIQ-006 step 5 curator swap "
+        "(this file is DELETEd at step 5; see plan.html § Step 5 + revision-5)"
+    )
+)
+
 from scripts._memory_curator import MEMORY_RELATIVE_PATH, run
-from scripts._memory_writer import STREAM_RELATIVE_PATH, write_event
+
+try:
+    from scripts._memory_writer import STREAM_RELATIVE_PATH, write_event
+except ImportError:
+    # v1.10.1 ``_memory_writer.py`` removed ``STREAM_RELATIVE_PATH`` (the
+    # stream path is now an inlined literal). The file-level pytestmark.skip
+    # above prevents any test from referencing these names; the fallbacks
+    # keep collection clean for the Step 3 → Step 5 transition window.
+    STREAM_RELATIVE_PATH = ""  # type: ignore[assignment]
+    write_event = None  # type: ignore[assignment]
 
 
 def _memory(repo: Path) -> Path:

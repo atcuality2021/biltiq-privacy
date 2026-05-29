@@ -103,6 +103,52 @@ dev = [
     "types-jsonschema>=4.0",
 ]
 
+# Repo-root mypy config so the vendored memory-spine modules (`_memory_writer`,
+# `_memory_reader`, `_memory_curator` — see ADR-0004) can be type-checked despite
+# their byte-equivalent bare `from _paths import _resolve_repo_root, _repo_hash`
+# import (writer line ~54). At runtime that works because of a sys.path.insert
+# of SCRIPT_DIR earlier in the file, but mypy can't see the runtime mutation —
+# it needs a static path. `mypy_path = ["scripts"]` mirrors pytest's `pythonpath`
+# convention below: tell each tool where the de-facto import root is so neither
+# stumbles on the runtime sys.path manipulation. Required by BILTIQ-006 spine
+# vendoring; the alternative (adding `# type: ignore[import-not-found]` to the
+# bare import line) would break the byte-equivalence diff gate against the
+# plugin v1.10.1 source.
+[tool.mypy]
+mypy_path = ["scripts"]
+explicit_package_bases = true
+
+# Per-file relaxation scoped to the vendored memory-spine modules. The source
+# files (`scripts/_memory_{writer,reader,curator}.py`) are pinned byte-equivalent
+# to plugin v1.10.1 per ADR-0004; we cannot edit the source to add or update
+# `# type: ignore[...]` comments without breaking the byte-equivalence diff gate
+# that AC8 enforces at PR-open.
+#
+# Two specific check categories must be relaxed here:
+#
+#   1. `misc` — line ~43 of _memory_writer.py: `Draft7Validator = None  # type:
+#      ignore[assignment]`. The original plugin source carries `[assignment]`,
+#      which an older mypy version raised on this `<type> = None` pattern.
+#      Newer mypy raises it as `[misc]` ("Cannot assign to a type") instead;
+#      the existing inline ignore code no longer matches.
+#
+#   2. `no-any-return` — line ~122 of _memory_writer.py: `_load_schema` reads
+#      `json.load(f)` (returns `Any`) into `_schema_cache` and returns from the
+#      cache; mypy reports the read-back as an Any leak through the declared
+#      `dict[str, Any] | None` return type. Same shape will recur in the
+#      reader/curator at Steps 4–5.
+#
+# The override is narrowly module-scoped: tests/scripts/test_memory_writer.py
+# and any new non-vendored code under scripts/ (e.g. _check_spine_sync.py at
+# Step 8, _backfill_memory_v1_10.py at Step 6) still get full --strict.
+[[tool.mypy.overrides]]
+module = [
+    "scripts._memory_writer",
+    "scripts._memory_reader",
+    "scripts._memory_curator",
+]
+disable_error_code = ["misc", "no-any-return"]
+
 # Repo-root pytest config so `pytest` from the repo root collects both packages
 # AND the repo-level tooling tests under tests/scripts/ (BILTIQ-003 memory-spine).
 #

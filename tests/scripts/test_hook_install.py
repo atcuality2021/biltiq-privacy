@@ -142,12 +142,22 @@ def test_hook_swallows_curator_failure(git_tmp_repo: Path) -> None:
 def test_hook_does_not_log_payload_contents(git_tmp_repo: Path) -> None:
     """Hook log records curator JSON only; payload contents never leak in (AC8, AP#5)."""
     canary = "CANARY-XYZ-12345-67890"
+    # BILTIQ-006 Step 3 transposition (v1.10.1 writer contract):
+    #   - env var: BILTIQ_REPO_ROOT → CLAUDE_PROJECT_DIR (v1.10.1 reads the
+    #     latter via scripts/_paths._resolve_repo_root)
+    #   - event_type: decision_made → decision (v1.10.1 schema rename)
+    #   - payload: {title, rationale, adr_ref} → {summary: canary, status}
+    #     (v1.10.1 decision schema requires summary+status; canary moves into
+    #     summary so the downstream AC8/AP#5 "payload never leaks into hook
+    #     log" assertion stays meaningful — a payload that fails schema
+    #     validation would be silently dropped, making the canary check pass
+    #     spuriously regardless of the hook's logging behaviour).
     writer_call = (
         "import os, sys;"
         f"sys.path.insert(0, {str(git_tmp_repo)!r});"
-        f"os.environ['BILTIQ_REPO_ROOT'] = {str(git_tmp_repo)!r};"
+        f"os.environ['CLAUDE_PROJECT_DIR'] = {str(git_tmp_repo)!r};"
         "from scripts._memory_writer import write_event;"
-        f"write_event('decision_made', {{'title': 'x', 'rationale': {canary!r}, 'adr_ref': None}})"
+        f"write_event('decision', {{'summary': {canary!r}, 'status': 'active'}})"
     )
     subprocess.run(
         [sys.executable, "-c", writer_call],

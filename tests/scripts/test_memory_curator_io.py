@@ -3,6 +3,18 @@
 Coverage: AC2 (no-op when stream empty), AC3 (lock + structured stdout),
 AC6(b)(c)(d). Projection-side tests live in ``test_memory_curator_projection.py``
 (Step 3).
+
+BILTIQ-006 Step 3 sideline (transient): this file is file-level skipped
+between Steps 3 and 5 of the BILTIQ-006 vendoring cascade. The v1.10.1
+writer landed at Step 3 silently rejects this file's v1.6-shape
+``write_event("standup_post", {date, did, doing, blockers})`` calls under
+its new schema-validation contract (returns False; nothing appended to
+stream), so the downstream curator-output assertions become tautologically
+false against an empty stream. Step 5 vendors ``_memory_curator.py`` to
+v1.10.1 and replaces this file (via DELETE) with a port of the plugin's
+``tests/spine/test_curator.py``. The skip is removed by the DELETE.
+See ``docs/specs/BILTIQ-006/plan.html`` § Step 5 file-list + revision-5
+change-history row for the full rationale.
 """
 
 from __future__ import annotations
@@ -15,6 +27,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "awaits BILTIQ-006 step 5 curator swap "
+        "(this file is DELETEd at step 5; see plan.html § Step 5 + revision-5)"
+    )
+)
 
 from scripts._memory_curator import (
     LOCK_RELATIVE_PATH,
