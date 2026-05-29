@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan: BILTIQ-006 — sync repo memory-spine to plugin v1.10.1</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-step-bg:   #f0fdf4;
+      --color-step-bdr:  #bbf7d0;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul, ol { padding-left: 1.4rem; }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
+    .step {
+      border: 1px solid var(--color-step-bdr);
+      background: var(--color-step-bg);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .step-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+    .step-title { font-weight: 700; font-size: 0.95rem; }
+    .band {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #7dd3fc;
+    }
+    .band-l { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
+    .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
+    .step-tests strong { color: var(--color-muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .risk-h { color: var(--color-risk-high); font-weight: 700; }
+    .risk-m { color: var(--color-risk-med);  font-weight: 700; }
+    .risk-l { color: var(--color-risk-low);  font-weight: 700; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Plan: BILTIQ-006 — sync repo memory-spine to plugin v1.10.1</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-006</dd></div>
+      <div><dt>Branch</dt><dd><code>feature/biltiq-006-spine-v1-10-1</code> (to cut from current <code>main</code>)</dd></div>
+      <div><dt>Base</dt><dd><code>main</code> @ <code>842f742</code></dd></div>
+      <div><dt>Created</dt><dd>2026-05-29</dd></div>
+      <div><dt>Spec</dt><dd><code>docs/specs/BILTIQ-006/spec.html</code> (11 ACs)</dd></div>
+      <div><dt>Design</dt><dd><code>docs/specs/BILTIQ-006/design.html</code> (5 file-touch groups, 14 schemas, 4 spine files)</dd></div>
+      <div><dt>ADR</dt><dd><code>docs/adr/0004-memory-spine-vendoring.md</code> (status: <code>proposed</code>; drafted)</dd></div>
+      <div><dt>Compliance</dt><dd><code>on_prem_preferred</code></dd></div>
+    </dl>
+  </header>
+
+  <section id="overview">
+    <h2>Overview</h2>
+    <p>Ten atomic Build steps mapped to design § Rollout's 9 Migration steps (Migration step 3 splits into reader + curator; cleanup of the one-shot backfill script becomes a dedicated final commit per AP#7 discipline). TDD per step (RED&rarr;GREEN before commit) for steps that ship code; doc-only and data-only steps use grep / loader-smoke guards. Estimate: per-step compose at ~5.5h wall-clock — <strong>L band</strong>, matching the spec's wall-clock estimate. Step ordering rationale: <strong>schemas + dep land first</strong> (data + tooling — no Python yet, so the writer's <code>Draft7Validator</code> import resolves cleanly when it lands in step 3), <strong>then <code>_paths.py</code></strong> (sibling import dependency; no callers yet, but the writer + reader + curator all import it), <strong>then writer / reader / curator in dependency-import order</strong>, <strong>then backfill</strong> (writes through the new writer; emits dev-curated content into v1.10.1 events), <strong>then MEMORY.md restructure</strong> (after backfill so we are not racing the curator to wipe content the dev hasn't ported yet), <strong>then installer + drift gates</strong> (so the hooks are wired only after the spine works locally), <strong>then docs + ADR + CHANGELOG bundled</strong> (per BILTIQ-004 doc-commit precedent), <strong>then cleanup</strong> (delete the one-shot backfill — AP#7). Each step is one commit with format <code>BILTIQ-006: step N: &lt;description&gt;</code>.</p>
+  </section>
+
+  <section id="steps">
+    <h2>Build Sequence</h2>
+    <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
+      Each step = one logical commit. TDD: RED &rarr; GREEN in the same step. Run <code>pytest tests/scripts/</code> before proceeding. After steps 3+, run <code>mypy --strict scripts/</code> + <code>ruff check scripts/</code>. <code>shellcheck</code> + <code>--help</code> smoke before committing the installer step (step 8). Pre-PR-open: capture plugin SHA256 baseline per Q2 / ADR-0004 § Sync Procedure.
+    </p>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 1 — Land all 14 schemas + declare <code>jsonschema</code> dev-dep</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Data files + dep declaration are the only step with zero Python touch — they ship together because the writer's <code>Draft7Validator</code> import (step 3) needs both to be in place. Vendoring schemas without declaring <code>jsonschema</code> would land a silent-no-op spine at step 3; declaring the dep without schemas would yield a loaded validator with nothing to validate. AC2 lands here.</p>
+      <p class="step-meta"><strong>Pre-step requirement (blocking):</strong> Before any file in this step is staged, fill in the 14 schema SHA256 rows in <code>docs/adr/0004-memory-spine-vendoring.md</code> § SHA256 baseline table. Compute via <code>sha256sum ~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/memory_schemas/&lt;name&gt;.json</code> for each of the 14 files; replace the <code>&lt;sha256-hex&gt;</code> placeholders in the schemas sub-table. The drift gate (BILTIQ-006 AC8) has nothing to compare against post-merge if these stay as placeholders. The ADR-0004 edit lands in the same commit as the schemas + pyproject.toml change.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/memory_schemas/blocker_close.json</code>,
+        <code>scripts/memory_schemas/blocker_open.json</code>,
+        <code>scripts/memory_schemas/commit.json</code>,
+        <code>scripts/memory_schemas/compliance_flag.json</code>,
+        <code>scripts/memory_schemas/decision.json</code>,
+        <code>scripts/memory_schemas/doctor_install.json</code>,
+        <code>scripts/memory_schemas/eod_post.json</code>,
+        <code>scripts/memory_schemas/estimate_actual.json</code>,
+        <code>scripts/memory_schemas/routing_payload.json</code>,
+        <code>scripts/memory_schemas/scan_result.json</code>,
+        <code>scripts/memory_schemas/security_flag.json</code>,
+        <code>scripts/memory_schemas/standup_post.json</code>,
+        <code>scripts/memory_schemas/task_state_change.json</code>,
+        <code>scripts/memory_schemas/vllm_quality_warning.json</code> (CREATE — 14 files byte-equivalent to <code>~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/memory_schemas/&lt;name&gt;.json</code>; no sync-header — JSON does not parse comments; SHA256 baseline filled in ADR-0004 § Sync Procedure in the same commit);
+        <code>pyproject.toml</code> (PATCH — add <code>jsonschema &gt;= 4.0</code> under <code>[tool.uv].dev-dependencies</code>; preserve all other entries);
+        <code>docs/adr/0004-memory-spine-vendoring.md</code> (PATCH — replace the 14 schemas-table <code>&lt;sha256-hex&gt;</code> placeholders with concrete hashes).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>tests/scripts/test_schemas_load.py</code> (CREATE — ~25 LOC) — for each of the 14 schemas: assert <code>json.load(open(path))</code> succeeds; assert <code>jsonschema.Draft7Validator.check_schema(schema)</code> succeeds; assert the filename stem appears as the <code>title</code> or matches an <code>event_type</code> property. Parameterised over all 14 names (AC2)</li>
+          <li>Drift smoke: <code>sha256sum scripts/memory_schemas/*.json</code> output matches the baseline rows in ADR-0004 § SHA256 baseline table line-for-line — verified by a tiny <code>scripts/_verify_schema_baseline.sh</code> helper or by manual <code>diff</code>; gate for step 1 commit (AC1 spirit; AC8 covers this in CI from step 8 via <code>_check_spine_sync.py</code>)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> ADR-0004 schemas sub-table contains zero <code>&lt;sha256-hex&gt;</code> placeholders (<code>grep -cE '\| `&lt;sha256-hex&gt;` \|' docs/adr/0004-memory-spine-vendoring.md</code> returns 4 — i.e. only the 4 spine-module table-cell placeholders remain, which fill in at steps 2–5; the regex matches only Markdown table cells of the form <code>| `&lt;sha256-hex&gt;` |</code> so narrative prose mentioning the placeholder string does not inflate the count); <code>uv sync</code> succeeds locally and installs <code>jsonschema</code>; <code>pytest tests/scripts/test_schemas_load.py -v</code> GREEN (14 parametrised cases); <code>python3 -c "import jsonschema; print(jsonschema.__version__)"</code> &ge; 4.0; sha256-baseline drift smoke clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 1: vendor all 14 memory_schemas + jsonschema dev-dep + SHA256 baseline</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 2 — Vendor <code>scripts/_paths.py</code> sibling import dependency</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Smallest spine file (~88 LOC); imports nothing from the other vendored modules; exports <code>_resolve_repo_root</code>, <code>_repo_hash</code>, <code>_safe_write</code> which steps 3–5 all <code>from _paths import ...</code>. Lands solo so steps 3–5 can import it cleanly. AC1 (1 of 4 spine files) lands here.</p>
+      <p class="step-meta"><strong>Pre-step requirement (blocking):</strong> Fill in the <code>scripts/_paths.py</code> SHA256 row in ADR-0004 § SHA256 baseline table. Compute via <code>sha256sum ~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_paths.py</code>; replace its <code>&lt;sha256-hex&gt;</code> placeholder.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/_paths.py</code> (CREATE — byte-equivalent vendor of <code>~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_paths.py</code> + <code># SYNC-HEADER:</code> &hellip; <code># END-SYNC-HEADER</code> block prepended);
+        <code>docs/adr/0004-memory-spine-vendoring.md</code> (PATCH — fill <code>_paths.py</code> hash).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>tests/scripts/test_paths.py</code> (CREATE — ~30 LOC) — assert <code>_resolve_repo_root()</code> returns <code>Path(cwd).resolve()</code> when <code>CLAUDE_PROJECT_DIR</code> unset; respects the env var when set; <code>_repo_hash(path)</code> returns 12-char hex stable across calls; <code>_safe_write(path, data)</code> writes atomically (via <code>os.replace</code>) and survives concurrent overwrites (AC1)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/test_paths.py -v</code> GREEN; <code>mypy --strict scripts/_paths.py</code> clean; <code>ruff check scripts/_paths.py</code> clean; <code>diff &lt;(sed '/^# SYNC-HEADER:/,/^# END-SYNC-HEADER/d' scripts/_paths.py) ~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_paths.py</code> empty (byte-equivalence verified manually).</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 2: vendor _paths.py v1.10.1 byte-equivalent (sibling import dep)</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 3 — Replace <code>scripts/_memory_writer.py</code> to v1.10.1 + port writer tests</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Writer comes before curator + reader because (a) the backfill (step 6) calls <code>write_event</code> and (b) the curator (step 5) is the larger surface — landing the smaller writer first reduces blast radius if the byte-equivalence diff or schema-validation tests fail. The writer is the only module emitting a signature delta (<code>None</code> &rarr; <code>bool</code>, raises &rarr; never-raises); landing it solo isolates that change. AC1 (2 of 4) + AC5 (~6 tests) land here.</p>
+      <p class="step-meta"><strong>Pre-step requirement (blocking):</strong> Fill in the <code>scripts/_memory_writer.py</code> SHA256 row in ADR-0004 § SHA256 baseline table. Compute via <code>sha256sum ~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_memory_writer.py</code>; replace its <code>&lt;sha256-hex&gt;</code> placeholder.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/_memory_writer.py</code> (REPLACE — 92-LOC v1.6 &rarr; 425-LOC v1.10.1 byte-equivalent + sync-header);
+        <code>tests/scripts/test_memory_writer.py</code> (REPLACE — port of plugin <code>tests/spine/test_writer.py</code> with paths rewritten to point at the vendored modules);
+        <code>docs/adr/0004-memory-spine-vendoring.md</code> (PATCH — fill <code>_memory_writer.py</code> hash).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_write_event_returns_true_on_valid_payload</code> — happy path for <code>commit</code> event-type; assert <code>write_event("commit", {"sha": "abc123", "task_id": "BILTIQ-006", "files_touched": []}) is True</code>; assert the JSONL line is appended to <code>.biltiq/memory-stream.jsonl</code> with <code>schema: "v1"</code> + flat payload (AC1, AC5)</li>
+          <li><code>test_write_event_returns_false_on_unknown_event_type</code> — <code>write_event("not_a_real_type", {})</code> returns <code>False</code>; stderr warn emitted; nothing appended (AC5, AC11)</li>
+          <li><code>test_write_event_returns_false_on_schema_invalid_payload</code> — <code>write_event("commit", {"sha": 123})</code> (sha should be string) returns <code>False</code>; stderr warn; nothing appended (AC5)</li>
+          <li><code>test_write_event_truncates_prompt_fields</code> — emit a <code>standup_post</code> with a 500-byte <code>yesterday_summary</code>; assert the appended line truncates to 200 bytes (DEFAULT_TRUNCATE_LEN); override via <code>BILTIQ_AUTO_TRACK_FULL_PROMPTS=on</code> env preserves full length (AC5)</li>
+          <li><code>test_write_event_fcntl_flock_serialises_concurrent_writers</code> — spawn two threads each emitting 50 events; assert all 100 lines present + JSON-valid + no interleaved bytes (AC5)</li>
+          <li><code>test_write_event_silent_no_op_under_BILTIQ_AUTO_TRACK_off</code> — set <code>BILTIQ_AUTO_TRACK=off</code>; <code>write_event("commit", {...})</code> returns <code>True</code> but no line appended (kill-switch contract, AC5)</li>
+          <li><code>test_write_event_never_raises</code> — pass a non-serialisable payload (e.g. <code>{"x": object()}</code>); assert <code>write_event</code> returns <code>False</code> without raising (defensive-net contract, AC5)</li>
+          <li><code>test_write_event_rejects_v1_6_standup_post_payload</code> — <strong>writer-side AC11 back-compat.</strong> Call <code>write_event("standup_post", {"date": "2026-05-18", "doing": "BILTIQ-006"})</code> — the v1.6 procedure-shape payload that lacks the v1.10.1 required fields (<code>yesterday_summary</code>, <code>today_task</code>, <code>branch</code>, <code>blockers</code>, <code>trigger</code>). Assert: returns <code>False</code> cleanly; stderr warn emitted naming the schema validation failure; nothing appended to the stream; no exception raised. Companion to <code>test_curator_back_compat_v1_6_events</code> in step 5 (curator-side AC11): the writer rejects new emits of v1.6 shape going forward, the curator tolerates historical v1.6 lines already on disk (AC11)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/test_memory_writer.py -v</code> all GREEN (~8 tests); <code>mypy --strict scripts/_memory_writer.py</code> clean; <code>ruff check scripts/_memory_writer.py</code> clean; byte-equiv diff against plugin source clean modulo sync-header.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 3: vendor _memory_writer.py v1.10.1 + port writer tests</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 4 — Create <code>scripts/_memory_reader.py</code> + reader tests</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> New module — no v1.6 equivalent. Lands before the curator because the v1.10.1 curator's projection code paths read events via internal helpers that mirror the reader's filter semantics. Stand-alone API surface (<code>read_events</code>) tested first in isolation. AC1 (3 of 4) + AC5 lands here.</p>
+      <p class="step-meta"><strong>Pre-step requirement (blocking):</strong> Fill in the <code>scripts/_memory_reader.py</code> SHA256 row in ADR-0004 § SHA256 baseline table. Compute via <code>sha256sum ~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/_memory_reader.py</code>; replace its <code>&lt;sha256-hex&gt;</code> placeholder.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/_memory_reader.py</code> (CREATE — 138-LOC byte-equivalent vendor + sync-header);
+        <code>tests/scripts/test_memory_reader.py</code> (CREATE — port of plugin <code>tests/spine/test_reader.py</code>);
+        <code>docs/adr/0004-memory-spine-vendoring.md</code> (PATCH — fill <code>_memory_reader.py</code> hash).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_read_events_time_window_filter</code> — seed stream with 5 events spanning 3 days; <code>read_events(since_iso=&lt;day-2&gt;)</code> returns only events from day 2 onwards (AC5)</li>
+          <li><code>test_read_events_type_filter</code> — seed stream with mixed event-types; <code>read_events(types=["commit", "decision"])</code> returns only those types (AC5)</li>
+          <li><code>test_read_events_missing_jsonl_empty_list</code> — call <code>read_events</code> on a repo without <code>.biltiq/memory-stream.jsonl</code>; assert returns <code>[]</code> with no error (AC5)</li>
+          <li><code>test_read_events_malformed_line_skipped</code> — seed stream with two valid lines + one malformed line (truncated JSON); <code>read_events</code> returns 2 events, prints a stderr warn for the bad line, does not raise (AC5)</li>
+          <li><code>test_read_events_schema_v2_forward_compat_skip</code> — seed stream with a line carrying <code>schema: "v2"</code>; <code>read_events</code> silently skips it (forward-compat clause, AC5, AC11)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/test_memory_reader.py -v</code> all GREEN (~5 tests); <code>mypy --strict scripts/_memory_reader.py</code> clean; <code>ruff check scripts/_memory_reader.py</code> clean; byte-equiv diff clean modulo sync-header.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 4: create _memory_reader.py v1.10.1 + reader tests</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 5 — Replace <code>scripts/_memory_curator.py</code> to v1.10.1 + replace curator tests</span>
+        <span class="band band-l">L</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Biggest surface: 370 LOC v1.6 &rarr; 636 LOC v1.10.1. Lands last among the spine files so writer + reader + paths are all in place when the curator imports them. Replaces two obsolete v1.6 test files with one v1.10.1-shaped test module covering all six AUTO_SECTIONS renderers + cap-and-archive + concurrent-lock + AC11 back-compat. AC1 (4 of 4) + AC5 (~10 tests) + AC11 land here.</p>
+      <p class="step-meta"><strong>Pre-step requirement (blocking):</strong> Fill in the <code>scripts/_memory_curator.py</code> SHA256 row in ADR-0004 § SHA256 baseline table — the last spine-module placeholder. After this step commits, <code>grep -cE '\| `&lt;sha256-hex&gt;` \|' docs/adr/0004-memory-spine-vendoring.md</code> = 0 (all 18 baseline rows concrete; regex matches only Markdown table cells of the form <code>| `&lt;sha256-hex&gt;` |</code>, so narrative mentions of the placeholder do not contribute to the count).</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/_memory_curator.py</code> (REPLACE — 370-LOC v1.6 &rarr; 636-LOC v1.10.1 byte-equivalent + sync-header);
+        <code>tests/scripts/test_memory_curator.py</code> (CREATE — port of plugin <code>tests/spine/test_curator.py</code>);
+        <code>tests/scripts/test_memory_curator_io.py</code> (DELETE — v1.6 marker-parsing tests obsolete);
+        <code>tests/scripts/test_memory_curator_projection.py</code> (DELETE — v1.6 projection-vocabulary tests obsolete);
+        <code>tests/scripts/conftest.py</code> (PATCH — add fixtures <code>plugin_path</code>, <code>tmp_memory_md</code>, <code>seeded_stream</code>; retain existing <code>tmp_repo</code>);
+        <code>docs/adr/0004-memory-spine-vendoring.md</code> (PATCH — fill <code>_memory_curator.py</code> hash, the last placeholder).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_render_active_task_caps_at_one</code> — seed stream with 3 <code>task_state_change</code> events; <code>## Active task</code> section in MEMORY.md projection shows only the most recent (cap 1) (AC5)</li>
+          <li><code>test_render_today_activity_consumes_commit_and_scan_result</code> — seed mixed <code>commit</code> + <code>scan_result</code>; <code>## Today's activity</code> renders both types within the 15-line cap (AC5)</li>
+          <li><code>test_render_open_blockers_matches_open_close_by_id</code> — seed <code>blocker_open(id=B1)</code> + <code>blocker_open(id=B2)</code> + <code>blocker_close(id=B1)</code>; <code>## Open blockers</code> shows only B2 (AC5)</li>
+          <li><code>test_render_recent_decisions_caps_then_archives</code> — seed 10 <code>decision</code> events; <code>## Recent decisions</code> shows 5 (cap); the other 5 land in <code>.biltiq/memory-archive/YYYY-MM.md</code> (AC5)</li>
+          <li><code>test_render_open_questions_filters_status_deferred</code> — seed mixed <code>decision</code> events; only those with <code>status=deferred</code> appear under <code>## Open questions</code> (AC5)</li>
+          <li><code>test_render_doctor_installs_caps_at_five</code> — seed 7 <code>doctor_install</code> events; section shows 5; no archive (AC5)</li>
+          <li><code>test_curator_concurrent_lock_via_fcntl_flock</code> — invoke <code>scripts/_memory_curator.py</code> twice concurrently; second invocation exits 0 with <code>{"skipped": "another curator already running"}</code> (AC5)</li>
+          <li><code>test_curator_v1_6_markers_present_but_ignored</code> — seed a MEMORY.md that still has <code>&lt;!-- auto:current_focus:start --&gt;</code> markers from a pre-migration state; curator preserves them verbatim (heading-prefix-only — does not crash, does not splice) (AC5, AC8 contract)</li>
+          <li><code>test_curator_back_compat_v1_6_events</code> — seed stream with v1.6-shape <code>standup_post</code> (<code>{date, doing}</code>), <code>blocker_logged</code>, <code>commit_metadata</code>, <code>reflect_note</code>; curator exits 0; <code>events_seen</code> &ge; 4; zero rendered rows (tolerated, not projected) (AC11)</li>
+          <li><code>test_curator_byte_identical_on_double_invocation</code> — invoke twice with no intervening events on a clean post-restructure (v1.10.1-shape) MEMORY.md; assert <code>MEMORY.md</code> mtime + content identical between runs (forward-compat side of AC8 contract; gate covers <code>_check_memory_drift.sh</code>'s assertion against the restructured state)</li>
+          <li><code>test_curator_byte_identical_against_v1_6_shape_memory_md</code> — <strong>faithful reproduction of the original bug.</strong> Seed <code>tmp_path/MEMORY.md</code> with the pre-restructure v1.6-shape: <code>&lt;!-- manual:start --&gt;</code> envelope containing the six dev-curated headings (<code>## Recent decisions</code>, <code>## Open questions</code>, <code>## Active task</code>, etc.) populated with bullet content, then <code>&lt;!-- manual:end --&gt;</code>. Run <code>scripts/_memory_curator.py</code> twice with no intervening events; assert byte-identical output between run 1 &rarr; run 2 (the v1.10.1 curator's "preserve non-matching prefix verbatim" behaviour must hold even when the dev-curated headings sit inside the manual envelope and would otherwise trigger the heading-prefix splice). This is the test that would have failed against the original 42-line MEMORY.md drift; it must pass against the vendored v1.10.1 curator. (AC8 reproduction; R5 belt-and-braces)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/test_memory_curator.py -v</code> all GREEN (~11 tests); <code>mypy --strict scripts/_memory_curator.py</code> clean; <code>ruff check scripts/_memory_curator.py</code> clean; byte-equiv diff clean modulo sync-header. Full repo <code>pytest tests/</code> still GREEN (no library regression). Existing <code>tests/scripts/</code> now has &ge; 18 tests (AC5 floor).</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 5: vendor _memory_curator.py v1.10.1 + replace curator tests</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 6 — Create + run <code>scripts/_backfill_memory_v1_10.py</code> one-shot</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Pre-migration <code>MEMORY.md</code> carries dev-curated bullets under <code>## Recent decisions</code> / <code>## Open questions</code> / <code>## Active task</code> that need to be ported into v1.10.1 events so the curator (now at v1.10.1) re-projects them after step 7. Backfill reads from <code>git show HEAD:MEMORY.md</code> (preserves the pre-migration state independent of the working tree) and emits via <code>_memory_writer.write_event</code> (gates through the schema validator). Runs once locally as part of this step's gate; idempotency-sentinel test ensures re-runs are no-ops. AC4 lands here.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/_backfill_memory_v1_10.py</code> (CREATE — ~120 LOC; reads <code>git show HEAD:MEMORY.md</code>; parses manual-envelope bullets; emits <code>decision</code> events with <code>backfilled: true</code> + <code>category=process</code>; emits a sentinel <code>decision</code> with <code>summary=backfill_complete</code> as final action);
+        <code>tests/scripts/test_backfill.py</code> (CREATE — ~50 LOC; ~4 tests; deleted in step 10).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_backfill_emits_decisions_for_each_bullet</code> — fixture MEMORY.md with 4 bullets under <code>## Recent decisions</code>; backfill emits 4 <code>decision</code> events with <code>backfilled: true</code> (AC4)</li>
+          <li><code>test_backfill_idempotent</code> — run backfill twice; second run is a no-op (sentinel-event check); stream length unchanged on second run (AC4)</li>
+          <li><code>test_backfill_appends_via_writer</code> — assert backfill uses <code>_memory_writer.write_event</code> (not raw JSONL write) via monkey-patch; verifies the schema-validation gate is exercised on every emit (AC4, R4 mitigation)</li>
+          <li><code>test_backfill_reads_from_git_head_not_working_tree</code> — <strong>R8 explicit mitigation.</strong> Set up a fixture repo where the committed <code>HEAD:MEMORY.md</code> contains dev-curated bullets under <code>## Recent decisions</code> and the working-tree <code>MEMORY.md</code> contains the curator-wiped placeholder shape (<code>_(no recent decisions recorded)_</code>). Run the backfill; assert the emitted <code>decision</code> events match the HEAD content (the real bullets), not the working-tree content (the placeholders). Verified by patching <code>subprocess.run</code> with a spy and asserting the spy was called with <code>["git", "show", "HEAD:MEMORY.md"]</code>; assert <code>open("MEMORY.md")</code> is never called by the backfill module. Without this, R8 has no automated guard and the backfill could silently ingest the wiped state. (R8 mitigation)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Local action (run once at this step):</strong>
+        <ol style="font-size:0.82rem">
+          <li><code>git stash</code> (preserve unstaged MEMORY.md drift — the 42-line reproduction stays uncommitted)</li>
+          <li><code>python3 scripts/_backfill_memory_v1_10.py</code> — emits to <code>.biltiq/memory-stream.jsonl</code></li>
+          <li>Inspect <code>tail -20 .biltiq/memory-stream.jsonl</code> — verify <code>backfilled: true</code> events present</li>
+          <li><code>git stash pop</code> (restore the unstaged drift for step 7 to absorb)</li>
+        </ol>
+      </p>
+      <p class="step-meta"><strong>Gate:</strong> <code>pytest tests/scripts/test_backfill.py -v</code> GREEN; manual backfill run produces &ge; 4 backfilled events; sentinel event present.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 6: one-shot backfill v1.6 MEMORY.md dev-curated content into v1.10.1 events</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 7 — Restructure <code>MEMORY.md</code> to v1.10.1 heading-prefix contract</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Critical-path step. Move the 6 plugin-owned headings outside the <code>&lt;!-- manual:start/end --&gt;</code> envelope so the curator's prefix splice owns them cleanly (today's collision disappears). Manual envelope retains the 6 dev-owned narrative sections. Also folds the 42-line reproduction-state drift currently unstaged in MEMORY.md (the AC8 evidence) into the restructured shape — the backfill (step 6) has already ported its actual content into events, so the placeholder lines are replaced by the curator's first-run rendering. AC3 + AC10 (BILTIQ-006 entry move Known issues &rarr; Recently completed via the backfill <code>decision</code> event with <code>category=process</code>) land here.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>MEMORY.md</code> (REPLACE — delete v1.6 markers at lines 3–8 / 10–12 / 14–19; move the 6 plugin-owned headings outside the manual envelope; manual envelope retains 6 dev-owned narrative sections; pre-existing 42-line unstaged drift gets absorbed in the same commit).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>Import smoke: <code>python3 -c "import sys; sys.path.insert(0, 'scripts'); import _memory_curator; _memory_curator.main()"</code> — catches the sibling-import resolution case the unit tests (which use direct module paths) don't exercise. Exit 0 with structured stdout (<code>events_read</code>, <code>sections_rebuilt</code>, etc.).</li>
+          <li>Manual: <code>python3 scripts/_memory_curator.py</code> — first post-restructure invocation produces byte-identical <code>MEMORY.md</code> on second invocation (AC8 contract; R5 mitigation)</li>
+          <li>Manual: <code>head -30 MEMORY.md</code> — confirm no v1.6 <code>auto:current_focus</code> / <code>auto:code_areas</code> / <code>auto:session_log</code> markers remain (AC3)</li>
+          <li>Manual: confirm the 6 plugin-owned headings now sit <strong>outside</strong> <code>&lt;!-- manual:start --&gt;</code> / <code>&lt;!-- manual:end --&gt;</code> (AC3)</li>
+          <li>Manual: confirm <code>## Active task</code> shows BILTIQ-006 currently in-flight (from the backfill's <code>task_state_change</code> event); <code>## Recent decisions</code> shows the backfilled decisions (AC3, AC10)</li>
+          <li><code>grep -c '&lt;!-- auto:' MEMORY.md</code> = 0 (no v1.6 markers); <code>grep -c '## Active task\|## Today.s activity\|## Open blockers\|## Recent decisions\|## Open questions\|## Doctor installs' MEMORY.md</code> = 6 (all 6 plugin-owned headings present) (AC3)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> all manual + grep checks above pass; double-invocation byte-identical (R5 mitigation closed).</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 7: restructure MEMORY.md to v1.10.1 heading-prefix contract</code></p>
+      <p class="step-meta"><strong>Note for the dev:</strong> Risk R5 (line-number drift) — issue #7 references <code>MEMORY.md</code> line 85. After this commit the content moves into a <code>decision</code> event; PR description must carry a "renumber map" pointing #7 at the new location. Capture the old&rarr;new mapping <strong>before</strong> the commit lands.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 8 — Replace installer + hooks + drift gates</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Hook layer comes after the spine is functional locally. New 3-hook installer mirrors plugin's auto-fire pattern (<code>SessionStart</code> + <code>PostToolUse</code> + existing <code>post-commit</code>). Drift scripts (<code>_check_spine_sync.py</code> Python + <code>_check_memory_drift.sh</code> shell) close AC8. CI gate job lands in step 9 to keep the docs commit clean. AC6 + AC8 + part of AC7 (drift gate referenced in ADR-0004 § How this gets enforced) land here.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/install-curator-hook.sh</code> (REPLACE — 106-LOC v1.6 one-hook installer &rarr; new 3-hook installer; POSIX <code>sh</code> style; <code>--force</code> / <code>--uninstall</code> / <code>-h</code> / <code>--help</code> flags; sentinel-file pattern from BILTIQ-004 <code>install-age.sh</code>);
+        <code>scripts/hooks/post-commit.sh</code> (PATCH — one-line update so it spawns the curator with v1.10.1 CLI shape; preserved BILTIQ-003 hook stays in place);
+        <code>scripts/_check_spine_sync.py</code> (CREATE — ~150 LOC; resolves plugin path; diffs each vendored file modulo sync-header; soft-warn / strict / update modes);
+        <code>scripts/_check_memory_drift.sh</code> (CREATE — ~30 LOC; snapshots MEMORY.md, runs curator twice, asserts <code>cmp</code> byte-identical);
+        <code>tests/scripts/test_hook_install.py</code> (REPLACE — 7225-B v1.6 installer test &rarr; new tests covering 3-hook idempotency + <code>--uninstall</code> + <code>--force</code> + plugin-version-drift warning + absent-plugin tolerance);
+        <code>tests/scripts/test_spine_sync.py</code> (CREATE — ~3 tests covering <code>--mode=warn</code> exits 0 + <code>--mode=strict</code> exits 1 on drift + <code>--mode=strict</code> exits 2 on unresolvable plugin path).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li><code>test_install_curator_hook_idempotent</code> — run installer twice; assert single sentinel file + single symlink + single <code>.claude/hooks/session-start/curator.sh</code> (AC6)</li>
+          <li><code>test_install_curator_hook_uninstall_refuses_without_sentinel</code> — call <code>--uninstall</code> on a fresh repo; assert exit 2 + "no sentinel; refusing to uninstall" (R3 mitigation)</li>
+          <li><code>test_install_curator_hook_force_overwrite</code> — re-install with <code>--force</code> after manual hook modification; assert hook re-synced (AC6)</li>
+          <li><code>test_install_curator_hook_plugin_version_drift_warning</code> — simulate plugin version change after install; assert stderr "plugin version drift detected; re-run with --force" warning (AC6, ADR-0004 § Sync Procedure)</li>
+          <li><code>test_install_curator_hook_absent_plugin_tolerance</code> — installer runs cleanly even when plugin cache is missing (CI-runner case) (AC6)</li>
+          <li><code>test_check_spine_sync_warn_mode_exits_zero_on_drift</code> — seed a vendored file with a hand-edit; assert <code>--mode=warn</code> prints warning + exit 0 (AC8)</li>
+          <li><code>test_check_spine_sync_strict_mode_exits_one_on_drift</code> — same fixture as above; <code>--mode=strict</code> exits 1 (BILTIQ-006-followup-1 contract preview)</li>
+          <li><code>test_check_spine_sync_unresolvable_plugin_exits_two</code> — simulate missing plugin cache; assert exit 2 (AC8)</li>
+          <li>Manual: <code>bash scripts/_check_memory_drift.sh</code> — exit 0 on a clean working tree (AC8)</li>
+          <li>Manual: <code>shellcheck scripts/install-curator-hook.sh</code> + <code>shellcheck scripts/_check_memory_drift.sh</code> — both clean</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest tests/scripts/test_hook_install.py tests/scripts/test_spine_sync.py -v</code> all GREEN; both shell scripts <code>shellcheck</code>-clean; manual installer smoke test (install + uninstall round-trip on local Claude Code config).</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 8: install-curator-hook.sh 3-hook installer + drift gates</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 9 — ADR-0004 + AGENT_RULES.md + architecture docs + reflect.html footnote + CHANGELOG + biltiq-gates.yml</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Single multi-file doc-commit matches the BILTIQ-003 / BILTIQ-004 step-9 precedent. ADR-0004 already drafted (status <code>proposed</code>; status flips to <code>accepted</code> at Step 6 Ship — not in this Build phase). AGENT_RULES.md § Memory rewrite carries the v1.10.1 contract; v1.6 description moves to "Historical: BILTIQ-003 v1.6 shape (deprecated 2026-05-29 in BILTIQ-006)" subsection. reflect.html footnote on the BILTIQ-003 line 292 entry points forward to BILTIQ-006 root cause. CI gate jobs land here so the workflow YAML change ships in the same commit as the scripts that gates fire on. AC7 + AC9 + AC10 land here.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>docs/adr/0004-memory-spine-vendoring.md</code> (CREATE — already drafted; status <code>proposed</code>);
+        <code>docs/architecture/stack.md</code> (PATCH — § Internal modules row for <code>scripts._memory_writer.write_event</code>; new rows for <code>_memory_reader.read_events</code> + <code>_check_spine_sync</code>);
+        <code>docs/architecture/overview.md</code> (PATCH — § Components <code>scripts/</code> tier paragraph);
+        <code>AGENT_RULES.md</code> (PATCH — § Memory lines 113–172 rewritten to v1.10.1; v1.6 description preserved as "Historical" subsection);
+        <code>docs/specs/BILTIQ-003/reflect.html</code> (PATCH — footnote on line 292 entry);
+        <code>CHANGELOG.md</code> (PATCH — single <code>[Unreleased]</code> entry per design § Files to Touch / Other);
+        <code>.github/workflows/biltiq-gates.yml</code> (PATCH — add <code>memory-spine-drift</code> + <code>memory-spine-sync</code> jobs).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>none (docs + CI YAML)</li>
+          <li>Verification — <code>grep -c 'BILTIQ-006\|v1.10.1\|fork-and-stay' docs/adr/0004-memory-spine-vendoring.md</code> &ge; 5 (cross-references intact); <code>grep -c 'Recent decisions\|Open questions\|Active task\|Today.s activity\|Open blockers\|Doctor installs' AGENT_RULES.md</code> = 6 (all 6 auto-sections documented); <code>grep -n 'BILTIQ-006' docs/specs/BILTIQ-003/reflect.html</code> shows the footnote landed; banned-vocab grep clean on every touched file (<code>grep -iE 'cutting-edge|revolutionary|empowering|seamless|future-ready' docs/architecture/stack.md docs/architecture/overview.md AGENT_RULES.md docs/specs/BILTIQ-003/reflect.html CHANGELOG.md docs/adr/0004-memory-spine-vendoring.md</code> empty — explicit file enumeration so the ADR is included since it ships in this commit)</li>
+          <li>CI YAML smoke: <code>python3 -c "import yaml; yaml.safe_load(open('.github/workflows/biltiq-gates.yml'))"</code> succeeds; new job names <code>memory-spine-drift</code> + <code>memory-spine-sync</code> present</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> all verification commands above pass; banned-vocab grep empty; YAML parse clean; manual read-through of ADR-0004 + AGENT_RULES.md § Memory section for cross-link correctness.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 9: ADR-0004 + AGENT_RULES + architecture docs + CHANGELOG + CI gates</code></p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 10 — Cleanup: delete one-shot backfill script (AP#7 hygiene)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AP#7 (Debugging Residue) defence — one-shot migration scripts must not survive their migration. Backfill has run once locally in step 6, its sentinel-event prevents re-runs from doubling content; the script is no longer needed and would only attract drift. Its test file (<code>test_backfill.py</code>) goes with it. CI catches any future re-introduction via the existing <code>test_no_residue.py</code> pattern from BILTIQ-002.</p>
+      <p class="step-meta"><strong>Files:</strong>
+        <code>scripts/_backfill_memory_v1_10.py</code> (DELETE);
+        <code>tests/scripts/test_backfill.py</code> (DELETE).</p>
+      <div class="step-tests">
+        <strong>Tests:</strong>
+        <ul>
+          <li>Verification — <code>ls scripts/_backfill_memory_v1_10.py 2&gt;&amp;1 | grep -c "No such"</code> = 1 (file gone); <code>ls tests/scripts/test_backfill.py 2&gt;&amp;1 | grep -c "No such"</code> = 1; <code>pytest tests/scripts/ -v</code> still GREEN (no orphan imports)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> deletions verified; full <code>pytest tests/scripts/</code> GREEN; full <code>pytest tests/</code> GREEN (no library regression); <code>mypy --strict scripts/</code> + <code>ruff check scripts/</code> clean.</p>
+      <p class="step-meta"><strong>Commit:</strong> <code>BILTIQ-006: step 10: delete one-shot backfill script post-migration (AP#7)</code></p>
+      <p class="step-meta"><strong>Commit body (for audit-trail discoverability per reviewer suggestion):</strong> 1-line summary in body: <code>Removes scripts/_backfill_memory_v1_10.py + tests/scripts/test_backfill.py. Backfill ran once on 2026-MM-DD against HEAD:MEMORY.md per step 6; sentinel-event in .biltiq/memory-stream.jsonl confirms one-shot completion. Anti-Pattern #7 hygiene.</code> Makes the deletion easy to find via <code>git log --all --diff-filter=D --name-only | grep _backfill</code> later.</p>
+    </div>
+
+  </section>
+
+  <section id="test-strategy">
+    <h2>Test Strategy</h2>
+    <table>
+      <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
+      <tbody>
+        <tr><td>Schema unit</td><td>JSON schemas load cleanly; pass <code>Draft7Validator.check_schema</code></td><td><code>tests/scripts/test_schemas_load.py</code> (CREATE, 14 parametrised cases)</td></tr>
+        <tr><td>Paths unit</td><td><code>_resolve_repo_root</code> / <code>_repo_hash</code> / <code>_safe_write</code> semantics</td><td><code>tests/scripts/test_paths.py</code> (CREATE, ~4 tests)</td></tr>
+        <tr><td>Writer unit</td><td><code>write_event</code> return-value contract, schema validation, prompt truncation, fcntl.flock, kill-switch, never-raises, v1.6 back-compat reject</td><td><code>tests/scripts/test_memory_writer.py</code> (REPLACE, ~8 tests)</td></tr>
+        <tr><td>Reader unit</td><td>Time-window + type filter, malformed-line skip, missing-file empty, schema-v2 forward-compat</td><td><code>tests/scripts/test_memory_reader.py</code> (CREATE, ~5 tests)</td></tr>
+        <tr><td>Curator unit</td><td>Six projection renderers, cap-and-archive, concurrent-lock, v1.6-marker preservation, v1.6-event back-compat, byte-identical double-invocation, AC8 v1.6-shape MEMORY.md reproduction</td><td><code>tests/scripts/test_memory_curator.py</code> (CREATE, ~11 tests)</td></tr>
+        <tr><td>Hook-install unit</td><td>3-hook idempotency, <code>--uninstall</code> sentinel-gate, <code>--force</code> overwrite, plugin-version-drift warning, absent-plugin tolerance</td><td><code>tests/scripts/test_hook_install.py</code> (REPLACE, ~5 tests)</td></tr>
+        <tr><td>Drift-gate unit</td><td><code>--mode=warn</code> / <code>--mode=strict</code> exits; unresolvable-plugin behaviour</td><td><code>tests/scripts/test_spine_sync.py</code> (CREATE, ~3 tests)</td></tr>
+        <tr><td>Backfill unit</td><td>Per-bullet emission, idempotency-via-sentinel, append-via-writer (R4 mitigation), HEAD-vs-working-tree (R8 mitigation)</td><td><code>tests/scripts/test_backfill.py</code> (CREATE then DELETE in step 10, ~4 tests)</td></tr>
+        <tr><td>Integration</td><td>Curator round-trip: seeded stream &rarr; MEMORY.md projection; double-invocation byte-identical (folds AC8 reproduction into <code>test_curator.py</code>)</td><td><code>tests/scripts/test_memory_curator.py::test_curator_byte_identical_on_double_invocation</code></td></tr>
+        <tr><td>Integration (shell)</td><td>End-to-end <code>scripts/_check_memory_drift.sh</code> on a clean tree</td><td>Manual at step 8; CI-wired at step 9 (<code>memory-spine-drift</code> job)</td></tr>
+        <tr><td>Manual</td><td>(a) Standup post emits v1.10.1 event &rarr; curator projects into <code>## Today's activity</code>. (b) Run installer; <code>SessionStart</code> hook fires curator on next Claude Code session start. (c) Issue-#7 renumber map prepared for PR description.</td><td>—</td></tr>
+        <tr><td>Test-count floor</td><td>&ge; 18 tests across <code>tests/scripts/</code> after step 5 (AC5 floor); ~50 tests budgeted post-step-10 (14 + 4 + 8 + 5 + 11 + 5 + 3 + 4 = 54 minus 4 deleted backfill tests = 50). Headroom: <strong>~2.8&times; AC5 floor</strong>.</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="rollback-plan">
+    <h2>Rollback Plan</h2>
+    <p><strong>Single command: <code>git revert &lt;merge-sha&gt;</code>.</strong> This is a behaviour-port + data-migration without external service contracts, so the revert is clean. State that remains after revert (all per-machine, all gitignored, all harmless):</p>
+    <ul>
+      <li><code>.biltiq/memory-stream.jsonl</code> — append-only; carries both v1.6 historical events AND post-merge v1.10.1 events; after revert, the v1.6 curator silently skips lines lacking the v1.6 <code>schema_version</code> field (per BILTIQ-003 design line 168 forward-compat clause).</li>
+      <li><code>.biltiq/memory-archive/YYYY-MM.md</code> — orphan files if revert lands after the curator archived. Safe to delete; pre-revert <code>MEMORY.md</code> content was overflow content already moved here.</li>
+      <li><code>~/.biltiq-engineering/&lt;repo_hash&gt;/state/curator-pending.flag</code> — per-machine writer-side trigger marker. Harmless.</li>
+      <li>Installed hooks at <code>.claude/hooks/session-start/curator.sh</code> + <code>.claude/hooks/post-tool-use/curator.sh</code> — per-machine; run <code>bash scripts/install-curator-hook.sh --uninstall</code> before revert if desired.</li>
+    </ul>
+    <p>Committed state reverts cleanly: <code>MEMORY.md</code> returns to pre-restructure shape (the dev-curated bullets were already in the file at pre-migration commit; the backfill ported them to events but did not delete them). No data loss. No schema migration to undo (the stream is append-only; both shapes co-exist). The ADR-0004 status flip happens at Ship time post-merge — if revert lands before Ship, ADR stays <code>proposed</code> and is reverted with the rest.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <p>Lifted from design.html § Risks R1–R7. Severities reflect post-OQ-D-resolution state (R2 downgraded MEDIUM&rarr;LOW per § OQ-D2 resolution).</p>
+    <table>
+      <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>R1 — Plugin auto-upgrade to v1.11 mid-PR</td>
+          <td>Pre-PR-open + Step 9</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>SHA256 captured at PR-open per Q2 / ADR-0004 § Sync Procedure; re-verified at Step 6 Ship. If diff at Ship: explicit decision (re-sync vs ship snapshot + tech-debt note for follow-up). Drift gate (step 8) covers the post-merge case.</td>
+        </tr>
+        <tr>
+          <td>R2 — <code>jsonschema</code> dev-dep absence yields silent no-op spine</td>
+          <td>Step 1</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Mitigated by OQ-D2 resolution: <code>jsonschema &gt;= 4.0</code> declared in <code>[tool.uv].dev-dependencies</code> in step 1; <code>uv sync</code> picks it up automatically. Graceful-degrade shim retained inside vendored writer for AC1 byte-equivalence, but no longer load-bearing.</td>
+        </tr>
+        <tr>
+          <td>R3 — Hook installer touches <code>.claude/hooks/</code> (cross-repo blast radius)</td>
+          <td>Step 8</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Sentinel-file + symlink pattern from BILTIQ-004 <code>install-age.sh</code>; <code>--uninstall</code> refuses without matching sentinel; AC6 hook-install tests cover idempotency directly. Transitions to LOW once step 8 tests land GREEN.</td>
+        </tr>
+        <tr>
+          <td>R4 — Backfill rewrites stream instead of appending</td>
+          <td>Step 6</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Backfill uses <code>_memory_writer.write_event</code> exclusively (AC4 contract); writer's <code>fcntl.flock</code> + POSIX-atomic append guarantee append-only. Sentinel-event idempotency check; <code>test_backfill_appends_via_writer</code> asserts the writer path is taken (monkey-patch).</td>
+        </tr>
+        <tr>
+          <td>R5 — <code>MEMORY.md</code> restructure breaks external line-number refs (issue #7 line 85)</td>
+          <td>Step 7</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>PR description carries a renumber map. AC10 already moves BILTIQ-006 entry Known issues &rarr; Recently completed via backfill <code>decision</code> event; #7's content has a new home. PR-description discoverable from issue's "linked-by" cross-refs.</td>
+        </tr>
+        <tr>
+          <td>R6 — Curator latency at 636 LOC + per-event jsonschema validation is unmeasured</td>
+          <td>Step 5 (optional benchmark)</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Optional <code>time python3 scripts/_memory_curator.py</code> on a 10k-synthetic-event stream; if wall-clock &gt; 1 s, record as reflect.html tech-debt + follow-up ticket. Does not block merge — curator runs background-disowned via hooks. Acceptable to ship without benchmark if dev is time-constrained; document as known-unvalidated in reflect.html.</td>
+        </tr>
+        <tr>
+          <td>R7 — Per-checkout state files at <code>~/.biltiq-engineering/&lt;hash&gt;/state/</code> leak on un-clone</td>
+          <td>Step 9 (doc-only)</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Vendored behaviour — no divergence. Documented in AGENT_RULES.md § Memory rewrite (step 9): "State files at <code>~/.biltiq-engineering/&lt;hash&gt;/state/</code> are per-checkout; safe to delete on un-clone."</td>
+        </tr>
+        <tr>
+          <td>R8 <strong>(new from plan)</strong> — Step 6 backfill runs against the unstaged 42-line MEMORY.md drift, not HEAD</td>
+          <td>Step 6</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Backfill must read via <code>git show HEAD:MEMORY.md</code> (not <code>open("MEMORY.md")</code>) so it captures the pre-migration dev-curated content rather than the curator-wiped placeholders. Enforced by Step 6 implementation (the backfill script is required to use <code>subprocess.run(["git", "show", "HEAD:MEMORY.md"], ...)</code>); reviewed at Step 4 Review. Stash/pop pattern in Step 6 local-action note preserves the drift for Step 7 to absorb cleanly.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="per-ac-coverage">
+    <h2>Per-AC Coverage</h2>
+    <table>
+      <thead><tr><th>AC</th><th>Covered by step(s)</th><th>Verification</th></tr></thead>
+      <tbody>
+        <tr><td>AC1 — 4 spine files byte-equivalent + sync-header</td><td>2, 3, 4, 5</td><td>Per-step <code>diff &lt;(sed '/^# SYNC-HEADER:/,/^# END-SYNC-HEADER/d' &lt;file&gt;) &lt;plugin_path&gt;</code> empty; step 8 <code>_check_spine_sync.py</code> automates</td></tr>
+        <tr><td>AC2 — all 14 schemas + jsonschema dev-dep declared</td><td>1</td><td><code>test_schemas_load.py</code> (14 parametrised cases); <code>uv sync</code> success</td></tr>
+        <tr><td>AC3 — MEMORY.md restructured</td><td>7</td><td>grep checks: 0 v1.6 markers; 6 plugin headings outside manual envelope</td></tr>
+        <tr><td>AC4 — one-shot backfill via writer</td><td>6, 10 (delete)</td><td><code>test_backfill.py</code> (4 tests; deleted in step 10); manual run; sentinel idempotency</td></tr>
+        <tr><td>AC5 — &ge; 18 tests in tests/scripts/</td><td>3, 4, 5, 6, 8</td><td>Step 5 gate: <code>pytest tests/scripts/ -v</code> shows &ge; 18 tests; final count ~50 (headroom, ~2.8&times; floor)</td></tr>
+        <tr><td>AC6 — 3-hook installer idempotent</td><td>8</td><td><code>test_hook_install.py</code> (5 tests); manual round-trip</td></tr>
+        <tr><td>AC7 — ADR-0004 created</td><td>9</td><td>File present; status <code>proposed</code> at Build phase end</td></tr>
+        <tr><td>AC8 — Drift gates in CI + reproduction</td><td>8 (scripts), 9 (CI wiring)</td><td><code>test_spine_sync.py</code>; <code>test_curator_byte_identical_on_double_invocation</code>; <code>memory-spine-drift</code> + <code>memory-spine-sync</code> jobs in YAML</td></tr>
+        <tr><td>AC9 — Doc updates</td><td>9</td><td>stack.md + overview.md + AGENT_RULES.md grep checks</td></tr>
+        <tr><td>AC10 — CHANGELOG + reflect footnote + Known-issues move</td><td>7 (Known-issues move via backfill), 9 (CHANGELOG + reflect footnote)</td><td>grep for BILTIQ-006 in CHANGELOG + reflect.html line 292 area</td></tr>
+        <tr><td>AC11 — Back-compat tolerance for v1.6 events</td><td>5 (inherited from vendored curator + writer)</td><td><code>test_curator_back_compat_v1_6_events</code> in <code>test_memory_curator.py</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="anti-pattern-checks">
+    <h2>Anti-Pattern Self-Review Per Step</h2>
+    <p>Build skill rule § Self-review before commit — 6-item checklist applied per step. Pre-flight for each step:</p>
+    <ol style="padding-left:1.4rem; font-size:0.85rem">
+      <li><strong>No duplication (#1):</strong> <code>grep -r &lt;new-symbol&gt; scripts/ packages/</code> — confirm no existing utility does the same thing. Spine files are vendored from a single source; the drift gate (step 8) prevents future divergence.</li>
+      <li><strong>All declared symbols called (#6):</strong> every new function in vendored code has a call path inherited from the plugin; <code>append_estimate_actual</code> is the documented exception (additive, no consumer in this repo — declared in ADR-0004 § Consequences as accepted tech debt).</li>
+      <li><strong>Tests cover the step (#10):</strong> per-step test counts in the test-strategy table above.</li>
+      <li><strong>No regression:</strong> full <code>pytest tests/</code> green after every step.</li>
+      <li><strong>No residue (#7):</strong> step 10 deletes the backfill script + test. No <code>*_v2.*</code> / <code>*_new.*</code> / <code>*.bak</code> / <code>test_scratch_*</code> at any point — CI residue check covers this.</li>
+      <li><strong>Diff matches plan:</strong> per-step <code>Files</code> bullets enumerate exactly what the commit should touch.</li>
+    </ol>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2026-05-29</td>
+          <td>all</td>
+          <td>Initial draft. Ten atomic Build steps mapped to design.html § Rollout's 9 Migration steps (split: reader + curator into separate steps; cleanup of one-shot backfill as dedicated step 10 per AP#7). T-shirt sizing: S&times;5, M&times;4, L&times;1 (curator), total wall-clock ~5.5h matches spec L band. Per-step gates explicit (pytest + mypy + ruff + byte-equiv diff + manual smoke as appropriate). Test strategy table covers schema / paths / writer / reader / curator / hook-install / drift-gate / backfill layers; ~45 tests budgeted post-step-10, 2.5&times; AC5 floor. Rollback: <code>git revert &lt;merge-sha&gt;</code>; per-machine state harmless. Risks lifted from design.html with R2 LOW (post-OQ-D2-resolution); R8 new: backfill must read <code>git show HEAD:MEMORY.md</code> not <code>open("MEMORY.md")</code> to avoid stale-placeholder ingestion. Per-AC coverage table maps each of 11 ACs to specific build steps + verification methods. Anti-pattern self-review checklist mirrors Build skill § Self-review.</td>
+          <td>BILTIQ-006 Step 2 Plan, plan.html initial draft</td>
+        </tr>
+        <tr>
+          <td>2026-05-29</td>
+          <td>Step 1 / 2 / 3 / 4 / 5 / 6 / 7 / 9 / 10</td>
+          <td>Revision-2 propagating <code>biltiq-plan-reviewer</code> verdict-1 findings (1 BLOCKER + 1 HIGH + 3 MED + 3 minor suggestions). <strong>BLOCKER #1</strong> &rarr; spec.html AC7 amended <code>accepted</code>&rarr;<code>proposed</code> at Build end (handled in spec.html, propagated here in step 9 Commit text). <strong>HIGH #2</strong> &rarr; step 5 adds <code>test_curator_byte_identical_against_v1_6_shape_memory_md</code> — faithful reproduction of the original bug seeded against pre-restructure shape; companion to the synthetic-stream test, not replacement. Test budget for step 5 now ~11 (was ~10). <strong>MED #3</strong> &rarr; step 3 adds <code>test_write_event_rejects_v1_6_standup_post_payload</code> — writer-side AC11 back-compat companion to the curator-side test in step 5. Test budget for step 3 now ~8 (was ~7). <strong>MED #4</strong> &rarr; step 6 adds <code>test_backfill_reads_from_git_head_not_working_tree</code> — automates R8 mitigation that was code-review-only. <strong>MED #5</strong> &rarr; steps 1 / 2 / 3 / 4 / 5 each gain a "Pre-step requirement (blocking)" line requiring the corresponding SHA256 baseline row in ADR-0004 § SHA256 baseline table to be filled before commit; ADR-0004 patched in parallel to add the SHA256 baseline table (4 spine modules + 14 schemas = 18 rows). Step 1 commit subject extended to <code>... + SHA256 baseline</code>. Step 5 pre-step ensures all 18 placeholders are concrete. <strong>Minor #1</strong> &rarr; step 7 adds <code>python3 -c "import _memory_curator; _memory_curator.main()"</code> import smoke. <strong>Minor #2</strong> &rarr; step 9 banned-vocab grep now enumerates files explicitly so ADR-0004 is included. <strong>Minor #3</strong> &rarr; step 10 commit body adds 1-line audit-trail note explaining the deletion. Net effect: plan tightened; the original AC8 reproduction test now actually reproduces the bug; SHA256 drift gate has a concrete baseline to compare against.</td>
+          <td>BILTIQ-006 Step 2 Plan, biltiq-plan-reviewer verdict-1 (1 BLOCKER + 1 HIGH + 3 MED)</td>
+        </tr>
+        <tr>
+          <td>2026-05-29</td>
+          <td>Step 1 / Step 5 / Step 6 / Test Strategy table / Change History</td>
+          <td>Revision-3 closing <code>biltiq-plan-reviewer</code> verdict-2 findings (1 partially-closed MED + 1 new HIGH + 1 new MED). <strong>MED #5 (verdict-2)</strong> &rarr; step 1 gate (line 142) and step 5 pre-step requirement (line 225) tightened the SHA256-baseline drift grep from <code>grep -c '&lt;sha256-hex&gt;'</code> to <code>grep -cE '\| `&lt;sha256-hex&gt;` \|'</code> so the gate matches only Markdown table cells (the form <code>| `&lt;sha256-hex&gt;` |</code>) rather than any line containing the literal placeholder string. Reason: ADR-0004 lines 147 (narrative paragraph) and 199 (change-history row) both reference <code>&lt;sha256-hex&gt;</code> in prose and would never be filled in, so the original gate was unsatisfiable (returned 20 not 18, and could not reach 0 even after all 18 rows are populated). The chosen fix tightens the regex rather than rewriting the narrative because future ADR edits that mention the placeholder string in prose will not re-break the gate. ADR-0004 narrative untouched. <strong>New HIGH (verdict-2)</strong> &rarr; Test Strategy table arithmetic on lines 394 / 396 / 399 / 403 updated to reflect revision-2 test additions: Writer ~7&rarr;~8, Curator ~10&rarr;~11, Backfill ~3&rarr;~4; final budget now <code>14 + 4 + 8 + 5 + 11 + 5 + 3 + 4 = 54 minus 4 deleted backfill tests = 50</code> (was <code>14 + 4 + 7 + 5 + 10 + 5 + 3 = 48 minus 3 = 45</code>), headroom updated to ~2.8&times; AC5 floor (was 2.5&times;). The verdict-3 confirmation pass surfaced two co-located stale callouts in the Per-AC Coverage table missed by the initial sweep: line 486 (AC4 row, <code>test_backfill.py (3 tests)</code> &rarr; <code>(4 tests; deleted in step 10)</code>) and line 487 (AC5 row, <code>final count ~45 (headroom)</code> &rarr; <code>~50 (headroom, ~2.8&times; floor)</code>); both swept. Layer descriptions extended to name the new tests by purpose (v1.6 back-compat reject, AC8 v1.6-shape MEMORY.md reproduction, R8 HEAD-vs-WT). <strong>New MED (verdict-2)</strong> &rarr; step 6 line 261 file metadata bumped from <code>~40 LOC; ~3 tests</code> to <code>~50 LOC; ~4 tests</code> (LOC scaled at ~13 LOC/test &times; 4 tests, rounded). Net effect: SHA256 drift gate is now both correct and durable; Test Strategy table arithmetic matches the step-level test enumerations.</td>
+          <td>BILTIQ-006 Step 2 Plan, biltiq-plan-reviewer verdict-2 (1 partial MED + 1 new HIGH + 1 new MED)</td>
+        </tr>
+        <!-- Agent appends a new row here on every edit. Never delete rows. -->
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

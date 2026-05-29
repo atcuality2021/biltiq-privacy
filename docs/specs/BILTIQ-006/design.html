@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: BILTIQ-006 — sync repo memory-spine to plugin v1.10.1</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-delete   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .ac-ref { display: inline-block; font-size: 0.72rem; font-weight: 600; color: var(--color-muted); background: var(--color-bg-subtle); border: 1px solid var(--color-border); padding: 0.05rem 0.35rem; border-radius: 4px; margin-right: 0.25rem; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: BILTIQ-006 — sync repo memory-spine to plugin v1.10.1</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-006</dd></div>
+      <div><dt>Author</dt><dd>@claude (code-architect)</dd></div>
+      <div><dt>Created</dt><dd>2026-05-29</dd></div>
+      <div><dt>Spec ref</dt><dd><code>docs/specs/BILTIQ-006/spec.html</code></dd></div>
+      <div><dt>Compliance mode</dt><dd><code>on_prem_preferred</code></dd></div>
+      <div><dt>Plugin pin</dt><dd><code>biltiq-engineering</code> v1.10.1 (SHA256 captured at PR-open per ADR-0004)</dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Approach</h2>
+    <h3>Name</h3>
+    <p><strong>Sync + fork-and-stay vendoring of the plugin v1.10.1 memory-spine surface (curator + writer + reader + JSON schemas + sibling <code>_paths.py</code>), byte-equivalent modulo a single sync-header comment block, locked architecturally by ADR-0004.</strong></p>
+    <h3>Description</h3>
+    <p>This PR is a <strong>schema-version port, not a behavioural rewrite</strong>. The 370-LOC BILTIQ-003 curator + 92-LOC writer (v1.6 shape: 3 auto-sections delimited by <code>&lt;!-- auto:&lt;name&gt;:start/end --&gt;</code> markers, 5-event vocabulary, stdlib-only) is wholesale replaced by the 636-LOC v1.10.1 curator + 425-LOC v1.10.1 writer + 138-LOC v1.10.1 reader (6 auto-sections via heading-prefix splice, ~10-event vocabulary with optional JSON-schema validation, sibling <code>_paths.py</code> helper, archive overflow into <code>.biltiq/memory-archive/YYYY-MM.md</code>). All behaviour comes from the byte-equivalent v1.10.1 source — this design specifies <em>what</em> gets vendored, <em>where</em> the seams sit, and <em>how</em> drift is detected, not how the curator works internally. The runtime semantics are owned by the upstream plugin's design documents (referenced from ADR-0004).</p>
+    <p>Five files leave the plugin's <code>scripts/</code> directory and land under <code>scripts/</code> in this repo with one extra comment block prepended: <code>_memory_curator.py</code>, <code>_memory_writer.py</code>, <code>_memory_reader.py</code>, <code>_paths.py</code> (sibling import dependency surfaced during input review — OQ-D3 resolved by amended AC1 wording), plus <code>memory_schemas/</code> (all <strong>14</strong> event-type JSON schemas the plugin ships per OQ-D1 resolution: <code>blocker_close.json</code>, <code>blocker_open.json</code>, <code>commit.json</code>, <code>compliance_flag.json</code>, <code>decision.json</code>, <code>doctor_install.json</code>, <code>eod_post.json</code>, <code>estimate_actual.json</code>, <code>routing_payload.json</code>, <code>scan_result.json</code>, <code>security_flag.json</code>, <code>standup_post.json</code>, <code>task_state_change.json</code>, <code>vllm_quality_warning.json</code>). The header block records source plugin version + SHA256 hashes captured at PR-open + sync date + an ADR-0004 cross-link. AC1's <code>diff &lt;(sed '/^# SYNC-HEADER:/,/^# END-SYNC-HEADER/d' ...)</code> validation isolates the header as the only permitted delta. The vendored writer's <code>jsonschema</code> dependency is declared in root <code>pyproject.toml</code> under <code>[tool.uv].dev-dependencies</code> per OQ-D2 resolution — fail-fast at <code>uv sync</code> time rather than silent no-op at first event-write.</p>
+    <p><code>MEMORY.md</code> restructures: the three v1.6 marker pairs (<code>&lt;!-- auto:current_focus:start/end --&gt;</code>, <code>&lt;!-- auto:code_areas:start/end --&gt;</code>, <code>&lt;!-- auto:session_log:start/end --&gt;</code>) are deleted (the v1.10.1 curator ignores them — prefix splice). The six plugin-owned headings (<code>## Active task</code>, <code>## Today's activity</code>, <code>## Open blockers</code>, <code>## Recent decisions</code>, <code>## Open questions</code>, <code>## Doctor installs</code>) move <strong>outside</strong> the <code>&lt;!-- manual:start/end --&gt;</code> envelope so the curator's prefix-match owns them cleanly; today's collision (the curator finds those headings inside the manual envelope and rewrites them with empty-state placeholders) disappears once the envelope no longer contains them. Dev-curated content inside those six headings is preserved via a one-shot backfill (<code>scripts/_backfill_memory_v1_10.py</code>, AC4) that emits matching events through the new v1.10.1 writer; the backfill script is deleted in the same PR after one successful run (Anti-Pattern #7 hygiene). The <code>&lt;!-- manual:start/end --&gt;</code> envelope is retained around the six dev-owned narrative sections (<code>## Project at a glance</code>, <code>## Recently completed</code>, <code>## Known issues &amp; gotchas</code>, <code>## Conventions specific to this repo</code>, <code>## Glossary deltas</code>, <code>## Archive</code>) because the v1.10.1 curator preserves non-matching sections verbatim — the envelope is now belt-and-braces, not load-bearing, but keeping it documents the dev-owned boundary for human readers.</p>
+    <p>The four existing test files in <code>tests/scripts/</code> (<code>test_memory_writer.py</code>, <code>test_memory_curator_io.py</code>, <code>test_memory_curator_projection.py</code>, <code>test_hook_install.py</code> — 20.8 KB combined) are replaced by ports of plugin v1.10.1's <code>tests/spine/test_curator.py</code> + <code>test_writer.py</code> + <code>test_reader.py</code>. <code>test_hook_install.py</code> stays in shape but is rewritten against the new installer (AC6 — three hooks: <code>post-commit</code>, <code>SessionStart</code>, <code>PostToolUse</code>).</p>
+    <p>The trade-off accepted: this is the <strong>fork-and-stay</strong> direction (ADR-0004), not de-vendoring. The repo keeps a synced copy so CI, fresh checkouts on non-plugin machines, and non-Claude-Code clients can curate; the plugin is treated as a transparent cache. The cost is one sync gate (<code>scripts/_check_spine_sync.py</code>) that diffs vendored vs plugin paths and soft-warns on drift for 30 days post-merge, hard-gating thereafter via BILTIQ-006-followup-1 (a separate ticket, Q3 resolution). The benefit is a working repo regardless of the operator's Claude Code plugin state and a single source of truth for what the curator does at any given commit.</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected / Chosen</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><strong>De-vendor.</strong> Delete the repo copy of <code>_memory_curator.py</code> / <code>_memory_writer.py</code>, rely entirely on the plugin at <code>~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/1.10.1/scripts/</code>.</td><td>Rejected. Breaks three real consumers. (a) CI: GitHub Actions runners do not have the Claude Code plugin cache populated; <code>pytest tests/scripts/</code> would <code>ImportError</code> at collection. (b) Fresh checkout: a contributor cloning the repo without first installing the Claude Code plugin cannot curate <code>MEMORY.md</code> at all. (c) Non-plugin client: headless agents and other tooling that wants to read the stream cannot resolve the plugin path. The plugin path itself moves between versions (<code>1.10.1</code> &rarr; <code>1.11.0</code>) and across machines (Linux <code>~/.claude/plugins/cache/</code> vs macOS); coupling the repo to it is brittle. De-vendoring becomes viable only when the plugin ships a pip-installable surface from a public registry (the ADR-0004 exit criterion).</td></tr>
+        <tr><td>2</td><td><strong>Defensive renames in <code>MEMORY.md</code> only.</strong> Rename the six dev-headings inside the manual envelope (e.g. <code>## Recent decisions</code> &rarr; <code>## Recent decisions (dev-curated)</code>) so the v1.10.1 curator's prefix match misses them.</td><td>Rejected. Fixes <em>one</em> facet of the root cause and ignores the other. The curator's heading-prefix wipe is one symptom; the standup_post payload mismatch (the curator reads <code>{date, doing}</code>, the standup skill emits <code>{yesterday_summary, today_task, branch, blockers}</code> — see <code>MEMORY.md</code> line 85) is the second. Both have the same root cause: the vendored toolchain is at v1.6 while the emitting skills are at v1.10.1. Renames don't make the curator render v1.10.1 events correctly. Spec.html § Problem makes this explicit.</td></tr>
+        <tr><td>3</td><td><strong>Pin the plugin to v1.6.x via Claude Code config.</strong> Add a per-machine constraint that holds the plugin at the version this repo was built for.</td><td>Rejected. (a) Brittle — the constraint lives in user-local Claude Code settings, not in the repo; future contributors and CI never see it. (b) Freezes upstream fixes — every bug fix and security update to the curator after v1.6 is locked out for this repo. (c) Cross-cuts other repos — a developer working on biltiq-privacy and biltiq-engineering simultaneously would have to swap plugin versions per repo. Solves a present-tense problem by introducing a permanent maintenance treadmill.</td></tr>
+        <tr><td>4</td><td><strong>Fork the plugin curator with local-only modifications.</strong> Copy v1.10.1 into <code>scripts/</code> and then patch the heading-prefix list to ignore <code>MEMORY.md</code>'s current shape.</td><td>Rejected on Anti-Pattern #2 (Abstraction Bypass). Local-only modifications fork the upstream contract and make every future v1.11 sync a manual merge. BILTIQ-006-followup-1 already covers the hard-gate transition that enforces byte-equivalence; admitting local mods now is admitting we won't enforce the gate. The right shape is byte-equivalent vendoring + a one-shot data migration (AC4 backfill) + a structural restructure of <code>MEMORY.md</code> (AC3) to match what the curator expects.</td></tr>
+        <tr><td>5 ✓</td><td><strong>Sync + fork-and-stay vendoring (chosen).</strong> Byte-equivalent copy of plugin v1.10.1's <code>_memory_curator.py</code> / <code>_memory_writer.py</code> / <code>_memory_reader.py</code> / <code>_paths.py</code> / <code>memory_schemas/</code> into <code>scripts/</code>, modulo a sync-header comment block; <code>MEMORY.md</code> restructured to match the v1.10.1 heading-prefix contract; a one-shot backfill ports dev-curated content into v1.10.1 events; ADR-0004 records the vendoring decision; <code>scripts/_check_spine_sync.py</code> + a CI job catch drift.</td><td>Direct match to AC1 (byte-equivalence rule with one comment-block exception), AC2 (schemas dir), AC3 (MEMORY.md restructure), AC4 (backfill), AC5 (test ports), AC7 (ADR-0004), AC8 (drift CI gate), AC9 (doc updates), AC10 (CHANGELOG + reflect footnote), AC11 (back-compat tolerance comes free from v1.10.1 writer/curator's existing "unknown event_type &rarr; warn + skip" path). The cost is one new sync-check script and a 30-day soft-warn window; the benefit is the repo works correctly against the v1.10.1 schema without forking upstream behaviour.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+    <p>Grouped by area. All paths absolute from repo root <code>/home/atc/Desktop/biltiq-privacy/</code>.</p>
+
+    <h3>Repo <code>scripts/</code> — vendored memory-spine</h3>
+    <table>
+      <thead><tr><th>Path</th><th>Action</th><th>AC</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/_memory_curator.py</code></td><td><span class="tag tag-modified">REPLACE</span></td><td><span class="ac-ref">AC1</span></td><td>370 LOC v1.6 curator (marker-splice; 3 auto-sections; 5 event types) replaced by 636 LOC v1.10.1 source byte-equivalent. Sync-header block prepended (<code># SYNC-HEADER:</code> &hellip; <code># END-SYNC-HEADER</code>) records plugin version 1.10.1 + SHA256 + sync date + ADR-0004 ref.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/_memory_writer.py</code></td><td><span class="tag tag-modified">REPLACE</span></td><td><span class="ac-ref">AC1</span></td><td>92 LOC v1.6 writer (POSIX <code>os.write</code> + <code>PIPE_BUF</code> cap, no schema validation) replaced by 425 LOC v1.10.1 source byte-equivalent. New surface: <code>fcntl.flock</code> serialisation, optional <code>jsonschema</code> validation, on-prem PII strip, prompt truncation, curator-pending marker. Also exports <code>append_estimate_actual</code> (lands as additive surface). Sync-header block as above.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/_memory_reader.py</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC1</span></td><td>138 LOC v1.10.1 source byte-equivalent. New module — no v1.6 equivalent existed. Exposes <code>read_events(since_iso, until_iso=None, types=None, *, repo_root=None) -&gt; list[dict]</code>. Sync-header block as above.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/_paths.py</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC1</span></td><td><strong>Surfaced during input review.</strong> Both the v1.10.1 curator and writer <code>from _paths import _resolve_repo_root, _repo_hash</code>; vendoring them without <code>_paths.py</code> would <code>ImportError</code> at first invocation. Byte-equivalent vendor of plugin's sibling <code>_paths.py</code> (88 LOC). Sync-header block as above. AC1's diff rule applies equally — drift here also fails the gate.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/memory_schemas/</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC2</span></td><td>New directory. <strong>All 14 JSON-schema files per amended AC2 (OQ-D1 resolved):</strong> <code>blocker_close.json</code>, <code>blocker_open.json</code>, <code>commit.json</code>, <code>compliance_flag.json</code>, <code>decision.json</code>, <code>doctor_install.json</code>, <code>eod_post.json</code>, <code>estimate_actual.json</code>, <code>routing_payload.json</code>, <code>scan_result.json</code>, <code>security_flag.json</code>, <code>standup_post.json</code>, <code>task_state_change.json</code>, <code>vllm_quality_warning.json</code>. Each byte-equivalent to plugin v1.10.1's <code>scripts/memory_schemas/&lt;name&gt;.json</code>. Vendoring all 14 preserves the writer's byte-equivalence contract (AC1's spirit) and prevents silent event drops when a future invocation emits an event-type beyond the directly-rendered seven (e.g. a <code>/standup</code> emitting <code>standup_post</code>, an <code>/eod</code> emitting <code>eod_post</code>, a compliance scan emitting <code>compliance_flag</code> or <code>security_flag</code>).</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/_backfill_memory_v1_10.py</code></td><td><span class="tag tag-new">CREATE</span> &rarr; <span class="tag tag-delete">DELETE</span></td><td><span class="ac-ref">AC3</span><span class="ac-ref">AC4</span></td><td>One-shot backfill script. Reads the pre-migration <code>MEMORY.md</code> via <code>git show HEAD:MEMORY.md</code> (the dev-curated content is at lines 49–85 today), parses bullets, emits matching events via <code>_memory_writer.write_event</code>: each <code>## Recent decisions</code> bullet &rarr; <code>decision</code> event; each <code>## Open questions</code> bullet &rarr; <code>decision</code> with <code>status=deferred</code>; active <code>## Active task</code> entry &rarr; <code>task_state_change</code>. Carries <code>backfilled: true</code> in payload. Idempotent — re-run is a no-op via a sentinel event-type or a date-range guard. <strong>Deleted in the cleanup step of the same PR after one successful run</strong> — AP#7 defence; deletion lands as the second-to-last commit before the doc updates.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/_check_spine_sync.py</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC7</span><span class="ac-ref">AC8</span></td><td>Drift checker. Resolves the active plugin path (<code>~/.claude/plugins/cache/biltiq-internal/biltiq-engineering/&lt;version&gt;/scripts/</code>) at runtime, diffs each vendored file against the plugin source modulo the sync-header block, exits 0 on match + 1 on drift + 2 on plugin path unresolvable. Soft-warn mode (<code>--mode=warn</code>): prints a structured warning and exits 0 regardless. CI invokes <code>--mode=warn</code> for 30 days post-merge per Q3; the hard-gate flip is BILTIQ-006-followup-1.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/_check_memory_drift.sh</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC8</span></td><td>Reproduction script. Snapshots <code>MEMORY.md</code>, runs <code>python3 scripts/_memory_curator.py</code> twice with no intervening events, asserts byte-identical output via <code>cmp</code>. Exits 0 on no-drift, 1 on drift. Pre-fix repo state fails; post-fix passes (AC8 contract). Wired into CI as the <code>memory-spine-drift</code> gate (see <code>.github/workflows/biltiq-gates.yml</code> row below).</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/install-curator-hook.sh</code></td><td><span class="tag tag-modified">REPLACE</span></td><td><span class="ac-ref">AC6</span></td><td>106 LOC v1.6 installer (one hook: <code>.git/hooks/post-commit</code>) replaced. New installer installs three hooks idempotently: (a) <code>.git/hooks/post-commit</code> via the existing symlink pattern (preserved behaviour); (b) Claude Code <code>SessionStart</code> hook at <code>.claude/hooks/session-start/curator.sh</code> that fires <code>python3 scripts/_memory_curator.py</code> (matches plugin's session-start trigger); (c) <code>PostToolUse</code> hook at <code>.claude/hooks/post-tool-use/curator.sh</code> mirroring plugin <code>hooks/post-tool-use/hook.sh</code> lines 75–90 (background fire-and-forget on successful <code>git commit</code>). Flags: <code>--force</code>, <code>--uninstall</code>, <code>-h</code>/<code>--help</code>. Plugin-drift detection: re-run after an upstream version bump prints "<code>plugin version drift detected; re-run with --force to re-sync</code>" warning. POSIX-<code>sh</code> style mirrors <code>scripts/install-age.sh</code> from BILTIQ-004.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/scripts/hooks/post-commit.sh</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC6</span></td><td>Existing BILTIQ-003 hook stays in place; one-line update so it spawns the curator with the v1.10.1 CLI shape (<code>python3 scripts/_memory_curator.py</code>; same argv, but now exits 0 on lock contention by virtue of v1.10.1 semantics not v1.6 semantics — verify this matches plugin behaviour). No semantic change.</td></tr>
+      </tbody>
+    </table>
+
+    <h3><code>MEMORY.md</code> — structural restructure</h3>
+    <table>
+      <thead><tr><th>Path</th><th>Action</th><th>AC</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/MEMORY.md</code></td><td><span class="tag tag-modified">REPLACE</span></td><td><span class="ac-ref">AC3</span><span class="ac-ref">AC10</span></td><td>Delete the three v1.6 marker pairs at lines 3–8 (<code>auto:current_focus</code>), 10–12 (<code>auto:code_areas</code>), 14–19 (<code>auto:session_log</code>). Move the six plugin-owned headings (<code>## Active task</code> line 138, <code>## Today's activity</code> line 142, <code>## Open blockers</code> line 146, <code>## Recent decisions</code> line 59, <code>## Open questions</code> line 89, <code>## Doctor installs</code> line 150) <strong>outside</strong> the <code>&lt;!-- manual:start --&gt;</code> / <code>&lt;!-- manual:end --&gt;</code> envelope. Manual envelope retains: <code>## Project at a glance</code>, <code>## Recently completed</code>, <code>## Known issues &amp; gotchas</code>, <code>## Conventions specific to this repo</code>, <code>## Glossary deltas</code>, <code>## Archive</code>. AC10's BILTIQ-006 entry move (Known issues &rarr; Recently completed) lands here via the backfill emitting a <code>decision</code> event with <code>category=process</code> and <code>status=shipped</code>. <strong>Line-number drift:</strong> issue #7 references line 85 (the <code>standup_post</code> payload mismatch bullet); after restructure that content moves into a decision event; PR description carries a "renumber map" so #7 remains discoverable (Risk R5).</td></tr>
+      </tbody>
+    </table>
+
+    <h3><code>tests/scripts/</code> — port v1.10.1 spine tests</h3>
+    <table>
+      <thead><tr><th>Path</th><th>Action</th><th>AC</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/tests/scripts/test_memory_writer.py</code></td><td><span class="tag tag-modified">REPLACE</span></td><td><span class="ac-ref">AC5</span></td><td>4040 B v1.6 test replaced by port of plugin <code>tests/spine/test_writer.py</code>. Coverage: schema-rejection per event type, on-prem PII strip, prompt truncation, <code>fcntl.flock</code> serialisation, never-raises contract, <code>BILTIQ_AUTO_TRACK=off</code> silent no-op.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/tests/scripts/test_memory_curator_io.py</code></td><td><span class="tag tag-delete">DELETE</span> &rarr; merged into <code>test_memory_curator.py</code></td><td><span class="ac-ref">AC5</span></td><td>5158 B v1.6 test obsolete (tests <code>auto:&lt;name&gt;:start/end</code> marker parsing — no v1.10.1 equivalent). Coverage absorbed into the new <code>test_memory_curator.py</code> port: marker-absence assertion (v1.6 markers no longer recognised), concurrent-lock test via <code>fcntl.flock</code>.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/tests/scripts/test_memory_curator_projection.py</code></td><td><span class="tag tag-delete">DELETE</span> &rarr; merged into <code>test_memory_curator.py</code></td><td><span class="ac-ref">AC5</span></td><td>8079 B v1.6 test obsolete (tests v1.6 projection vocabulary). Replaced by port of plugin <code>tests/spine/test_curator.py</code>: one projection test per renderer (<code>active_task</code>, <code>today_activity</code>, <code>open_blockers</code>, <code>recent_decisions</code>, <code>open_questions</code>, <code>doctor_installs</code>), cap-and-archive test for the three <code>ARCHIVABLE</code> sections.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/tests/scripts/test_memory_curator.py</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC5</span></td><td>Single curator test module ported from plugin <code>tests/spine/test_curator.py</code>. Tests: (a) six projection renderers (one per AUTO_SECTIONS entry); (b) cap-and-archive overflow per ARCHIVABLE section; (c) marker-absence (v1.6 markers no longer recognised, ignored if present in MEMORY.md, do not crash); (d) concurrent-lock via <code>fcntl.flock</code>; (e) AC11 back-compat — feed legacy stream events (<code>standup_post</code> with v1.6 shape, <code>blocker_logged</code>, <code>commit_metadata</code>, <code>reflect_note</code>), assert exit 0 and non-empty <code>events_seen</code> with zero rendered rows. Estimated ≥ 10 tests in this file.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/tests/scripts/test_memory_reader.py</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC5</span></td><td>New module — ported from plugin <code>tests/spine/test_reader.py</code>. Coverage: time-window filter, type-set filter, malformed-line skip, missing-file empty-list, schema-version forward-compat.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/tests/scripts/test_hook_install.py</code></td><td><span class="tag tag-modified">REPLACE</span></td><td><span class="ac-ref">AC6</span></td><td>7225 B v1.6 test replaced. Tests the three-hook installer: (a) idempotent install of <code>post-commit</code> + <code>SessionStart</code> + <code>PostToolUse</code> hooks; (b) <code>--uninstall</code> removes only what was installed; (c) <code>--force</code> overwrite path; (d) plugin-version-drift warning; (e) absent-plugin tolerance (installer runs even when plugin cache is missing).</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/tests/scripts/conftest.py</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC5</span></td><td>Existing 3717 B fixture file. Add fixtures: <code>plugin_path</code> (resolves the active plugin scripts dir, skips tests if absent), <code>tmp_memory_md</code> (writes a v1.10.1-shape MEMORY.md skeleton into <code>tmp_path</code>), <code>seeded_stream</code> (writes a curated set of v1.10.1 events for projection tests). Existing <code>tmp_repo</code> fixture retained.</td></tr>
+        <tr><td>Total target test count</td><td colspan="2">≥ 18 (AC5 floor)</td><td>writer ~6, curator ~10, reader ~5, hook-install ~5 = 26 budgeted; AC5 floor 18 is comfortably below.</td></tr>
+      </tbody>
+    </table>
+
+    <h3><code>docs/architecture/</code> — doc updates</h3>
+    <table>
+      <thead><tr><th>Path</th><th>Action</th><th>AC</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/docs/architecture/stack.md</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC9</span></td><td>§ Internal modules row for <code>scripts._memory_writer.write_event</code> (line 71). Rewrite: replace "POSIX-atomic append to <code>.biltiq/memory-stream.jsonl</code>; consumed by <code>scripts/_memory_curator.py</code> to project session signal into <code>MEMORY.md</code>" with v1.10.1 description — "JSON-schema-validated event writer, <code>fcntl.flock</code> serialised; 6 auto-sections (<code>active_task</code>, <code>today_activity</code>, <code>open_blockers</code>, <code>recent_decisions</code>, <code>open_questions</code>, <code>doctor_installs</code>) projected via heading-prefix splice; vendored byte-equivalent from plugin v1.10.1, see ADR-0004". Add a row for <code>scripts._memory_reader.read_events</code> (new API). Add a row for <code>scripts._check_spine_sync</code> (drift gate).</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/docs/architecture/overview.md</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC9</span></td><td>§ Components <code>scripts/</code> tier paragraph (line 56–57). Rewrite to note: (a) curator triggers are <code>SessionStart</code> + <code>PostToolUse</code> + opt-in <code>post-commit</code> (not just post-commit); (b) projection is heading-prefix splice into 6 auto-sections (not 3 marker-delimited sections); (c) reader API surface (<code>read_events</code>) is new; (d) JSON-schema validation gates writes; (e) vendored byte-equivalent from plugin v1.10.1 per ADR-0004.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/docs/architecture/approved-versions.md</code></td><td>NOT TOUCHED</td><td>—</td><td>No new Python API surface (the new APIs all live under repo <code>scripts/</code>, not in the library). JSON schemas are vendored data, not APIs. The <code>jsonschema</code> dev-dependency declared in <code>pyproject.toml</code> (per OQ-D2 resolution) is a tooling dep used by repo <code>scripts/</code> only; the library wheel does not import it. Does not warrant an approved-versions row (this file tracks library-facing APIs, not scripts-tier tooling). ADR-0004 records the dep decision.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Other</h3>
+    <table>
+      <thead><tr><th>Path</th><th>Action</th><th>AC</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/AGENT_RULES.md</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC9</span></td><td>§ Memory (lines 113–172) rewritten. New text documents: 6 auto-sections + the heading-prefix splice contract, 10-event v1.10.1 vocabulary table (replacing the 5-event v1 table at lines 133–142), JSON-schema validation gate, <code>fcntl.flock</code> serialisation, on-prem PII strip behaviour (<code>_strip_external_api_fields</code> at plugin writer line 163), <code>BILTIQ_AUTO_TRACK=off</code> kill-switch. The v1.6 description (3 auto-sections + 5-event vocabulary + marker splice + 4 KiB <code>PIPE_BUF</code> cap) moves to a "<strong>Historical: BILTIQ-003 v1.6 shape (deprecated 2026-05-29 in BILTIQ-006)</strong>" subsection so the git history remains discoverable.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/docs/adr/0004-memory-spine-vendoring.md</code></td><td><span class="tag tag-new">CREATE</span></td><td><span class="ac-ref">AC7</span></td><td>New ADR. Status <code>proposed</code> at design-write time, flipped to <code>accepted</code> at Step 6 Ship (matches ADR-0003 pattern). Sections per <code>docs/adr/_template.md</code> + Sync Procedure + Exit Criteria + Change History. See companion ADR write-up.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/docs/specs/BILTIQ-003/reflect.html</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC10</span></td><td>Footnote-only patch to the line 292 entry. After "The auto-render sections in question (<code>## Recent decisions</code>, <code>## Open questions</code>) sit inside the <code>&lt;!-- manual:start/end --&gt;</code> block and the curator's <code>_replace_auto_block</code> only modifies content between matching <code>auto:&lt;name&gt;:start/end</code> markers." append: <em>"Re-investigated 2026-05-29 — actual root cause was vendored-toolchain drift relative to plugin v1.10.1, not the curator's empty-stream contract. The v1.6 curator's <code>_replace_auto_block</code> reasoning held; the v1.10.1 plugin curator that auto-fires from <code>SessionStart</code>/<code>PostToolUse</code> uses heading-prefix splice instead of marker-splice and writes to the same dev-owned headings (<code>## Recent decisions</code>, <code>## Open questions</code>) when they sit inside the manual envelope. See BILTIQ-006."</em></td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/pyproject.toml</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC2</span></td><td><strong>Added per OQ-D2 resolution.</strong> Declare <code>jsonschema &gt;= 4.0</code> under <code>[tool.uv].dev-dependencies</code>. The v1.10.1 writer's <code>from jsonschema import Draft7Validator</code> (line 35 of vendored <code>_memory_writer.py</code>) has a graceful-degrade <code>try/except ImportError</code> shim that yields a silent no-op when the package is absent — declaring it as a dev-dep makes <code>uv sync</code> install it automatically, surfacing the dependency at install time rather than producing a silent-fail spine at first event-write. Not added to the library wheel's runtime deps (the wheel does not import <code>scripts/</code>); scoped narrowly to repo tooling. ADR-0004 § Decision references this declaration.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/CHANGELOG.md</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC10</span></td><td>One entry under <code>[Unreleased]</code>: <code>- feat: memory-spine sync to plugin v1.10.1 — vendored byte-equivalent <code>scripts/_memory_curator.py</code> + <code>scripts/_memory_writer.py</code> + <code>scripts/_memory_reader.py</code> + <code>scripts/_paths.py</code> + all 14 <code>scripts/memory_schemas/*.json</code>; <code>jsonschema &gt;= 4.0</code> declared as a dev-dependency in <code>pyproject.toml</code> <code>[tool.uv].dev-dependencies</code>; <code>MEMORY.md</code> restructured to 6 plugin-owned headings outside the manual envelope; <code>scripts/install-curator-hook.sh</code> installs <code>SessionStart</code> + <code>PostToolUse</code> + <code>post-commit</code> hooks idempotently; <code>scripts/_check_spine_sync.py</code> drift gate (soft-warn 30 days, hard-gate via BILTIQ-006-followup-1); ADR-0004 locks the fork-and-stay vendoring decision (BILTIQ-006)</code>. Single keep-a-changelog entry; no marketing copy; no banned vocab.</td></tr>
+        <tr><td><code>/home/atc/Desktop/biltiq-privacy/.github/workflows/biltiq-gates.yml</code></td><td><span class="tag tag-modified">PATCH</span></td><td><span class="ac-ref">AC8</span></td><td>Add a job <code>memory-spine-drift</code> that runs <code>bash scripts/_check_memory_drift.sh</code> on every push. Add a job <code>memory-spine-sync</code> that runs <code>python3 scripts/_check_spine_sync.py --mode=warn</code> (soft-warn for 30 days post-merge per Q3). Both jobs Python-only, no external deps; fit alongside the existing gates without changing the matrix shape.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model Changes</h2>
+    <p>The append-only JSONL stream at <code>.biltiq/memory-stream.jsonl</code> carries a different event vocabulary in v1.10.1. Old events stay on disk (AC11 back-compat); new events use the v1.10.1 vocabulary; both are tolerated. Migration table:</p>
+    <h3>Event vocabulary v1.6 &rarr; v1.10.1</h3>
+    <table>
+      <thead><tr><th>v1.6 event_type</th><th>v1.10.1 equivalent</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td><code>standup_post</code></td><td>no direct equivalent</td><td>Semantics split across <code>task_state_change</code> (active task for the day) + <code>commit</code> events (already emitted by skills). The standup skill in v1.10.1 emits these directly; the v1.6 <code>standup_post</code> shape stays in the stream historically (AC11) but is skipped by the v1.10.1 curator's projector. Renderer for <code>## Today's activity</code> consumes <code>commit</code> + <code>scan_result</code> events.</td></tr>
+        <tr><td><code>commit_metadata</code></td><td><code>commit</code></td><td>Renamed; payload shape ports cleanly (<code>sha</code>, <code>task_id</code>, <code>files_touched</code>). No producer existed in v1.6 (per BILTIQ-003 reflect.html tech-debt #1 line 284); v1.10.1 hook emits it.</td></tr>
+        <tr><td><code>blocker_logged</code></td><td><code>blocker_open</code> + <code>blocker_close</code></td><td>Lifecycle pair replaces the single event. <code>blocker_open</code> opens; <code>blocker_close</code> closes; <code>## Open blockers</code> renderer computes <code>open = blocker_open - matched(blocker_close)</code> via <code>blocker_id</code> field.</td></tr>
+        <tr><td><code>reflect_note</code></td><td>no direct equivalent</td><td>Reflect notes emit as <code>decision</code> events with <code>category=reflect</code> in v1.10.1. The standalone <code>reflect_note</code> event-type is retired; back-compat (AC11) keeps historical events readable but unprojected.</td></tr>
+        <tr><td><code>decision_made</code></td><td><code>decision</code></td><td>Renamed; payload extends with <code>category</code> + <code>status</code> fields. Open questions render via <code>decision</code> with <code>status=deferred</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>New event types in v1.10.1</h3>
+    <p>All 14 schemas vendored per OQ-D1 resolution + amended AC2. The directly-rendered five drive the six AUTO_SECTIONS; the remaining nine are accepted-and-stored but unrendered until their consumers land (back-compat for AC11 + forward-compat for downstream skills like <code>/standup</code>, <code>/eod</code>, <code>/scan</code>).</p>
+    <ul>
+      <li><strong>Directly rendered (5):</strong></li>
+      <li><code>task_state_change</code> — feeds <code>## Active task</code> renderer (cap 1).</li>
+      <li><code>scan_result</code> — anti-pattern-scanner output; renders into <code>## Today's activity</code>.</li>
+      <li><code>blocker_open</code> / <code>blocker_close</code> — lifecycle pair feeds <code>## Open blockers</code>.</li>
+      <li><code>decision</code> — unified decision/open-question/reflect surface; feeds <code>## Recent decisions</code> + <code>## Open questions</code> (status=deferred).</li>
+      <li><code>doctor_install</code> — feeds <code>## Doctor installs</code> renderer (cap 5).</li>
+      <li><strong>Accepted-but-unrendered (9, vendored for AC1 byte-equivalence + AC11 forward-compat):</strong></li>
+      <li><code>standup_post</code> (v1.10.1 procedure-shape: <code>yesterday_summary</code>, <code>today_task</code>, <code>branch</code>, <code>blockers</code>, <code>trigger</code>) — emitted by <code>/biltiq-engineering:standup</code>.</li>
+      <li><code>eod_post</code> — emitted by <code>/biltiq-engineering:eod</code>.</li>
+      <li><code>commit</code> (v1.10.1 replacement for v1.6 <code>commit_metadata</code>) — emitted by the post-commit hook.</li>
+      <li><code>compliance_flag</code> + <code>security_flag</code> — emitted by repo scans.</li>
+      <li><code>estimate_actual</code> — feeds future BILTIQ-022 estimate-vs-actual telemetry (writer also exposes <code>append_estimate_actual</code> helper).</li>
+      <li><code>routing_payload</code> + <code>vllm_quality_warning</code> — emitted by the vLLM Socratic driver; <code>routing_payload</code> + <code>vllm_quality_warning</code> are the two schemas whose properties carry <code>external_api_response: true</code> annotations that the on-prem PII-strip path exercises (dormant under <code>on_prem_preferred</code>; see Security § below).</li>
+    </ul>
+
+    <h3>Auto-section count</h3>
+    <p><strong>3 &rarr; 6.</strong> v1.6 owned <code>current_focus</code> / <code>code_areas</code> / <code>session_log</code> (marker-splice). v1.10.1 owns <code>active_task</code> / <code>today_activity</code> / <code>open_blockers</code> / <code>recent_decisions</code> / <code>open_questions</code> / <code>doctor_installs</code> (heading-prefix splice, no marker comments). Caps + archive policy (from plugin curator constant <code>CAPS</code>): <code>active_task: 1 entry, no archive</code>; <code>today_activity: 15 lines, no archive</code>; <code>open_blockers: 10 lines, archive overflow</code>; <code>recent_decisions: 5 lines, archive overflow</code>; <code>open_questions: 10 lines, FIFO + archive</code>; <code>doctor_installs: 5 lines, no archive</code>. Archive file path: <code>.biltiq/memory-archive/YYYY-MM.md</code> (per-machine, gitignored — new artifact).</p>
+
+    <h3>Stream-line shape change</h3>
+    <p>v1.6 wrote <code>{schema_version: 1, ts, event_type, payload: {...}}</code> (payload nested). v1.10.1 writes <code>{schema: "v1", event_type, ts, &lt;payload-keys-flat&gt;}</code> (flat record). Reader's <code>schema_version</code>-vs-<code>schema</code> check: v1.10.1 reader silently skips lines where <code>schema != "v1"</code>; v1.6 lines lack <code>schema</code> entirely and are also skipped — AC11 says this is fine, the events are tolerated (no crash), not rendered.</p>
+  </section>
+
+  <section id="api-contract">
+    <h2>API Contract Changes</h2>
+    <p>All API surface changes are <strong>vendored from plugin v1.10.1 byte-equivalent</strong> — the design records the deltas relative to the v1.6 surface that exists in this repo today.</p>
+
+    <h3><code>write_event</code> — signature delta</h3>
+    <pre><code># v1.6 (current)
+def write_event(event_type: str, payload: dict[str, Any]) -&gt; None:
+    # Raises ValueError / MemoryEventTooLargeError / OSError.
+
+# v1.10.1 (vendored)
+def write_event(
+    event_type: str,
+    payload: dict[str, Any],
+    *,
+    repo_root: str | None = None,
+) -&gt; bool:
+    # Never raises (defensive net per BILTIQ-020 Step 8).
+    # Returns True on success or BILTIQ_AUTO_TRACK=off silent no-op.
+    # Returns False on: unknown event_type, schema-invalid payload,
+    #                   jsonschema not installed, I/O failure.</code></pre>
+    <ul>
+      <li><strong>Return type:</strong> <code>None</code> &rarr; <code>bool</code>. Existing callers that ignore the return value remain correct.</li>
+      <li><strong>Exception contract:</strong> raises &rarr; never-raises. Callers wrapping in <code>try/except</code> see no exceptions; check return value instead.</li>
+      <li><strong>New gating:</strong> JSON-schema validation per <code>memory_schemas/&lt;event_type&gt;.json</code>; on-prem PII strip when AGENT_RULES.md declares <code>on_prem_required</code> (not this repo — we are <code>on_prem_preferred</code> — so the strip path is dormant); prompt truncation to 200 chars on free-text fields unless <code>BILTIQ_AUTO_TRACK_FULL_PROMPTS=on</code>.</li>
+      <li><strong>New optional arg:</strong> <code>repo_root</code> for callers that want to override the default resolution (<code>CLAUDE_PROJECT_DIR</code> env &rarr; <code>cwd</code>).</li>
+      <li><strong>New side-effect:</strong> may lay <code>~/.biltiq-engineering/&lt;repo_hash&gt;/state/curator-pending.flag</code> after every ~1000 events or 60 minutes elapsed since last curator run (writer-side trigger).</li>
+      <li><strong>Compliance-mode gate is a runtime read</strong> — vendoring an <code>on_prem_required</code>-aware writer into this <code>on_prem_preferred</code> repo is consistent: the writer reads <code>AGENT_RULES.md</code>'s declared mode at runtime via <code>_read_compliance_mode()</code> (plugin writer line 119); vendoring does not change the mode. In <code>on_prem_preferred</code> mode the <code>_strip_external_api_fields</code> branch is never taken. Documented in ADR-0004 § Consequences.</li>
+    </ul>
+
+    <h3><code>curate</code> — new return shape + lock semantics</h3>
+    <pre><code># v1.6 (current) — CLI: python3 scripts/_memory_curator.py
+# exit 0 + stdout {"events_seen": N, ...}
+# exit 0 + stdout {"skipped": "another curator already running"}
+# exit 1 + stderr {"error": "missing_marker", "marker": "..."}
+# exit 2 reserved
+
+# v1.10.1 (vendored) — CLI: python3 scripts/_memory_curator.py
+# exit 0 + stdout {events_read, sections_rebuilt, sections_appended,
+#                  archived_lines, archive_path, memory_path, marker_cleared}
+# exit 0 on lock contention (skip + no-op)
+# fail-closed behaviour: heading-prefix mismatch is NOT a fatal exit
+#   (curator preserves non-matching sections verbatim — the v1.6
+#    missing_marker fail-closed rule no longer fires)</code></pre>
+    <p><strong>Behaviour delta:</strong> v1.6 fail-closed on missing markers becomes v1.10.1 "preserve verbatim". This is intentional in plugin v1.10.1 — heading-prefix is forgiving by design (templates may add suffixes like "(last 30 days)"). For BILTIQ-006 the consequence is that a missing heading no longer crashes the curator; it appends in canonical order before <code>## Archive</code>. Tests cover this (AC5(d) — marker-absence test).</p>
+
+    <h3>New surface: <code>read_events</code></h3>
+    <pre><code># scripts/_memory_reader.py — new module
+def read_events(
+    since_iso: str,
+    until_iso: str | None = None,
+    types: list[str] | Iterable[str] | None = None,
+    *,
+    repo_root: str | None = None,
+) -&gt; list[dict[str, Any]]:
+    # Stream + filter by time window + event_type set.
+    # Missing JSONL -&gt; empty list (no error).
+    # Malformed line -&gt; stderr warn + skip.
+    # schema != "v1" -&gt; silently skipped (forward-compat).</code></pre>
+    <p>New public API; no v1.6 equivalent. Consumed by the curator internally and exposed for non-curator tools (e.g. a future analytics script). Vendored byte-equivalent from plugin <code>scripts/_memory_reader.py</code>.</p>
+
+    <h3>Additive: <code>append_estimate_actual</code></h3>
+    <p>The v1.10.1 writer also exports <code>append_estimate_actual(row, *, repo_root=None) -&gt; bool</code> for the BILTIQ-022 estimate-vs-actual telemetry. Lands as additive surface — no consumer in this repo yet — but the function is part of the byte-equivalent vendor and cannot be cherry-picked out without violating AC1. Documented in ADR-0004 § Consequences.</p>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance</h2>
+    <ul>
+      <li><strong>Compliance mode: <code>on_prem_preferred</code></strong> (AGENT_RULES.md § Compliance line 23). The vendored writer reads this declaration at runtime via <code>_read_compliance_mode()</code> (plugin writer line 119) and routes accordingly. In <code>on_prem_preferred</code> mode the <code>_strip_external_api_fields</code> branch (plugin writer line 163) is dormant — no payload mutation. The on-prem-compliance scanner does not fire on this PR.</li>
+      <li><strong>JSON schemas are in-repo data, no external fetch.</strong> All <strong>14</strong> schemas under <code>scripts/memory_schemas/</code> (per OQ-D1 resolution) are vendored static JSON files. The writer loads them via <code>SCHEMAS_DIR = SCRIPT_DIR / "memory_schemas"</code> (plugin writer line 41). No HTTP fetch, no <code>$ref</code> resolution against external URIs, no schema-registry dependency.</li>
+      <li><strong>On-prem strip semantics are vendored AND now exercisable on disk, but still inert at runtime here.</strong> The writer's <code>_strip_external_api_fields</code> drops any property whose schema entry sets <code>external_api_response: true</code>. <code>vllm_quality_warning.json</code> and <code>routing_payload.json</code> — both vendored per OQ-D1 — carry that annotation; they are the schemas that exercise the strip path. The runtime gate is <code>_read_compliance_mode()</code>: in <code>on_prem_preferred</code> mode the <code>_strip_external_api_fields</code> branch is never taken, so the path is exercised by tests but dormant in production. Recorded in ADR-0004 § Consequences.</li>
+      <li><strong>Prompt-truncation cap.</strong> <code>DEFAULT_TRUNCATE_LEN = 200</code> bytes (plugin writer line 50). Applied to <code>PROMPT_FIELDS</code> = {<code>msg</code>, <code>message</code>, <code>summary</code>, <code>yesterday_summary</code>, <code>today_task</code>, <code>tomorrow</code>, <code>tech_debt</code>, <code>resolution</code>}. Override via env <code>BILTIQ_AUTO_TRACK_FULL_PROMPTS=on</code>. This cap is sufficient for an SBOM scan — no field can carry &gt; 200 bytes of free text by default, so a leaked password or PII string is bounded.</li>
+      <li><strong>No PII on the committed projection.</strong> <code>MEMORY.md</code> stays committed; <code>.biltiq/memory-stream.jsonl</code> stays per-machine (gitignored per BILTIQ-003 design). The dev decides what crosses the trust boundary on every commit. The 200-byte truncation gives a safety net even when raw prompts contain PII.</li>
+      <li><strong>No secrets in vendored code.</strong> The 1289 LOC of vendored Python (curator + writer + reader + paths) contains zero hardcoded secrets — verified by anti-pattern-scanner #5 invocation at Step 4 Review.</li>
+      <li><strong>No <code>shell=True</code>.</strong> The curator + writer + reader do not invoke subprocesses. The installer (<code>install-curator-hook.sh</code>) uses argv lists for its <code>git rev-parse</code> call. No shell-injection class of bugs introduced.</li>
+      <li><strong>SBOM impact.</strong> Dev-dependency on <code>jsonschema &gt;= 4.0</code> (PyPI, MIT-licensed) introduced by the v1.10.1 writer's <code>from jsonschema import Draft7Validator</code> import. Per OQ-D2 resolution, <strong>declared in root <code>pyproject.toml</code> under <code>[tool.uv].dev-dependencies</code></strong> — <code>uv sync</code> installs it automatically; missing-dep cases fail fast at install time rather than producing a silent no-op spine at first event-write. The graceful-degrade <code>try/except ImportError</code> path in the vendored writer (plugin writer lines 34-37) is retained as a defensive net (preserves AC1 byte-equivalence) but is no longer the load-bearing fallback in this repo. Compliance call: <code>on_prem_preferred</code> mode says new AI dependencies require an ADR; <code>jsonschema</code> is a stdlib-style JSON validator, not an AI dependency. AGENT_RULES.md § Architectural decisions also says "Any new dependency requires an ADR before merge" — ADR-0004 covers this. R2 severity now LOW (was MEDIUM).</li>
+    </ul>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <ul>
+      <li><strong>Curator LOC growth: 370 &rarr; 636.</strong> Adds JSON-schema validation per event, archive overflow logic, six renderers (vs three in v1.6), and the <code>~/.biltiq-engineering/&lt;hash&gt;/state/</code> marker-clearing dance. Measured budget unknown for this repo's stream shape; <strong>flagged as Risk R6</strong> (new — surfaces during design, not anticipated by spec). Plugin's own design.md § 3 implies p95 &lt; 50 ms on a 7-day / 10k-event window for the reader; curator budget is implied &lt; 200 ms based on similar shape but not measured.</li>
+      <li><strong>PostToolUse hook latency budget.</strong> The plugin's <code>hooks/post-tool-use/hook.sh</code> lines 75–90 fire-and-forget (<code>( ... ) &amp; disown</code>); the visible commit delay is bounded by the time to <code>fork+disown</code> — sub-millisecond. The curator runs in the background; if it takes &gt; 1 s, the next hook invocation may overlap, and the v1.10.1 curator's <code>fcntl.flock</code> on <code>.biltiq/.curator.lock</code> serialises. No user-visible blocking.</li>
+      <li><strong>SessionStart hook latency budget.</strong> Same pattern. Background fire; <code>fcntl.flock</code> guards against concurrent runs.</li>
+      <li><strong>Writer hot-path latency.</strong> v1.10.1 writer adds: <code>_load_schema</code> (cached after first load) + <code>Draft7Validator.iter_errors</code> + <code>_read_compliance_mode</code> (mtime-cached) + <code>_truncate_prompts</code> + <code>_maybe_trigger_curator</code> (two state-file reads + one stat + an empty-file touch). Plugin design comment (writer line 220) claims "well under the 50ms trigger-detection cap". For BILTIQ-006 we trust that — the writer is byte-equivalent; we cannot diverge.</li>
+      <li><strong>Stream growth.</strong> v1.10.1 archives overflow into <code>.biltiq/memory-archive/YYYY-MM.md</code>, addressing the BILTIQ-003 tech-debt #3 ("no stream archival/rotation policy"). The stream-stream itself remains append-only and grows monotonically; archival prevents <code>MEMORY.md</code> growth, not <code>.biltiq/memory-stream.jsonl</code> growth.</li>
+    </ul>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <p><strong>Single bundled PR, no feature flag.</strong> Migration order matters because the backfill must run against the new writer (AC4 says backfill writes through <code>_memory_writer.write_event</code> which gates on JSON-schema validation), and the MEMORY.md restructure must follow the backfill (so the restructure doesn't wipe content that has not yet been backfilled).</p>
+    <ol style="padding-left: 1.4rem;">
+      <li><strong>Branch posture.</strong> A new feature branch <code>feature/biltiq-006-spine-v1-10-1</code> cut from current <code>main</code>. plan.html on this branch.</li>
+      <li><strong>Capture plugin SHA256 at PR-open.</strong> Q2 resolution. Record in ADR-0004 § Sync Procedure. Re-verify at Step 6 Ship — if the plugin has moved, the Ship checklist explicit decision lands (re-sync vs ship snapshot + tech-debt note).</li>
+      <li><strong>Migration step 1 — land schemas dir + declare jsonschema dep.</strong> <code>scripts/memory_schemas/*.json</code> (all 14 files per OQ-D1 resolution). In the same commit, patch <code>pyproject.toml</code> to add <code>jsonschema &gt;= 4.0</code> under <code>[tool.uv].dev-dependencies</code> (per OQ-D2 resolution) — schemas without a validator are useless, so they ship together. Run <code>uv sync</code> locally to confirm install. No Python code change yet; just data files + dep declaration. Single commit.</li>
+      <li><strong>Migration step 2 — replace writer.</strong> Land <code>scripts/_paths.py</code> (new, per amended AC1 + OQ-D3 resolution) + replace <code>scripts/_memory_writer.py</code>. At this point, callers see the new bool-returning never-raises signature, and the writer's <code>Draft7Validator</code> import now resolves cleanly because step 1 declared the dep. No callers in this repo invoke <code>write_event</code> directly outside the curator + standup skill (plugin-internal), so the return-type change is silently absorbed. Single commit (or one per file — <code>_paths.py</code> then <code>_memory_writer.py</code> — for bisect-ability).</li>
+      <li><strong>Migration step 3 — replace curator + add reader.</strong> Replace <code>scripts/_memory_curator.py</code> and create <code>scripts/_memory_reader.py</code>. Curator now reads via reader; reader is the source of truth for stream parsing. Two commits (one per file) for atomicity.</li>
+      <li><strong>Migration step 4 — run backfill.</strong> Land <code>scripts/_backfill_memory_v1_10.py</code>, run it once locally (the dev), verify <code>.biltiq/memory-stream.jsonl</code> now contains the dev-curated content as v1.10.1 events with <code>backfilled: true</code>. Commit the backfill script + the regenerated stream (stream is gitignored — actually only the script change commits; stream stays per-machine, and a note in the PR description points contributors to re-run the backfill).</li>
+      <li><strong>Migration step 5 — restructure MEMORY.md.</strong> Move the six plugin-owned headings outside the manual envelope. Manual envelope retains the six dev-owned narrative sections. Single commit. <strong>Risk-bearing step</strong> (R5) — verify the curator's first run after this commit produces a byte-identical <code>MEMORY.md</code> (the empty-stream contract for the renderers should leave content untouched when the backfill events render).</li>
+      <li><strong>Migration step 6 — replace tests.</strong> Delete <code>test_memory_curator_io.py</code> + <code>test_memory_curator_projection.py</code>. Replace <code>test_memory_writer.py</code> + <code>test_hook_install.py</code>. Create <code>test_memory_curator.py</code> + <code>test_memory_reader.py</code>. Patch <code>conftest.py</code>. Run <code>pytest tests/scripts/</code> green. Single commit (or one per test file for bisect-ability).</li>
+      <li><strong>Migration step 7 — replace installer + hooks.</strong> Replace <code>scripts/install-curator-hook.sh</code>; patch <code>scripts/hooks/post-commit.sh</code>; add <code>scripts/_check_spine_sync.py</code> + <code>scripts/_check_memory_drift.sh</code>. Single commit per file.</li>
+      <li><strong>Migration step 8 — docs + ADR + CHANGELOG.</strong> Patch <code>docs/architecture/stack.md</code> + <code>docs/architecture/overview.md</code> + <code>AGENT_RULES.md</code> § Memory. Patch <code>docs/specs/BILTIQ-003/reflect.html</code> footnote. Create <code>docs/adr/0004-memory-spine-vendoring.md</code>. Patch <code>CHANGELOG.md</code>. Patch <code>.github/workflows/biltiq-gates.yml</code>. Multi-file commit (matches BILTIQ-003 / BILTIQ-004 docs commit pattern).</li>
+      <li><strong>Migration step 9 — cleanup.</strong> Delete <code>scripts/_backfill_memory_v1_10.py</code> (AP#7 hygiene). Single commit.</li>
+      <li><strong>Local gate before push:</strong> <code>ruff check scripts/ tests/scripts/</code>, <code>mypy --strict scripts/</code>, <code>pytest tests/scripts/</code>, <code>bash scripts/_check_memory_drift.sh</code>, <code>python3 scripts/_check_spine_sync.py</code>, <code>shellcheck scripts/install-curator-hook.sh</code>. All green.</li>
+      <li><strong>CI gate:</strong> Existing matrix plus new <code>memory-spine-drift</code> + <code>memory-spine-sync</code> jobs. Both should pass.</li>
+      <li><strong>ADR-0004 flip at Ship.</strong> <code>proposed</code> &rarr; <code>accepted</code> at Step 6 with witness paragraph (matching ADR-0003 / ADR-0001 / ADR-0002 precedent).</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p><code>git revert &lt;merge-sha&gt;</code>. State remaining: <code>.biltiq/memory-stream.jsonl</code> (per-machine, gitignored, append-only — historical v1.6 events plus the post-merge v1.10.1 events stay there harmlessly; v1.6 curator after revert skips v1.10.1 events as <code>schema_version</code> unknown — forward-compat clause in BILTIQ-003 line 168). <code>.biltiq/memory-archive/</code> (per-machine, gitignored — orphan files if revert happens after the curator has archived). <code>~/.biltiq-engineering/&lt;hash&gt;/state/</code> markers (per-machine, harmless). The committed <code>MEMORY.md</code> reverts cleanly; the dev-curated bullets that were ported into <code>decision</code> events are back in their pre-migration form because the revert restores the file content. No data loss, no schema migration to undo, no external service contracts to unwind.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>#</th><th>Risk</th><th>Severity</th><th>Detection / Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>R1</td>
+          <td><strong>Plugin v1.10.1 may auto-upgrade to v1.11 mid-PR.</strong> The Claude Code plugin runtime updates the cache outside the dev's control. If the cache moves from <code>1.10.1/</code> to <code>1.11.0/</code> between PR-open and Ship, AC1's byte-equivalence assertion silently mismatches the live plugin while still matching the snapshotted SHA256.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Q2 resolution: SHA256 captured at PR-open + re-verified at Step 6 Ship. ADR-0004 § Sync Procedure records the SHA256 with the date. Re-verify step in the Ship checklist: if SHA256 differs at Ship time, explicit decision (re-sync to v1.11 + re-run affected Build steps, OR ship the v1.10.1 snapshot with a tech-debt note pointing at a follow-up sync ticket). The <code>scripts/_check_spine_sync.py</code> drift gate covers the post-merge case (soft-warn 30 days, hard-gate via followup-1).</td>
+        </tr>
+        <tr>
+          <td>R2</td>
+          <td><strong>JSON-schema validation adds a <code>jsonschema</code> dev dependency.</strong> The v1.10.1 writer imports <code>Draft7Validator</code> from the <code>jsonschema</code> PyPI package. The writer has a graceful-degrade path (<code>try: from jsonschema import Draft7Validator; except ImportError: Draft7Validator = None</code>; <code>write_event</code> then returns <code>False</code> with a stderr warning), but in degraded mode <strong>no events are written</strong> — the spine becomes a silent no-op. AGENT_RULES.md § Architectural decisions says "Any new dependency requires an ADR before merge".</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td><strong>Mitigated by OQ-D2 resolution.</strong> <code>jsonschema &gt;= 4.0</code> is declared in root <code>pyproject.toml</code> under <code>[tool.uv].dev-dependencies</code> as part of Migration step 1, so <code>uv sync</code> picks it up automatically; the silent-no-op path is no longer reachable in normal install flows. The graceful-degrade <code>try/except ImportError</code> shim is retained inside the vendored writer because AC1 demands byte-equivalence, but it is no longer load-bearing here. ADR-0004 § Decision records the declaration; ADR-0004 § Consequences notes the retained shim as accepted vendored behaviour. <code>on_prem_preferred</code> compliance status: <code>jsonschema</code> is a stdlib-style validator, not an AI dependency; ADR-0004 is the only gate. The library wheel does not import <code>scripts/</code>, so the dep is scoped narrowly to repo tooling (no SBOM impact on the published wheel).</td>
+        </tr>
+        <tr>
+          <td>R3</td>
+          <td><strong>Hook installer touches <code>.claude/hooks/</code>.</strong> The new installer (AC6) writes to the user's per-machine Claude Code config directory. Idempotency is critical — a careless overwrite could break the dev's Claude Code setup for other repos that share the cache.</td>
+          <td><span class="tag tag-risk-m">MEDIUM</span></td>
+          <td>Mitigation: installer uses symlink + sentinel-file pattern from BILTIQ-004 <code>scripts/install-age.sh</code>'s <code>--uninstall</code> approach. Sentinel at <code>.claude/hooks/session-start/.biltiq-privacy-installed</code> records what we placed. <code>--uninstall</code> refuses to remove anything without a matching sentinel. AC5(e) hook-install tests cover idempotency directly (run twice, single sentinel, single symlink). Risk transitions to LOW once tests land.</td>
+        </tr>
+        <tr>
+          <td>R4</td>
+          <td><strong>Backfill script edits <code>.biltiq/memory-stream.jsonl</code>.</strong> The stream is append-only by BILTIQ-003 design contract (design.html line 158: "Append-only newline-delimited JSON"). The backfill must append, never rewrite — otherwise existing v1.6 events get clobbered and back-compat (AC11) is broken.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Mitigation: backfill uses <code>_memory_writer.write_event</code> for every emit (AC4 contract); the writer's POSIX-atomic append (and v1.10.1's <code>fcntl.flock</code>) guarantee append-only. Idempotency: backfill writes a sentinel event (<code>decision</code> with <code>category=migration</code> + <code>summary=backfill_complete</code>) as its last action; re-runs check for the sentinel and exit early. Test: <code>test_backfill_idempotent</code> in a new <code>tests/scripts/test_backfill.py</code> — short, single-purpose, deletable when the backfill script is deleted at Migration step 9.</td>
+        </tr>
+        <tr>
+          <td>R5</td>
+          <td><strong><code>MEMORY.md</code> restructure invalidates external references to line numbers.</strong> GH issue #7 references <code>MEMORY.md</code> line 85 (the <code>standup_post</code> payload mismatch bullet). After restructure that line moves or vanishes. Past PRs and reflect.html cross-links may break.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Mitigation: PR description carries a "renumber map" — a small table of {old-line, old-content-fragment, new-location}. AC10 already moves the BILTIQ-006 entry from Known issues to Recently completed via a backfilled <code>decision</code> event, so issue #7's content gets a new home; the renumber map closes the loop. For external readers landing on issue #7, the PR description is discoverable via the issue's "linked-by" cross-references. Acceptable cost for a one-time restructure.</td>
+        </tr>
+        <tr>
+          <td>R6</td>
+          <td><strong>Curator latency at 636 LOC + per-event jsonschema validation is unmeasured for this repo's stream shape.</strong> Spec did not anticipate this risk. Plugin's own design implies it stays under budget but the actual numbers were not measured for biltiq-privacy's stream (currently ~12 events). At-scale (~10k events) the per-event validation cost could push the curator past the 200 ms hook-detection budget that BILTIQ-003 set.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Detection: add a one-time benchmark to the PR — <code>time python3 scripts/_memory_curator.py</code> on a stream pre-loaded with 10k synthetic events. Mitigation: if the wall-clock exceeds 1 s, raise it as a tech-debt entry in reflect.html and open a follow-up ticket; do not block the merge — the curator runs background-disowned via the hook, so user-visible latency is the <code>fork+disown</code> cost (sub-ms), not the curator runtime. Acceptable to ship without the benchmark if the dev is time-constrained; record as known-unvalidated in reflect.html.</td>
+        </tr>
+        <tr>
+          <td>R7</td>
+          <td><strong>Curator-pending state file at <code>~/.biltiq-engineering/&lt;hash&gt;/state/</code> is per-machine, not per-repo-checkout.</strong> If the dev clones biltiq-privacy at two paths on the same machine (e.g. <code>/home/atc/Desktop/biltiq-privacy</code> and <code>~/work/biltiq-privacy</code>), the <code>_repo_hash</code> function (sha1[:12] of path bytes — see plugin <code>_paths.py</code>) gives them distinct state dirs. Behaviour is correct (each checkout has its own marker) but cleanup on un-clone leaks state.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Mitigation: vendored behaviour, no divergence. Plugin owns the cleanup convention. Document in <code>AGENT_RULES.md</code> § Memory rewrite: "State files at <code>~/.biltiq-engineering/&lt;hash&gt;/state/</code> are per-checkout; safe to delete on un-clone." Recorded as a note, not a defect.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions — surfaced during design draft</h2>
+    <p>spec.html § Open Questions records Q1/Q2/Q3 resolved during Step 1 scope-lock. Three new questions surfaced from design work; all three are now resolved via amendments to spec.html (AC1 and AC2) — confirmed by the dev during the Step 2 Plan Socratic loop on 2026-05-29.</p>
+    <ul>
+      <li><strong>OQ-D1 — Schema count: 7 (AC2) or 14 (plugin reality)?</strong> <span class="tag tag-risk-l">RESOLVED 2026-05-29</span><br>
+      <strong>Resolution:</strong> Vendor all 14. AC2 amended to enumerate all 14 schemas the plugin v1.10.1 ships (<code>blocker_close.json</code>, <code>blocker_open.json</code>, <code>commit.json</code>, <code>compliance_flag.json</code>, <code>decision.json</code>, <code>doctor_install.json</code>, <code>eod_post.json</code>, <code>estimate_actual.json</code>, <code>routing_payload.json</code>, <code>scan_result.json</code>, <code>security_flag.json</code>, <code>standup_post.json</code>, <code>task_state_change.json</code>, <code>vllm_quality_warning.json</code>). Rationale: preserves the writer's byte-equivalence contract (AC1's spirit), prevents silent event drops when any of the 9 currently-unrendered event types is emitted by a future downstream skill, and matches the AC11 back-compat tolerance the spec already requires. Tightens AC2 rather than relaxes it — every consumer the plugin supports is now supported here too.</li>
+      <li><strong>OQ-D2 — <code>jsonschema</code> dependency declaration.</strong> <span class="tag tag-risk-l">RESOLVED 2026-05-29</span><br>
+      <strong>Resolution:</strong> Declare <code>jsonschema &gt;= 4.0</code> in root <code>pyproject.toml</code> under <code>[tool.uv].dev-dependencies</code>. AC2 amended to include this declaration. <code>uv sync</code> installs it automatically, so the silent-no-op path is no longer reachable in normal install flows. The graceful-degrade <code>try/except ImportError</code> shim in the vendored writer is retained because AC1 demands byte-equivalence, but it is no longer load-bearing. Lands in Migration step 1 alongside the schemas dir. R2 severity drops MEDIUM &rarr; LOW. The library wheel does not import <code>scripts/</code>, so the dep is scoped narrowly to repo tooling (no published-wheel SBOM impact).</li>
+      <li><strong>OQ-D3 — <code>_paths.py</code> is not named in any AC but is required for the vendor to import.</strong> <span class="tag tag-risk-l">RESOLVED 2026-05-29</span><br>
+      <strong>Resolution:</strong> AC1 amended to enumerate four spine files — <code>_memory_curator.py</code>, <code>_memory_writer.py</code>, <code>_memory_reader.py</code>, and <code>_paths.py</code> (the transitively-required sibling imported by all three). AC1's byte-equivalence + sync-header rules apply uniformly. Spec change-history records the AC1 expansion. Drift gate (<code>scripts/_check_spine_sync.py</code>) treats <code>_paths.py</code> as a peer of the other three vendored modules.</li>
+    </ul>
+  </section>
+
+  <section id="per-ac-traceability">
+    <h2>Per-AC Traceability</h2>
+    <table>
+      <thead><tr><th>AC</th><th>Design section</th><th>Files</th></tr></thead>
+      <tbody>
+        <tr><td>AC1</td><td>§ Approach + § Files to Touch / Repo <code>scripts/</code></td><td><code>scripts/_memory_curator.py</code>, <code>scripts/_memory_writer.py</code>, <code>scripts/_memory_reader.py</code>, <code>scripts/_paths.py</code> + sync-header convention</td></tr>
+        <tr><td>AC2</td><td>§ Files to Touch / Repo <code>scripts/</code> + § Files to Touch / Other (pyproject.toml row) + § Open Questions OQ-D1 + OQ-D2 (both resolved)</td><td><code>scripts/memory_schemas/*.json</code> (all 14 per amended AC2); <code>pyproject.toml</code> <code>[tool.uv].dev-dependencies</code> += <code>jsonschema &gt;= 4.0</code></td></tr>
+        <tr><td>AC3</td><td>§ Approach + § Files to Touch / MEMORY.md + § Rollout Migration step 5 + § Risks R5</td><td><code>MEMORY.md</code></td></tr>
+        <tr><td>AC4</td><td>§ Files to Touch / Repo <code>scripts/</code> + § Rollout Migration step 4 + § Rollout Migration step 9 + § Risks R4</td><td><code>scripts/_backfill_memory_v1_10.py</code> (create &rarr; delete)</td></tr>
+        <tr><td>AC5</td><td>§ Files to Touch / <code>tests/scripts/</code></td><td><code>tests/scripts/test_memory_writer.py</code>, <code>test_memory_curator.py</code>, <code>test_memory_reader.py</code>, <code>test_hook_install.py</code>, <code>conftest.py</code></td></tr>
+        <tr><td>AC6</td><td>§ Files to Touch / Repo <code>scripts/</code> + § Risks R3</td><td><code>scripts/install-curator-hook.sh</code>, <code>scripts/hooks/post-commit.sh</code></td></tr>
+        <tr><td>AC7</td><td>§ Files to Touch / Other + companion ADR write-up</td><td><code>docs/adr/0004-memory-spine-vendoring.md</code></td></tr>
+        <tr><td>AC8</td><td>§ Files to Touch / Repo <code>scripts/</code> + § Files to Touch / Other</td><td><code>scripts/_check_memory_drift.sh</code>, <code>scripts/_check_spine_sync.py</code>, <code>.github/workflows/biltiq-gates.yml</code></td></tr>
+        <tr><td>AC9</td><td>§ Files to Touch / <code>docs/architecture/</code> + § Files to Touch / Other</td><td><code>docs/architecture/stack.md</code>, <code>docs/architecture/overview.md</code>, <code>AGENT_RULES.md</code></td></tr>
+        <tr><td>AC10</td><td>§ Files to Touch / Other + § Files to Touch / MEMORY.md</td><td><code>CHANGELOG.md</code>, <code>MEMORY.md</code>, <code>docs/specs/BILTIQ-003/reflect.html</code></td></tr>
+        <tr><td>AC11</td><td>§ Data Model + § Approach (vendored back-compat path)</td><td>vendored writer + curator inherit "unknown event_type &rarr; warn + skip" path; <code>tests/scripts/test_memory_curator.py</code> covers the legacy-stream assertion</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="anti-pattern-check">
+    <h2>Anti-Pattern Guardrails Honored</h2>
+    <ul>
+      <li><strong>#1 Duplication</strong> — vendored from a single source (plugin v1.10.1); no parallel implementation. The drift gate (<code>_check_spine_sync.py</code>) actively prevents future divergence.</li>
+      <li><strong>#2 Abstraction Bypass</strong> — no local mods to the vendored curator/writer/reader. AC1's byte-equivalence rule + the drift gate enforce this.</li>
+      <li><strong>#3 Error Handling Gaps</strong> — vendored writer is "never raises by design" (defensive net per plugin BILTIQ-020 Step 8). Documented; covered by tests.</li>
+      <li><strong>#4 Type Safety Violations</strong> — vendored code is mypy-strict-clean upstream. <code>mypy --strict scripts/</code> runs in CI; any vendor-induced violation surfaces.</li>
+      <li><strong>#5 Security Anti-Patterns</strong> — no <code>shell=True</code>; no secrets; <code>fcntl.flock</code> mode-default; on-prem PII strip path inert in <code>on_prem_preferred</code> mode; SHA256 baseline records the vendor source in ADR-0004.</li>
+      <li><strong>#6 Dead Code / Over-engineering</strong> — <code>append_estimate_actual</code> lands as additive surface with no consumer in this repo; cannot be excised without violating AC1's byte-equivalence. Documented in ADR-0004 as accepted tech debt.</li>
+      <li><strong>#7 Debugging Residue</strong> — backfill script deleted in Migration step 9 of the same PR. Two obsolete tests deleted (<code>test_memory_curator_io.py</code>, <code>test_memory_curator_projection.py</code>). No <code>*_v2.py</code> / <code>*.bak</code> / <code>test_scratch_*.py</code>.</li>
+      <li><strong>#8 Async Misuse</strong> — vendored code is sync (matches plugin); no <code>asyncio</code> imports.</li>
+      <li><strong>#9 Deprecated API Usage</strong> — vendored code uses current APIs per plugin's own <code>approved-versions.md</code>; no <code>datetime.utcnow</code>, no <code>os.path</code> (uses <code>pathlib.Path</code>).</li>
+      <li><strong>#10 Fake Test Coverage</strong> — each ported test asserts one behaviour tied to an AC; ≥ 18 tests against 11 ACs gives ~1.6 tests per AC.</li>
+      <li><strong>#11 HTML/MD boundary</strong> — clean. This file is <code>design.html</code>; the ADR is <code>docs/adr/0004-memory-spine-vendoring.md</code> (ADRs remain MD per the BILTIQ-001 / 002 / 003 precedent); the reflect.html footnote is HTML.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-29</td>
+          <td>all</td>
+          <td>Initial draft. Locked sync + fork-and-stay vendoring approach per spec AC1 + ADR-0004. Four alternatives rejected (de-vendor, defensive rename only, plugin pin, fork-with-mods). Files to Touch enumerates 5 grouped tables across repo <code>scripts/</code>, <code>MEMORY.md</code>, <code>tests/scripts/</code>, <code>docs/architecture/</code>, and the catch-all (AGENT_RULES.md + ADR-0004 + reflect.html footnote + CHANGELOG + biltiq-gates.yml workflow). Data model migration table covers v1.6 &rarr; v1.10.1 event vocabulary. API contract delta documents writer signature change + new <code>read_events</code> + additive <code>append_estimate_actual</code>. Seven risks documented with mitigations (R1 plugin-bump, R2 jsonschema dep, R3 hook installer, R4 backfill append-only, R5 line-number drift, R6 unmeasured latency, R7 per-checkout state files). Three OQ-D-flagged open questions for dev: schema count (7 vs 14), <code>jsonschema</code> declaration, transitively-vendored <code>_paths.py</code> coverage in AC1.</td>
+          <td>BILTIQ-006 Step 2 Plan, design.html initial draft</td>
+        </tr>
+        <tr>
+          <td>2026-05-29</td>
+          <td>Approach / Files to Touch (scripts/ + Other) / Data Model / Security &amp; Compliance / Rollout / Risks R2 / Open Questions / Per-AC Traceability</td>
+          <td>OQ-D1 / OQ-D2 / OQ-D3 resolved by dev during Socratic loop; propagated through all referencing sections. (a) <strong>OQ-D1</strong> — Vendor all 14 schemas instead of seven; § Approach + § Files to Touch <code>memory_schemas/</code> row + § Data Model "New event types" + § Security § JSON-schemas-in-repo-data + § Security § On-prem-strip + § Rollout Migration step 1 + § Per-AC Traceability AC2 row all rewritten. (b) <strong>OQ-D2</strong> — <code>jsonschema &gt;= 4.0</code> declared in <code>pyproject.toml</code> <code>[tool.uv].dev-dependencies</code>; new row added to § Files to Touch / Other; § Security § SBOM-impact rewritten; § Rollout Migration step 1 now bundles the dep declaration with the schemas; R2 severity dropped MEDIUM &rarr; LOW; <code>approved-versions.md</code>'s NOT-TOUCHED rationale updated to note the dep is declared but not approved-versions-tracked. (c) <strong>OQ-D3</strong> — already covered by amended AC1 (4 spine files); § Approach + § Files to Touch <code>_paths.py</code> row + § Rollout Migration step 2 prose tightened to reference OQ-D3 explicitly. CHANGELOG-row entry updated to mention "all 14 schemas" + jsonschema dep. Three OQ items now show <span class="tag tag-risk-l">RESOLVED 2026-05-29</span> in § Open Questions. <strong>Net effect:</strong> design.html is locked and ready for plan.html drafting; no further open questions surface during design.</td>
+          <td>BILTIQ-006 Step 2 Plan, Socratic loop iteration 2 (post-architect dispatch); dev resolutions confirmed.</td>
+        </tr>
+        <!-- Agent appends a new row here on every edit. Never delete rows. -->
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
