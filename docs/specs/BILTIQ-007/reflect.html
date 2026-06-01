@@ -3,240 +3,125 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reflect: [TASK_TITLE]</title>
-  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <title>Reflect: Core hashing &amp; HMAC pseudonymiser</title>
   <style>
-    :root {
-      --color-shipped:   #16a34a;
-      --color-wip:       #d97706;
-      --color-blocker:   #dc2626;
-      --color-border:    #e5e7eb;
-      --color-bg:        #ffffff;
-      --color-bg-subtle: #f9fafb;
-      --color-text:      #111827;
-      --color-muted:     #6b7280;
-      --color-well:      #16a34a;
-      --color-wrong:     #dc2626;
-      --color-missed:    #7c3aed;
-      --radius:          6px;
-      --max-width:       860px;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-      color: var(--color-text);
-      background: var(--color-bg);
-      padding: 2rem 1rem;
-    }
-    main { max-width: var(--max-width); margin: 0 auto; }
-    header {
-      border-bottom: 2px solid var(--color-border);
-      padding-bottom: 1.25rem;
-      margin-bottom: 2rem;
-    }
-    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
-    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
-    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .meta dd { font-size: 0.9rem; }
-    section { margin-bottom: 2rem; }
-    h2 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      padding-left: 0.75rem;
-      margin-bottom: 0.75rem;
-    }
-    h2.well   { border-left: 4px solid var(--color-well);   }
-    h2.wrong  { border-left: 4px solid var(--color-wrong);  }
-    h2.missed { border-left: 4px solid var(--color-missed); }
-    h2.neutral{ border-left: 4px solid var(--color-border); }
-    p, li { margin-bottom: 0.4rem; }
-    ul { padding-left: 1.4rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
-    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
-    th { background: var(--color-bg-subtle); font-weight: 600; }
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 1rem;
-      margin: 0.5rem 0;
-    }
-    .metric-card {
-      background: var(--color-bg-subtle);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      padding: 0.75rem 1rem;
-      text-align: center;
-    }
-    .metric-label { font-size: 0.75rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
-    .metric-value { font-size: 1.5rem; font-weight: 700; }
-    .metric-note  { font-size: 0.75rem; color: var(--color-muted); margin-top: 0.2rem; }
-    .match   { color: var(--color-shipped); }
-    .over    { color: var(--color-blocker); }
-    .under   { color: var(--color-wip);    }
-    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 1.5rem; }
-    .timeline::before { content:""; position:absolute; left:0.4rem; top:0; bottom:0; width:2px; background:var(--color-border); }
-    .tl-item { position: relative; padding: 0.4rem 0 0.4rem 0.75rem; }
-    .tl-item::before { content:""; position:absolute; left:-1.1rem; top:0.75rem; width:0.6rem; height:0.6rem; border-radius:50%; background:var(--color-muted); border:2px solid var(--color-bg); }
-    .tl-time  { font-size: 0.75rem; color: var(--color-muted); }
-    .tl-label { font-size: 0.875rem; }
-    .checklist { list-style: none; padding: 0; }
-    .checklist li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.25rem 0; font-size: 0.875rem; }
-    .check { flex-shrink: 0; margin-top: 0.1rem; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
-    @media (max-width: 600px) { .meta { flex-direction: column; } .metrics-grid { grid-template-columns: 1fr 1fr; } }
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-good:#16a34a;--color-warn:#d97706;--color-bad:#dc2626;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    h2.good{border-color:var(--color-good);} h2.warn{border-color:var(--color-warn);} h2.bad{border-color:var(--color-bad);}
+    p,li{margin-bottom:0.4rem;} ul,ol{padding-left:1.4rem;}
+    code{font-family:ui-monospace,monospace;font-size:0.85em;background:var(--color-bg-subtle);padding:0.1em 0.3em;border-radius:3px;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;margin:0.5rem 0;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);vertical-align:top;}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+    .ok{color:var(--color-good);font-weight:700;} .na{color:var(--color-muted);}
+    @media (max-width:600px){.meta{flex-direction:column;}}
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Reflect: [TASK_TITLE]</h1>
+    <h1>Reflect: Core hashing &amp; HMAC pseudonymiser</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Closed</dt><dd><!-- YYYY-MM-DD --></dd></div>
-      <div><dt>PRs merged</dt><dd><!-- #N, #M --></dd></div>
-      <div><dt>Tests shipped</dt><dd><!-- before → after --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-007</dd></div>
+      <div><dt>Phase</dt><dd>A — core pipeline (v0.1.0)</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Closed</dt><dd>2026-06-01</dd></div>
+      <div><dt>PR</dt><dd>#9 (folded with Phase A scaffolds)</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-phase-a-core</dd></div>
     </dl>
   </header>
 
-  <section id="metrics">
-    <h2 class="neutral">Estimation Actuals</h2>
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-label">Wall-clock</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- XL --> &rarr; actual: <!-- XL --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Tokens</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- L --> &rarr; actual: <!-- L --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Tool calls</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- M --> &rarr; actual: <!-- M --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Iteration cycles</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 7 --> &rarr; actual: <!-- 7 --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Human review (min)</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 45 --> &rarr; actual: <!-- 45 --></div>
-      </div>
-    </div>
-    <!-- Legend: match (green) = ±0 band, over (red) = +1+ bands, under (amber) = -1 bands -->
-  </section>
-
-  <section id="what-went-well">
-    <h2 class="well">What Went Well</h2>
+  <section id="well">
+    <h2 class="good">1. What went well</h2>
     <ul>
-      <li class="placeholder">Specific pattern to repeat — "the parallel subagent review in Step N found 3 findings the inline pass missed."</li>
-      <li class="placeholder">Add one item per genuinely repeatable insight. Do not write "it went smoothly."</li>
+      <li><strong>Golden-digest characterization caught the determinism contract cheaply.</strong> Computing the SHA-256/HMAC golden values externally (one throwaway <code>python</code> snippet) and hardcoding them — rather than recomputing with <code>hashlib</code> inside the test — turned AC3/AC5 into a true behaviour gate instead of a tautology. The same <code>[PERSON_8ec2c852]</code> token reproduced in Build, Test, and the live AC demo, which <em>is</em> the auditability property the module exists to provide.</li>
+      <li><strong>The design's "Alternatives Considered" table pre-empted a real wrong turn.</strong> Alt #1 (per-call key) and Alt #4 (lazy raise) were both tempting and both would have failed AC4's "before any text is processed" boundary. Having them rejected in writing meant Build never relitigated constructor-time validation.</li>
+      <li><strong>Static source-assertion test (<code>test_no_settings_or_env_import</code>) is the right shape for a compliance invariant.</strong> It pins the one rule that defines this module's <code>on_prem_preferred</code> posture (no env key-read in <code>python-core</code>) against future refactors a behavioural test would miss. The Test step's runtime "no env read: True" echo is defense-in-depth on the same line.</li>
+      <li><strong>Decouple-don't-rewrite kept the diff small and the risk low.</strong> Three modules, ~185 LOC source, stdlib-only, no ADR, no new dependency — and every CDSCO behaviour (token form, end→start replacement, audit reversal, 5 keys) preserved verbatim.</li>
     </ul>
   </section>
 
-  <section id="what-went-wrong">
-    <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
-    <ul class="checklist">
-      <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None caught — <em>only if you genuinely scanned for all 11 anti-patterns.</em></span>
-      </li>
+  <section id="wrong">
+    <h2 class="warn">2. What went wrong (caught in Review/Test)</h2>
+    <ul>
+      <li><strong>Anti-Pattern #6 (scope creep) — narrowly avoided at Build, not Review.</strong> I created <code>tests/core/test_public_imports.py</code>, a file the plan named only by test-name and that <code>design.html</code> § Files-to-touch did not list. The plan-reviewer's reverse-coverage gate (TD-M28-08) would have flagged it at Review. I caught it during Build self-review and amended both <code>design.html</code> and <code>plan.html</code> before committing Step 4 — the cheap fix (one edit) versus a Review round-trip.</li>
+      <li><strong>Plan/branch drift.</strong> <code>plan.html</code> declared the build branch as <code>feature/biltiq-007-core-pseudonymiser</code> off <code>main</code>, but the approved spec/design/plan lived on <code>feature/biltiq-phase-a-core</code>. Building on the named branch would have produced an artifact-less branch. Reconciled the plan header to the real branch and logged it in change-history; surfaced to the dev at Ship, who chose to fold into PR #9.</li>
     </ul>
+  </section>
+
+  <section id="missed">
+    <h2 class="bad">3. What we missed (slipped past Review &amp; Test, caught later)</h2>
+    <ul>
+      <li><strong>Tooling drift between branches — caught at Ship/Reflect, not earlier.</strong> Two ship/reflect gate scripts named by the skills — <code>scripts/_product_docs.py</code> (M34 product-doc ship gate) and <code>scripts/_flip_ac_badges.py</code> (AC badge flip) — and <code>_memory_writer.append_estimate_actual</code> do <em>not</em> exist on <code>feature/biltiq-phase-a-core</code> (it branches from <code>main</code>; those land on the in-flight BILTIQ-006 memory-spine branch). The M34 gate degraded to allow-with-warning (recorded in the PR), the badge flip was done manually, and the estimate actual was recorded in prose here rather than appended to <code>.biltiq/estimates-history.jsonl</code>. Nothing blocked, but the workflow assumed scripts the working branch doesn't carry.</li>
+      <li><strong>CI parity was unverified locally until Ship.</strong> The 4-version matrix (py3.11→3.14) is what actually proves the <code>bytes | str</code> union + golden-digest determinism across the support window; locally I only ran the repo venv. It passed 9/9, but "green on my interpreter" was an assumption until CI confirmed it.</li>
+    </ul>
+  </section>
+
+  <section id="process">
+    <h2>4. Process changes proposed</h2>
+    <ul>
+      <li><strong>Ship/Reflect skills should tolerate absent gate scripts explicitly.</strong> The M34 ship gate already has an allow-with-warning fallback for "vLLM unreachable" but not for "<code>_product_docs.py</code> not on this branch." Propose: the skill text should treat a missing gate script the same as the unreachable-vLLM case (warn, don't block) — which is what I did, but it should be documented rather than improvised. <em>Pending Friday review.</em></li>
+      <li><strong>Plan template should derive the build branch, not hardcode a sibling.</strong> The "Branch" header in <code>plan.html</code> defaulted to a per-task branch that didn't match the phase branch the artifacts lived on. Propose: when a task ships inside a phase branch, the plan's Branch field should reference the phase branch (or the plan-reviewer should warn on a Branch value that doesn't yet exist).</li>
+      <li>No <code>AGENT_RULES.md</code> change proposed — the anti-patterns and compliance rules all held.</li>
+    </ul>
+  </section>
+
+  <section id="cleanup">
+    <h2>5. Cleanup confirmation (Anti-Pattern #7)</h2>
     <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
+      <thead><tr><th>Check</th><th>Status</th></tr></thead>
       <tbody>
-        <tr>
-          <td class="placeholder">e.g. #4 Type Safety</td>
-          <td class="placeholder">Review</td>
-          <td class="placeholder">Replaced Any with proper Union type.</td>
-        </tr>
+        <tr><td>No <code>*_v2.*</code> / <code>*_new.*</code> / <code>*_old.*</code> / <code>*.bak</code> / <code>test_scratch_*</code></td><td class="ok">CLEAN</td></tr>
+        <tr><td>Throwaway scratch files deleted (<code>.remember/pr9-body.md</code> temp body)</td><td class="ok">REMOVED</td></tr>
+        <tr><td>No commented-out code / leftover <code>TODO: remove</code> in core</td><td class="ok">CLEAN</td></tr>
+        <tr><td>Working-tree <code>MEMORY.md</code> drift + untracked <code>docs/eod/</code></td><td class="na">LEFT UNTOUCHED (BILTIQ-006 AC8 territory — deliberate)</td></tr>
+        <tr><td>Branch deleted after merge</td><td class="na">PENDING — PR #9 still open (carries 008–012 scaffolds; do not delete until those tasks branch off or PR merges)</td></tr>
       </tbody>
     </table>
   </section>
 
-  <section id="what-we-missed">
-    <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
-    <ul class="checklist">
-      <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None missed</span>
-      </li>
+  <section id="debt">
+    <h2>6. Tech debt logged</h2>
+    <ul>
+      <li><strong>None introduced by BILTIQ-007's code.</strong> Module is complete against its 5 ACs.</li>
+      <li><strong>Documented design limits (not debt, but tracked):</strong> <code>token_length=8</code> default carries the CDSCO-equivalent 32-bit birthday bound (~50% collision near ~2<sup>16</sup> distinct values); configurable, vault out of scope (spec § Out of Scope). The audit list is returned in-memory for the caller to persist (library has no persistence layer).</li>
+      <li><strong>Cross-branch gate-script gap</strong> (§3) is a process observation, not code debt — addressed via the proposed skill change above rather than a code ticket.</li>
     </ul>
+  </section>
+
+  <section id="estimate">
+    <h2>Estimate actuals (BILTIQ-022 AC6)</h2>
+    <p><em>Recorded in prose — <code>_memory_writer.append_estimate_actual</code> is not present on this branch (see §3).</em></p>
     <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
+      <thead><tr><th>Axis</th><th>Estimate (spec)</th><th>Actual</th><th>Variance</th></tr></thead>
       <tbody>
-        <tr>
-          <td class="placeholder">e.g. #8 Async Misuse</td>
-          <td class="placeholder">CI load test</td>
-          <td class="placeholder">200ms latency spike</td>
-          <td class="placeholder">Wrapped in asyncio.to_thread().</td>
-        </tr>
+        <tr><td>Wall-clock</td><td>M (per-step sum ~135 min)</td><td>~S–M (4 TDD steps, no rework)</td><td>on_band / slightly under — no Build→Plan loopbacks</td></tr>
+        <tr><td>Tokens</td><td>M</td><td>M</td><td>on_band</td></tr>
+        <tr><td>Human review (min)</td><td>20</td><td>pending reviewer (dev to override)</td><td>—</td></tr>
       </tbody>
     </table>
   </section>
 
-  <section id="timeline">
-    <h2 class="neutral">Step-by-Step Timeline</h2>
-    <div class="timeline">
-      <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">Think + Plan locked</div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label"><span class="placeholder">Step N shipped — commit hash</span></div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">PR merged — v<!-- x.y.z-rcN --></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="process-changes">
-    <h2 class="neutral">Process Changes Proposed</h2>
-    <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No process changes needed for this task.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to <code>AGENT_RULES.md</code>: describe.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to skill: which one, what change.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed new CI gate: describe.</span></li>
-    </ul>
-  </section>
-
-  <section id="cleanup-confirmation">
-    <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
-    <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Throwaway scripts deleted.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge.</span></li>
-    </ul>
-  </section>
-
-  <section id="tech-debt">
-    <h2 class="neutral">Tech Debt Logged</h2>
-    <ul>
-      <li class="placeholder">Link to follow-up ticket, or "none".</li>
-    </ul>
+  <section id="status">
+    <h2>Status</h2>
+    <p>All 5 acceptance criteria SHIPPED (spec badges flipped OPEN→DONE). CI 9/9 green. Review: approved, 0 anti-pattern findings. Not a high-risk task — no mandatory human peer review, though a human scope-check on the bundled PR #9 is advised. <strong>Task closed.</strong></p>
   </section>
 
   <section id="change-history">
-    <h2 class="neutral">Change History</h2>
+    <h2>Change History</h2>
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
-        <tr>
-          <td><!-- YYYY-MM-DD --></td>
-          <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
-        </tr>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial reflect written at Step 7 (inline render — vLLM unreachable)</td><td>BILTIQ-007 reflect</td></tr>
       </tbody>
     </table>
   </section>
