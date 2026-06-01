@@ -71,3 +71,25 @@ def test_detected_entity_is_detection_superset() -> None:
     anonymised, audit = pseudonymiser.pseudonymise_text("ABCDE1234F", [entity])
     assert "ABCDE1234F" not in anonymised
     assert audit[0]["entity_type"] == "IN_PAN"
+
+
+def test_detectors_package_public_surface() -> None:
+    """The ``detectors`` package re-exports the seam + default backend (BILTIQ-009).
+
+    Pins the stable import surface BILTIQ-012 consumes: ``Detector``,
+    ``DetectedEntity``, ``PresidioDetector`` resolve from
+    ``biltiq_privacy.detectors`` and ``__all__`` is sorted + complete.
+    """
+    import biltiq_privacy.detectors as detectors
+
+    assert detectors.__all__ == sorted(detectors.__all__), "__all__ must be sorted"
+    assert set(detectors.__all__) == {
+        "DetectedEntity",
+        "Detector",
+        "PresidioDetector",
+    }
+    # Each re-export resolves, and the seam types are the same objects as the
+    # defining module's (no shadowing copy).
+    assert detectors.Detector is Detector
+    assert detectors.DetectedEntity is DetectedEntity
+    assert detectors.PresidioDetector.__name__ == "PresidioDetector"

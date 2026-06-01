@@ -64,8 +64,8 @@ Extension points used:
 | Pseudonymiser (text → tokens) | `biltiq_privacy.core.pseudonymiser.Pseudonymiser(*, key)` (BILTIQ-007) | Key injected + validated in `__init__` (raises `HMACKeyRequiredError` on empty key). `make_token(entity_type, value, *, token_length=8)` → `[TYPE_<hex>]`; `pseudonymise_text` returns `(text, list[AuditRecord])`. |
 | Generaliser (rule-based rollups) | `biltiq_privacy.core.generaliser` (BILTIQ-008) | Six field generalisers (`generalise_age` 20-year brackets, `generalise_date` → "Month YYYY", `generalise_location` state→region rollup, `generalise_phone`/`generalise_aadhaar`/`generalise_pan` suffix-mask) + `generalise_text(text, spans, *, region_map=None)` routing the 7-key `_GENERALISER` dispatch over `GeneralisationSpan` inputs. `region_map` is an inject-with-default seam (bundled Indian table; region-pack loader deferred to Phase C). Rule-based, NOT a dataset k-anonymity guarantee (measurement is BILTIQ-021). Stdlib + `re` only. |
 | Audit hash-chain | `biltiq_privacy.core.audit_chain.AuditChain` | Pure hashing; consumers persist rows. |
-| Detector ABC | `biltiq_privacy.detectors.base.Detector` | Implement to add a new detection backend. |
-| Default detector | `biltiq_privacy.detectors.presidio_backend.PresidioDetector` | Wraps `AnalyzerEngine`. |
+| Detector ABC + record | `biltiq_privacy.detectors.base.Detector` / `DetectedEntity` (BILTIQ-009) | `Detector.detect(text, language="en") -> list[DetectedEntity]` — the seam every backend implements. `DetectedEntity` is the 007 `Detection` TypedDict plus a `source` key (so it flows into the pseudonymiser unchanged — no parallel type). Framework-free: importing `base` loads neither Presidio nor spaCy. |
+| Default detector | `biltiq_privacy.detectors.presidio_backend.PresidioDetector(*, score_threshold=0.5)` (BILTIQ-009) | Ports CDSCO's `detect_pii_rules()` behind the ABC, reusing `indian.recognisers.build_engine()` (no recogniser re-defined). Instance-level lazy singleton (engine built on first `detect()`); configurable threshold; six-key `DetectedEntity` projection with `source="presidio"` + `round(score,4)`. Presidio/spaCy imports are method-level (AC5); a missing `en_core_web_sm` raises `MissingNERModelError`. Re-exported from `biltiq_privacy.detectors`. |
 | Regime ABC | `biltiq_privacy.regimes.base.Regime` | Implement to add a new regulatory framework. |
 | Multi-region recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=[...])` (v0.2.0+) | Convenience factory wrapping per-region adapters; planned for when EU/US/UK packs land. For Indian-only use today, call `biltiq_privacy.indian.recognisers.build_engine()` directly. |
 | Memory-spine writer | `scripts._memory_writer.write_event(event_type, payload)` | POSIX-atomic append to `.biltiq/memory-stream.jsonl`; consumed by `scripts/_memory_curator.py` to project session signal into `MEMORY.md`. See `AGENT_RULES.md` § Memory. |
@@ -91,8 +91,8 @@ Extension points used:
 | Fixture | Module | Provides |
 |---|---|---|
 | `hmac_key` | `tests/conftest.py` | Deterministic 32-byte key for tests. Never the production key. |
-| `sample_indian_pii` | `tests/fixtures/india.py` | Synthetic Aadhaar / PAN / ABHA / phone strings — known-fake values. |
-| `presidio_engine_indian` | `tests/fixtures/presidio.py` | `AnalyzerEngine` pre-loaded with the 7 Indian recognisers. |
+| `sample_indian_pii` | `tests/fixtures/india.py` | Synthetic text blob embedding one known-fake value per Indian entity type (all eight), assembled from the `*_VALID` tuples — no real PII (BILTIQ-009). |
+| `presidio_engine_indian` | `tests/fixtures/presidio.py` | Session-scoped `AnalyzerEngine` from `build_engine()`, pre-loaded with the eight Indian recognisers (BILTIQ-009). |
 | `audit_chain` | `tests/fixtures/audit.py` | Fresh `AuditChain` with a deterministic seed. |
 | `fastapi_client` | `packages/python-server/tests/conftest.py` | `TestClient` against the FastAPI app — no real network. |
 

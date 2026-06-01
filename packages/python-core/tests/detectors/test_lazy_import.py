@@ -111,6 +111,25 @@ def test_importing_presidio_backend_does_not_load_presidio() -> None:
     )
 
 
+def test_importing_detectors_package_does_not_load_presidio() -> None:
+    """AC5: the ``biltiq_privacy.detectors`` package re-export stays lazy.
+
+    Guards against the Step-6 re-export (``from .presidio_backend import
+    PresidioDetector`` in ``__init__``) silently hoisting Presidio/spaCy to
+    import time — the class body references ``AnalyzerEngine`` only in
+    ``TYPE_CHECKING``-guarded annotations, so the package must stay light.
+    """
+    state = _run_import_probe("biltiq_privacy.detectors")
+    assert not state["presidio_loaded"], (
+        "AC5 violation — importing the biltiq_privacy.detectors package loaded "
+        "presidio_analyzer. The __init__ re-export must not hoist the backend's "
+        "method-level imports to package-import time."
+    )
+    assert not state["spacy_loaded"], (
+        "AC5 violation — importing the biltiq_privacy.detectors package loaded spaCy."
+    )
+
+
 def test_probe_positive_control() -> None:
     """Harness self-test: importing the recogniser adapter MUST load presidio.
 
