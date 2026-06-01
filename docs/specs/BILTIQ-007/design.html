@@ -162,6 +162,7 @@
         <tr><td><code>packages/python-core/tests/core/test_doc_hasher.py</code></td><td><strong>Create.</strong> Happy + failure paths for the three hasher functions; determinism &amp; key-sensitivity; <code>str</code>/<code>bytes</code> key equivalence (AC1, AC3, AC5).</td></tr>
         <tr><td><code>packages/python-core/tests/core/test_pseudonymiser.py</code></td><td><strong>Create.</strong> Token format, default <code>token_length=8</code>, configurable length, multi-entity replacement, audit-list shape, <code>HMACKeyRequiredError</code> on empty key (AC2, AC3, AC4, AC5).</td></tr>
         <tr><td><code>packages/python-core/tests/conftest.py</code></td><td><strong>Create.</strong> Adds the <code>hmac_key</code> fixture (deterministic 32-byte test key) already promised in <code>stack.md</code> § Test fixtures but not yet present.</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_public_imports.py</code></td><td><strong>Create.</strong> Pins the Step 4 public re-export surface: <code>from biltiq_privacy.core import Pseudonymiser, HMACKeyRequiredError, …</code> resolves and <code>__all__</code> matches (AC2). Lands with Step 4 alongside the <code>core/__init__.py</code> re-exports.</td></tr>
       </tbody>
     </table>
     <h3>Modified <span class="tag tag-modified">EDIT</span></h3>

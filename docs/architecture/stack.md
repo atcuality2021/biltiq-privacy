@@ -60,8 +60,8 @@ Extension points used:
 | Indian PII regex set + pure-stdlib redactor | `biltiq_privacy.indian.patterns` (BILTIQ-002) | Eight `Final[str]` constants (Aadhaar, PAN, ABHA, GSTIN, Voter ID, IFSC, Phone, Medical Registration), compiled `PATTERNS` dict, and `redact()` honouring `_REDACT_ORDER` (ABHA before AADHAAR). No Presidio / spaCy import — light enough for logging-filter use. |
 | Indian Presidio adapter + engine factory | `biltiq_privacy.indian.recognisers.build_engine(nlp_engine=None)` (BILTIQ-002) | Builds a fresh `AnalyzerEngine` with the eight Indian `PatternRecognizer`s registered. Default-None branch constructs `NlpEngineProvider` pinned to `en_core_web_sm` (ADR-0002). No module-global singleton. |
 | Logging redaction | `biltiq_privacy.core.log_filter.RedactionFilter` | `logging.Filter` subclass — scrubs `record.msg`, `record.args`, `extra=` fields. |
-| HMAC pseudonymisation | `biltiq_privacy.core.doc_hasher.hmac_pseudonymise(text, *, key)` | Key as kwarg, no global state. |
-| Pseudonymiser (text → tokens) | `biltiq_privacy.core.pseudonymiser.Pseudonymiser` | Replaces detected entities with deterministic HMAC tokens. |
+| HMAC pseudonymisation | `biltiq_privacy.core.doc_hasher.hmac_pseudonymise(value, *, key)` (BILTIQ-007) | Key is a keyword-only `bytes \| str` (str utf-8-encoded), never read from env inside `python-core`. No global state. Plus `hash_document`/`hash_text` (SHA-256). |
+| Pseudonymiser (text → tokens) | `biltiq_privacy.core.pseudonymiser.Pseudonymiser(*, key)` (BILTIQ-007) | Key injected + validated in `__init__` (raises `HMACKeyRequiredError` on empty key). `make_token(entity_type, value, *, token_length=8)` → `[TYPE_<hex>]`; `pseudonymise_text` returns `(text, list[AuditRecord])`. |
 | Generaliser (k-anonymity) | `biltiq_privacy.core.generaliser` | 20-year age brackets + state→region rollups. |
 | Audit hash-chain | `biltiq_privacy.core.audit_chain.AuditChain` | Pure hashing; consumers persist rows. |
 | Detector ABC | `biltiq_privacy.detectors.base.Detector` | Implement to add a new detection backend. |
