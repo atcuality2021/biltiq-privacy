@@ -27,6 +27,8 @@ output formats, and redaction fallbacks are preserved verbatim.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from typing import TypedDict
 
 # 20-year brackets for improved k-anonymity (k >= 2 target). Ported verbatim.
 _AGE_BRACKETS = [
@@ -148,3 +150,75 @@ def generalise_pan(pan: str) -> str:
     if len(clean) == 10:
         return f"XXXXX{clean[5:9]}X"
     return "[PAN_REDACTED]"
+
+
+class GeneralisationSpan(TypedDict):
+    """One detected span to generalise within already-pseudonymised text.
+
+    The orchestrator (BILTIQ-012) assembles this from BILTIQ-007's
+    ``Detection`` (carries ``entity_type`` + ``text``) and ``AuditRecord``
+    (carries ``pseudonym_token``); neither shipped type carries all three
+    fields, so this is a fresh input shape rather than an edit to either.
+
+    - ``entity_type``: the recogniser label, routed through ``_GENERALISER``.
+    - ``text``: the original detected value, fed to the per-entity generaliser.
+    - ``pseudonym_token``: the token currently standing in for the value in
+      the text; it is what gets replaced with the generalised value.
+    """
+
+    entity_type: str
+    text: str
+    pseudonym_token: str
+
+
+# Entity types whose generaliser accepts the injected ``region_map``. Kept
+# separate from ``_GENERALISER`` so the field functions need no unused kwarg.
+_LOCATION_ENTITY_TYPES = frozenset({"LOCATION", "ADDRESS", "HOSPITAL"})
+
+# Entity-type -> generaliser dispatch table. Ported verbatim from CDSCO; the
+# seven keys are load-bearing for downstream routing. Do not add or drop keys
+# without a spec change (there is no ABHA generaliser).
+_GENERALISER: dict[str, Callable[[str], str]] = {
+    "IN_AADHAAR": generalise_aadhaar,
+    "IN_PAN": generalise_pan,
+    "IN_PHONE": generalise_phone,
+    "PHONE_NUMBER": generalise_phone,
+    "LOCATION": generalise_location,
+    "ADDRESS": generalise_location,
+    "HOSPITAL": generalise_location,
+}
+
+
+def generalise_text(
+    pseudonymised_text: str,
+    spans: list[GeneralisationSpan],
+    *,
+    region_map: dict[str, str] | None = None,
+) -> str:
+    """Apply irreversible generalisation to already-pseudonymised text.
+
+    For each span whose ``entity_type`` has a generalisation function, the
+    span's ``pseudonym_token`` is replaced — once — with the generalised value
+    derived from the span's ``text``. Spans with an unknown ``entity_type``, or
+    whose token is absent from the text, are left untouched. ``region_map`` is
+    threaded into the location-family generalisers only (others take no such
+    argument); it defaults to the bundled Indian table.
+
+    This is rule-based, per-value generalisation — NOT a dataset-level
+    k-anonymity guarantee (see the module docstring; measurement is
+    BILTIQ-021).
+    """
+    result = pseudonymised_text
+    for span in spans:
+        entity_type = span["entity_type"]
+        fn = _GENERALISER.get(entity_type)
+        if fn is None:
+            continue
+        token = span["pseudonym_token"]
+        if token and token in result:
+            if entity_type in _LOCATION_ENTITY_TYPES:
+                generalised = generalise_location(span["text"], region_map=region_map)
+            else:
+                generalised = fn(span["text"])
+            result = result.replace(token, generalised, 1)
+    return result

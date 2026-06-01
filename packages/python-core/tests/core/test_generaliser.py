@@ -147,3 +147,95 @@ def test_module_is_pure() -> None:
     assert "import fastapi" not in source
     assert "import pydantic" not in source
     assert "sqlalchemy" not in source
+
+
+# --- generalise_text dispatch + GeneralisationSpan (AC2, AC4) ----------------
+
+def test_generalise_text_multi_span() -> None:
+    """Each span's token is replaced once with its generalised value (AC2)."""
+    text = "Patient at [LOC_abc] called from [PHONE_xyz] today."
+    spans: list[generaliser.GeneralisationSpan] = [
+        {
+            "entity_type": "LOCATION",
+            "text": "AIIMS Delhi",
+            "pseudonym_token": "[LOC_abc]",
+        },
+        {
+            "entity_type": "PHONE_NUMBER",
+            "text": "9876543210",
+            "pseudonym_token": "[PHONE_xyz]",
+        },
+    ]
+    result = generaliser.generalise_text(text, spans)
+    assert "[LOC_abc]" not in result
+    assert "[PHONE_xyz]" not in result
+    assert "Healthcare Facility, North India" in result
+    assert "+91 XXXXX XX210" in result
+
+
+def test_generalise_text_unknown_entity_skipped() -> None:
+    """An entity type absent from the dispatch table leaves its token intact."""
+    text = "Hi [PERSON_1], your report is ready."
+    spans: list[generaliser.GeneralisationSpan] = [
+        {
+            "entity_type": "PERSON",
+            "text": "Rajesh Kumar",
+            "pseudonym_token": "[PERSON_1]",
+        },
+    ]
+    assert generaliser.generalise_text(text, spans) == text
+
+
+def test_generalise_text_absent_token_noop() -> None:
+    """A span whose token is not present in the text leaves the text unchanged."""
+    text = "No tokens to replace here."
+    spans: list[generaliser.GeneralisationSpan] = [
+        {
+            "entity_type": "PHONE_NUMBER",
+            "text": "9876543210",
+            "pseudonym_token": "[PHONE_missing]",
+        },
+    ]
+    assert generaliser.generalise_text(text, spans) == text
+
+
+def test_generalise_text_empty_spans() -> None:
+    """An empty span list returns the input text verbatim."""
+    text = "Nothing to generalise."
+    assert generaliser.generalise_text(text, []) == text
+
+
+def test_generalise_text_region_map_propagates() -> None:
+    """A custom region_map reaches the location dispatch end-to-end (AC4)."""
+    text = "Seen at [LOC_1] last week."
+    spans: list[generaliser.GeneralisationSpan] = [
+        {
+            "entity_type": "LOCATION",
+            "text": "Narnia clinic",
+            "pseudonym_token": "[LOC_1]",
+        },
+    ]
+    result = generaliser.generalise_text(
+        text, spans, region_map={"narnia": "Far North"}
+    )
+    assert result == "Seen at Healthcare Facility, Far North last week."
+
+
+def test_dispatch_table_keys() -> None:
+    """``_GENERALISER`` has exactly the 7 ported keys -> 3 callables (no ABHA)."""
+    assert set(generaliser._GENERALISER) == {
+        "IN_AADHAAR",
+        "IN_PAN",
+        "IN_PHONE",
+        "PHONE_NUMBER",
+        "LOCATION",
+        "ADDRESS",
+        "HOSPITAL",
+    }
+    assert generaliser._GENERALISER["IN_AADHAAR"] is generaliser.generalise_aadhaar
+    assert generaliser._GENERALISER["IN_PAN"] is generaliser.generalise_pan
+    assert generaliser._GENERALISER["IN_PHONE"] is generaliser.generalise_phone
+    assert generaliser._GENERALISER["PHONE_NUMBER"] is generaliser.generalise_phone
+    assert generaliser._GENERALISER["LOCATION"] is generaliser.generalise_location
+    assert generaliser._GENERALISER["ADDRESS"] is generaliser.generalise_location
+    assert generaliser._GENERALISER["HOSPITAL"] is generaliser.generalise_location
