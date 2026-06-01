@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from typing import Final
 
+import pytest
+
 # Aadhaar — 12-digit unique identity number (UIDAI).
 # All values fail Verhoeff (verified during Step 4 fixture construction).
 AADHAAR_VALID: Final[tuple[str, ...]] = (
@@ -147,3 +149,32 @@ MEDICAL_REG_FALSE_POSITIVES: Final[tuple[str, ...]] = (
     "MCI123",                 # 3 digits (need 4-6)
     "MCI1234567",             # 7 digits (need 4-6)
 )
+
+
+# ---------------------------------------------------------------------------
+# Composite sample — one known-valid value per entity in a realistic blob.
+#
+# Assembled entirely from the ``*_VALID`` tuples above — NO new PII. The
+# detector test (BILTIQ-009 Step 4) runs the Presidio engine over this blob
+# and expects every IN_* entity to surface; the fixture self-check
+# (tests/detectors/test_fixtures.py::test_sample_indian_pii_covers_all_entities)
+# pins that each of the eight patterns matches here, so a Step-4 pass can
+# never be vacuous. Values are spread across labelled lines so each sits on
+# its own word boundary.
+# ---------------------------------------------------------------------------
+SAMPLE_INDIAN_PII: Final[str] = (
+    f"Patient Aadhaar {AADHAAR_VALID[0]}; ABHA health id {ABHA_VALID[0]}.\n"
+    f"PAN {PAN_VALID[0]}; GSTIN {GSTIN_VALID[0]}.\n"
+    f"Voter EPIC {VOTER_ID_VALID[0]}; bank IFSC {IFSC_VALID[0]}.\n"
+    f"Mobile {PHONE_IN_VALID[0]}; reg {MEDICAL_REG_VALID[0]}.\n"
+)
+
+
+@pytest.fixture
+def sample_indian_pii() -> str:
+    """A text blob embedding one synthetic value per Indian entity type.
+
+    Sourced entirely from this module's ``*_VALID`` tuples (no new PII) so a
+    single fixture drives the detector's "detect every entity" assertions.
+    """
+    return SAMPLE_INDIAN_PII
