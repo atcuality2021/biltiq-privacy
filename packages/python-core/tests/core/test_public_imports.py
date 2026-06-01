@@ -17,6 +17,7 @@ def test_public_imports() -> None:
         Detection,
         GeneralisationSpan,
         HMACKeyRequiredError,
+        MissingNERModelError,
         Pseudonymiser,
         generalise_aadhaar,
         generalise_age,
@@ -32,6 +33,7 @@ def test_public_imports() -> None:
 
     # Reference each so the import is not flagged as unused and is proven live.
     assert issubclass(HMACKeyRequiredError, ValueError)
+    assert issubclass(MissingNERModelError, RuntimeError)
     assert Pseudonymiser.__name__ == "Pseudonymiser"
     assert callable(hash_document)
     assert callable(hash_text)
@@ -55,6 +57,7 @@ def test_all_matches_exported_surface() -> None:
         "Detection",
         "GeneralisationSpan",
         "HMACKeyRequiredError",
+        "MissingNERModelError",
         "Pseudonymiser",
         "generalise_aadhaar",
         "generalise_age",

@@ -17,7 +17,10 @@ from biltiq_privacy.core.doc_hasher import (
     hash_text,
     hmac_pseudonymise,
 )
-from biltiq_privacy.core.exceptions import HMACKeyRequiredError
+from biltiq_privacy.core.exceptions import (
+    HMACKeyRequiredError,
+    MissingNERModelError,
+)
 from biltiq_privacy.core.generaliser import (
     GeneralisationSpan,
     generalise_aadhaar,
@@ -39,6 +42,7 @@ __all__ = [
     "Detection",
     "GeneralisationSpan",
     "HMACKeyRequiredError",
+    "MissingNERModelError",
     "Pseudonymiser",
     "generalise_aadhaar",
     "generalise_age",
