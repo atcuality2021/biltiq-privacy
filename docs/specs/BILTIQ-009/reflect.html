@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reflect: [TASK_TITLE]</title>
+  <title>Reflect: Detector abstraction + Presidio backend (BILTIQ-009)</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -91,13 +91,13 @@
 <body>
 <main>
   <header>
-    <h1>Reflect: [TASK_TITLE]</h1>
+    <h1>Reflect: Detector abstraction + Presidio backend</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Closed</dt><dd><!-- YYYY-MM-DD --></dd></div>
-      <div><dt>PRs merged</dt><dd><!-- #N, #M --></dd></div>
-      <div><dt>Tests shipped</dt><dd><!-- before → after --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-009</dd></div>
+      <div><dt>Author</dt><dd>@don007rvs</dd></div>
+      <div><dt>Closed</dt><dd>2026-06-01</dd></div>
+      <div><dt>PRs merged</dt><dd>#9 (open — folds 007 + 008 + 009; awaiting reviewer)</dd></div>
+      <div><dt>Tests shipped</dt><dd>135 → 151 (+16: 6 exceptions/imports, 3 ABC contract, 2 fixture self-checks, 9 backend, 4 lazy-import — net of overlap)</dd></div>
     </dl>
   </header>
 
@@ -106,38 +106,41 @@
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-label">Wall-clock</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- XL --> &rarr; actual: <!-- XL --></div>
+        <div class="metric-value">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (match)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tokens</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- L --> &rarr; actual: <!-- L --></div>
+        <div class="metric-value">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (est.)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tool calls</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- M --> &rarr; actual: <!-- M --></div>
+        <div class="metric-value">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (est.)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Iteration cycles</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 7 --> &rarr; actual: <!-- 7 --></div>
+        <div class="metric-value">1</div>
+        <div class="metric-note">spec: ~1 &rarr; actual: 1 (Review approved first pass, 0 findings)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Human review (min)</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 45 --> &rarr; actual: <!-- 45 --></div>
+        <div class="metric-value">—</div>
+        <div class="metric-note">pending reviewer on PR #9</div>
       </div>
     </div>
     <!-- Legend: match (green) = ±0 band, over (red) = +1+ bands, under (amber) = -1 bands -->
+    <p style="font-size:0.82rem;color:var(--color-muted);margin-top:0.5rem;">Auto-capture via <code>_memory_writer.append_estimate_actual()</code> is <strong>deferred</strong> — the memory-spine estimate tooling (BILTIQ-006) is not on this branch; values above are recorded by hand. Per-step bands composed S,S,S,M,S,S (&Sigma; ~135 min &rarr; L), one band above the spec-level M but within the plan-reviewer &plusmn;1-band tolerance.</p>
   </section>
 
   <section id="what-went-well">
     <h2 class="well">What Went Well</h2>
     <ul>
-      <li class="placeholder">Specific pattern to repeat — "the parallel subagent review in Step N found 3 findings the inline pass missed."</li>
-      <li class="placeholder">Add one item per genuinely repeatable insight. Do not write "it went smoothly."</li>
+      <li><strong>Probing real Presidio output before writing the threshold assertions saved a mysterious test failure.</strong> The recognisers attach context words, so on the labelled <code>sample_indian_pii</code> blob the context-aware enhancer boosts <code>IN_VOTER_ID</code> from 0.70 to 1.0 — a 0.8-threshold test over that blob would <em>not</em> have dropped it. Observing the live output first, then splitting the suite (context-rich blob for "detect all 8", a purpose-built context-free string for threshold filtering) made the threshold tests deterministic. Characterization-by-observation beat assertion-by-assumption.</li>
+      <li><strong><code>DetectedEntity</code> as a <code>Detection</code> TypedDict subclass (adding only <code>source</code>) eliminated a parallel record type.</strong> Because a TypedDict is a runtime <code>dict</code>, the test fed a <code>DetectedEntity</code> straight into <code>Pseudonymiser.pseudonymise_text</code> (typed <code>list[Detection]</code>) and it pseudonymised the span — proving consumer-compat at runtime, not just by key-set. AP#1 defended at design and confirmed in test.</li>
+      <li><strong><code>TYPE_CHECKING</code>-guarded <code>AnalyzerEngine</code> annotation reconciled "mypy --strict typed" with "Presidio out of import time."</strong> The subprocess probe confirmed AC5 holds even after the Step-6 package re-export — the re-export does not hoist the backend's method-level imports.</li>
+      <li><strong>Catching the Step-3 planning gap before writing code, then re-running plan-reviewer.</strong> The Step-3 gate required two fixture self-checks but no artifact named a test module to hold them (a fixtures module is not <code>test_*</code>-collected). Following the build skill's "stop, fix the plan, re-validate" rule — rather than silently inventing the file — kept forward/reverse coverage closed (16/16).</li>
     </ul>
   </section>
 
@@ -145,17 +148,17 @@
     <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
     <ul class="checklist">
       <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None caught — <em>only if you genuinely scanned for all 11 anti-patterns.</em></span>
+        <input class="check" type="checkbox" checked disabled>
+        <span>The full Review (all 11 anti-patterns) returned <strong>approved with 0 findings</strong>. One minor lint slip was caught earlier, at the Step-6 build self-review (below).</span>
       </li>
     </ul>
     <table>
       <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">e.g. #4 Type Safety</td>
-          <td class="placeholder">Review</td>
-          <td class="placeholder">Replaced Any with proper Union type.</td>
+          <td>#6-adjacent (import hygiene)</td>
+          <td>Step-6 build self-review (<code>ruff</code> I001)</td>
+          <td>The package-surface test's in-function multi-alias import block was un-sorted; <code>ruff --fix</code> then mangled it (split into two <code>from</code>-imports and dropped the unused <code>PresidioDetector</code> alias). Rewrote the test to use module-attribute access (<code>detectors.PresidioDetector</code>) — cleaner and lint-clean. Caught before commit, never reached Review.</td>
         </tr>
       </tbody>
     </table>
@@ -165,37 +168,50 @@
     <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
     <ul class="checklist">
       <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None missed</span>
+        <input class="check" type="checkbox" checked disabled>
+        <span>None so far. CI on PR #9 is pending and no peer review has run yet — this section will be revisited if CI or the reviewer surfaces anything. (Honest "none at the time of writing", not a claim that none can exist.)</span>
       </li>
     </ul>
-    <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="placeholder">e.g. #8 Async Misuse</td>
-          <td class="placeholder">CI load test</td>
-          <td class="placeholder">200ms latency spike</td>
-          <td class="placeholder">Wrapped in asyncio.to_thread().</td>
-        </tr>
-      </tbody>
-    </table>
   </section>
 
   <section id="timeline">
     <h2 class="neutral">Step-by-Step Timeline</h2>
     <div class="timeline">
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">Think + Plan locked</div>
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Think + Plan locked — plan-reviewer approved (<code>52bbb08</code>)</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label"><span class="placeholder">Step N shipped — commit hash</span></div>
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 1 — <code>MissingNERModelError</code> + re-export (<code>2d23ade</code>)</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">PR merged — v<!-- x.y.z-rcN --></div>
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 2 — <code>Detector</code> ABC + <code>DetectedEntity</code> (<code>b68736b</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Build-time plan amend — declared <code>test_fixtures.py</code>, plan-reviewer re-approved (<code>cca41e9</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 3 — fixtures <code>presidio_engine_indian</code> + <code>sample_indian_pii</code> (<code>2eb8528</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 4 — <code>PresidioDetector</code> port (<code>bff1495</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 5 — AC5 lazy-import probe (<code>813da93</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 6 — public surface + docs (<code>05673e2</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Review approved (0 findings) &rarr; Test (151 passed, 6/6 ACs) &rarr; PR #9 updated. <strong>Not yet merged.</strong></div>
       </div>
     </div>
   </section>
@@ -203,26 +219,27 @@
   <section id="process-changes">
     <h2 class="neutral">Process Changes Proposed</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No process changes needed for this task.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to <code>AGENT_RULES.md</code>: describe.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to skill: which one, what change.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed new CI gate: describe.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span><strong>Reinforces the BILTIQ-007 "missing-gate-script tolerance" proposal (pending Friday review).</strong> The ship/reflect skills call <code>scripts/_product_docs.py ship_gate()</code>, <code>scripts/_flip_ac_badges.py</code>, and <code>_memory_writer.append_estimate_actual()</code> — none of which exist on this branch (the M34 product-docs + memory-spine estimate tooling from BILTIQ-006 has not landed in <code>biltiq-privacy</code>). Same gap hit 007 and 008. The skills should formally treat these gate scripts as <em>optional-when-absent</em> (allow-with-warning, manual fallback) rather than implying a hard call. Third confirmation in a row → recommend promoting from "tolerated" to documented behaviour.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span><strong>Possible new skill note:</strong> when a backend wraps a scored detector with context-aware enhancement, threshold/characterization tests should run over a <em>context-free</em> input. Worth a one-line caution in <code>test-generator</code> so the next detector port doesn't trip on context-boost. Low priority.</span></li>
+      <li><input class="check" type="checkbox" disabled><span>No <code>AGENT_RULES.md</code> change proposed.</span></li>
     </ul>
   </section>
 
   <section id="cleanup-confirmation">
     <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Throwaway scripts deleted.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>, <code>test_scratch_*</code> files left in repo (verified via <code>git status</code> at each step commit).</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No throwaway scripts — the calibration probes were run inline via stdin heredoc, never written to disk.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>Branch not deleted</strong> — <code>feature/biltiq-phase-a-core</code> is the shared PR #9 branch (007 + 008 + 009); it stays until PR #9 merges. <code>MEMORY.md</code> working-tree drift left untouched (reserved for BILTIQ-006 AC8). <code>docs/eod/</code> left untracked.</span></li>
     </ul>
   </section>
 
   <section id="tech-debt">
     <h2 class="neutral">Tech Debt Logged</h2>
     <ul>
-      <li class="placeholder">Link to follow-up ticket, or "none".</li>
+      <li><strong>End-to-end integration of the detector seam is deferred to BILTIQ-012</strong> (by design, not debt) — the orchestrator wires <code>PresidioDetector</code> &rarr; pseudonymiser &rarr; generaliser. Until then the <code>Detector</code> surface has unit coverage but no end-to-end exercise. Tracked by the BILTIQ-012 spec, already scaffolded in PR #9.</li>
+      <li><strong>Estimate-actuals + memory-curator deferred</strong> (not debt against this code): <code>append_estimate_actual()</code> tooling is absent on this branch and <code>MEMORY.md</code> is reserved for BILTIQ-006 AC8 reproduction, so the M17 estimate row and the MEMORY.md session-log update were not written. To be reconciled when BILTIQ-006 lands the memory-spine and the reserved drift clears.</li>
+      <li><strong>Pre-existing (not from this PR):</strong> <code>test-scaffolds/python/example_test.py:27</code> F821 <code>pytest_mock</code> undefined — carried from the BILTIQ-000 bootstrap, already noted in PR #9. Still warrants a cleanup ticket.</li>
     </ul>
   </section>
 
@@ -232,10 +249,10 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-01</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft at task close — Build (6 steps) → Review (approved, 0 findings) → Test (151 passed, 6/6 ACs) → Ship (PR #9 updated, not merged). 6 AC badges flipped OPEN→DONE in spec.html.</td>
+          <td>BILTIQ-009</td>
         </tr>
       </tbody>
     </table>
