@@ -15,8 +15,16 @@ def test_public_imports() -> None:
     from biltiq_privacy.core import (
         AuditRecord,
         Detection,
+        GeneralisationSpan,
         HMACKeyRequiredError,
         Pseudonymiser,
+        generalise_aadhaar,
+        generalise_age,
+        generalise_date,
+        generalise_location,
+        generalise_pan,
+        generalise_phone,
+        generalise_text,
         hash_document,
         hash_text,
         hmac_pseudonymise,
@@ -30,6 +38,14 @@ def test_public_imports() -> None:
     assert callable(hmac_pseudonymise)
     assert Detection.__name__ == "Detection"
     assert AuditRecord.__name__ == "AuditRecord"
+    assert GeneralisationSpan.__name__ == "GeneralisationSpan"
+    assert callable(generalise_age)
+    assert callable(generalise_date)
+    assert callable(generalise_location)
+    assert callable(generalise_phone)
+    assert callable(generalise_aadhaar)
+    assert callable(generalise_pan)
+    assert callable(generalise_text)
 
 
 def test_all_matches_exported_surface() -> None:
@@ -37,8 +53,16 @@ def test_all_matches_exported_surface() -> None:
     assert sorted(core.__all__) == [
         "AuditRecord",
         "Detection",
+        "GeneralisationSpan",
         "HMACKeyRequiredError",
         "Pseudonymiser",
+        "generalise_aadhaar",
+        "generalise_age",
+        "generalise_date",
+        "generalise_location",
+        "generalise_pan",
+        "generalise_phone",
+        "generalise_text",
         "hash_document",
         "hash_text",
         "hmac_pseudonymise",
