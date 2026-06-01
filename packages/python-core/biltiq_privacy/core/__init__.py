@@ -4,14 +4,22 @@
 Holds the stateless hashing helpers (``doc_hasher``), the key-bound
 ``Pseudonymiser`` (entity → HMAC token), the rule-based ``generaliser``
 rollups (age/date/location/phone/Aadhaar/PAN + the ``generalise_text``
-dispatch), and the library exception home (``exceptions``). ``audit_chain``
-lands in a later Phase A task (BILTIQ-010).
+dispatch), the library exception home (``exceptions``), and the pure,
+tamper-evident hash-chain (``audit_chain`` — ``append_row`` / ``verify_chain``
+plus the ``GENESIS_PREV_HASH`` genesis sentinel).
 
 Submodule imports remain canonical; the re-exports below are an additive
 convenience for a stable ``biltiq_privacy.core`` import surface.
 """
 from __future__ import annotations
 
+from biltiq_privacy.core.audit_chain import (
+    GENESIS_PREV_HASH,
+    ChainedRow,
+    VerifyReport,
+    append_row,
+    verify_chain,
+)
 from biltiq_privacy.core.doc_hasher import (
     hash_document,
     hash_text,
@@ -39,11 +47,15 @@ from biltiq_privacy.core.pseudonymiser import (
 
 __all__ = [
     "AuditRecord",
+    "ChainedRow",
     "Detection",
+    "GENESIS_PREV_HASH",
     "GeneralisationSpan",
     "HMACKeyRequiredError",
     "MissingNERModelError",
     "Pseudonymiser",
+    "VerifyReport",
+    "append_row",
     "generalise_aadhaar",
     "generalise_age",
     "generalise_date",
@@ -54,4 +66,5 @@ __all__ = [
     "hash_document",
     "hash_text",
     "hmac_pseudonymise",
+    "verify_chain",
 ]
