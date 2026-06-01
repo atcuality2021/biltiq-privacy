@@ -172,6 +172,7 @@
         <tr><td><code>packages/python-core/tests/detectors/test_presidio_backend.py</code></td><td><strong>Create.</strong> Detects each of the 8 Indian entity types on sample text via the <code>presidio_engine_indian</code> + <code>sample_indian_pii</code> fixtures; asserts the 6-key record shape, <code>source == "presidio"</code>, <code>round(score, 4)</code>, threshold filtering (default 0.5 + a raised threshold dropping low-confidence hits, AC4); singleton identity across two <code>detect()</code> calls (AC3); <code>MissingNERModelError</code> raised + guidance string when the model load fails (monkeypatched <code>OSError</code>). (AC2, AC3, AC4, AC6.)</td></tr>
         <tr><td><code>packages/python-core/tests/detectors/test_lazy_import.py</code></td><td><strong>Create.</strong> Subprocess import-probe (clone of <code>tests/indian/test_lazy_import.py</code>): importing <code>detectors.base</code> and <code>detectors.presidio_backend</code> must NOT load <code>presidio_analyzer</code> or <code>spacy</code>; a positive control proves the probe observes load state. (AC5.)</td></tr>
         <tr><td><code>packages/python-core/tests/fixtures/presidio.py</code></td><td><strong>Create.</strong> The <code>presidio_engine_indian</code> fixture (module/session-scoped <code>AnalyzerEngine</code> from <code>build_engine()</code>) that <code>stack.md</code> line 95 documents but does not yet exist (today only <code>hmac_key</code> + a local module-scoped fixture inside <code>test_recognisers.py</code> exist).</td></tr>
+        <tr><td><code>packages/python-core/tests/detectors/test_fixtures.py</code></td><td><strong>Create.</strong> Fixture self-checks guarding the Step-4 detection test against a vacuous pass: <code>sample_indian_pii</code> embeds one known-valid value for each of the 8 entity types (drawn from the <code>*_VALID</code> tuples — no new PII), and <code>presidio_engine_indian</code> registers all eight <code>IN_*</code> entities. (AC6 support.)</td></tr>
       </tbody>
     </table>
     <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
@@ -272,7 +273,7 @@ class PresidioDetector(Detector):
     <ol style="padding-left: 1.4rem;">
       <li>Step 1 — <code>core/exceptions.py</code>: add <code>MissingNERModelError</code>, re-export it from <code>core/__init__.py</code>, + tests (extend <code>tests/core/test_exceptions.py</code> for the type/guidance, <code>tests/core/test_public_imports.py</code> for the export surface). Self-contained; nothing else depends on it yet. (AC3.)</li>
       <li>Step 2 — <code>detectors/base.py</code> (<code>Detector</code> ABC + <code>DetectedEntity</code>) + <code>tests/detectors/__init__.py</code> + <code>tests/detectors/test_detectors_base.py</code>. Depends on the shipped 007 <code>Detection</code> only. (AC1.)</li>
-      <li>Step 3 — fixtures: <code>tests/fixtures/presidio.py</code> (<code>presidio_engine_indian</code>) + <code>sample_indian_pii</code> in <code>tests/fixtures/india.py</code> + conftest wiring. Depends on 002's <code>build_engine()</code>. (AC6 support.)</li>
+      <li>Step 3 — fixtures: <code>tests/fixtures/presidio.py</code> (<code>presidio_engine_indian</code>) + <code>sample_indian_pii</code> in <code>tests/fixtures/india.py</code> + conftest wiring + <code>tests/detectors/test_fixtures.py</code> self-checks. Depends on 002's <code>build_engine()</code>. (AC6 support.)</li>
       <li>Step 4 — <code>detectors/presidio_backend.py</code> (<code>PresidioDetector</code>, lazy singleton, threshold, <code>OSError</code>→<code>MissingNERModelError</code>) + <code>tests/detectors/test_presidio_backend.py</code>. Depends on Steps 1–3. (AC2, AC3, AC4, AC6.)</li>
       <li>Step 5 — <code>tests/detectors/test_lazy_import.py</code> (subprocess probe). Depends on Steps 2 + 4. (AC5.)</li>
       <li>Step 6 — re-exports in <code>detectors/__init__.py</code>, flip <code>stack.md</code> rows (incl. the 7→8 fix), add <code>CHANGELOG.md</code> line. Depends on Steps 2 + 4 (and must not regress AC5 — re-run the Step 5 probe).</li>
@@ -337,6 +338,12 @@ class PresidioDetector(Detector):
           <td>all</td>
           <td>Initial draft from locked spec (decouple-don't-rewrite: Detector ABC + PresidioDetector wrapping 002's build_engine(); DetectedEntity(Detection); instance-level lazy singleton; OSError→MissingNERModelError; configurable 0.5 threshold; lazy-import gate; new presidio_engine_indian + sample_indian_pii fixtures)</td>
           <td>BILTIQ-009</td>
+        </tr>
+        <tr>
+          <td>2026-06-01</td>
+          <td>files-to-touch, rollout</td>
+          <td>Build-time fix: added CREATE row for tests/detectors/test_fixtures.py (home for the Step-3 fixture self-checks the plan's Step-3 gate requires — neither artifact had declared a test file for them). Also tightened the conftest row from pytest_plugins to the re-export pattern (pytest_plugins errors in a non-root package conftest under pytest 8).</td>
+          <td>build</td>
         </tr>
       </tbody>
     </table>
