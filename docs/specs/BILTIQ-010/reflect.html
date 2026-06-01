@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reflect: [TASK_TITLE]</title>
+  <title>Reflect: Pure audit hash-chain (BILTIQ-010)</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -91,13 +91,13 @@
 <body>
 <main>
   <header>
-    <h1>Reflect: [TASK_TITLE]</h1>
+    <h1>Reflect: Pure audit hash-chain</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Closed</dt><dd><!-- YYYY-MM-DD --></dd></div>
-      <div><dt>PRs merged</dt><dd><!-- #N, #M --></dd></div>
-      <div><dt>Tests shipped</dt><dd><!-- before → after --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-010</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Closed</dt><dd>2026-06-01</dd></div>
+      <div><dt>PR</dt><dd>#10 (open — awaiting reviewer; not merged)</dd></div>
+      <div><dt>Tests shipped</dt><dd>+11 (<code>test_audit_chain.py</code>); <code>test_public_imports.py</code> extended by 5 assertions. Full repo suite 206 passed / 1 skipped.</dd></div>
     </dl>
   </header>
 
@@ -106,38 +106,42 @@
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-label">Wall-clock</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- XL --> &rarr; actual: <!-- XL --></div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: S/M &rarr; actual: M (match)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tokens</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- L --> &rarr; actual: <!-- L --></div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (est.)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tool calls</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- M --> &rarr; actual: <!-- M --></div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (est.)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Iteration cycles</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 7 --> &rarr; actual: <!-- 7 --></div>
+        <div class="metric-value">1</div>
+        <div class="metric-note">Review approved first pass, 0 findings</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Human review (min)</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 45 --> &rarr; actual: <!-- 45 --></div>
+        <div class="metric-value">&mdash;</div>
+        <div class="metric-note">pending reviewer on PR #10</div>
       </div>
     </div>
     <!-- Legend: match (green) = ±0 band, over (red) = +1+ bands, under (amber) = -1 bands -->
+    <p style="font-size:0.82rem;color:var(--color-muted);margin-top:0.5rem;">Auto-capture via <code>_memory_writer.append_estimate_actual()</code> is <strong>deferred</strong> — the memory-spine estimate tooling (BILTIQ-006) is not on this branch; values above are recorded by hand. Per-step bands composed M,S,S (&Sigma; ~90 min &rarr; M), landing on the spec-level S/M band — no variance.</p>
   </section>
 
   <section id="what-went-well">
     <h2 class="well">What Went Well</h2>
     <ul>
-      <li class="placeholder">Specific pattern to repeat — "the parallel subagent review in Step N found 3 findings the inline pass missed."</li>
-      <li class="placeholder">Add one item per genuinely repeatable insight. Do not write "it went smoothly."</li>
+      <li><strong>The <code>design.html</code> "alternatives considered" table killed fixed-field concatenation before it cost anything.</strong> Canonical JSON was chosen with delimiter-injection and field-order fragility named as the explicit rejection reasons; that reasoning landed verbatim in ADR-0005, so the cross-language contract is defensible rather than assumed.</li>
+      <li><strong>Caller-supplied timestamp (no clock read) made the golden vector reproducible offline.</strong> Because <code>append_row</code> never calls <code>datetime.now()</code>, the same payload always commits to the same digest — which is exactly what let <code>test_golden_vector_pins_cross_language_recipe</code> pin <code>b94c22ac…855b65</code> as the conformance anchor for the future Node/PHP/Go SDKs. Purity was not an aesthetic choice; it was the precondition for cross-language verifiability (AC3 &rarr; AC4).</li>
+      <li><strong>AP#1 (Duplication) defended at design and confirmed mechanically.</strong> The row type was named <code>ChainedRow</code> to avoid colliding with <code>pseudonymiser.AuditRecord</code>, and the hash reuses BILTIQ-007's <code>doc_hasher.hash_text</code> rather than opening a second <code>hashlib.sha256</code> call site. A range-wide grep for duplicate <code>append_row</code>/<code>verify_chain</code>/<code>_canonical_json</code>/<code>ChainedRow</code>/<code>VerifyReport</code> definitions returned none.</li>
+      <li><strong>Independently recomputing the ADR-0005 golden vector against the live implementation before shipping.</strong> Since the ADR <em>is</em> the cross-language contract, a wrong digest there would propagate to every SDK. Both the canonical string and the hex digest were recomputed from <code>_canonical_json</code> + <code>append_row</code> and matched the documented values — the doc and the code cannot silently diverge.</li>
+      <li><strong>Fixed 64-hex-char <code>prev_hash</code> width removed the need for a delimiter byte.</strong> The pre-image <code>prev_hash + canonical</code> is unambiguous because the parent link is always exactly 64 chars — one fewer thing every cross-language re-implementation must match. Documented in the module docstring and ADR-0005 alternative #4.</li>
     </ul>
   </section>
 
@@ -145,17 +149,27 @@
     <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
     <ul class="checklist">
       <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None caught — <em>only if you genuinely scanned for all 11 anti-patterns.</em></span>
+        <input class="check" type="checkbox" checked disabled>
+        <span>The full Review (all 11 anti-patterns) returned <strong>approved with 0 findings</strong>. Two issues were caught earlier — one at design review, one at Step-1 build self-review — and never reached Review.</span>
       </li>
     </ul>
     <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
+      <thead><tr><th>Issue</th><th>Caught at</th><th>Fix applied</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">e.g. #4 Type Safety</td>
-          <td class="placeholder">Review</td>
-          <td class="placeholder">Replaced Any with proper Union type.</td>
+          <td>AP#9-adjacent (too-new grammar): the architect's <code>design.html</code> data-model block used the PEP-695 <code>type JsonValue = …</code> statement</td>
+          <td>Design review (pre-Build), by reading <code>requires-python</code></td>
+          <td>The <code>type</code> statement is 3.12+ grammar; the package floors at <code>requires-python &gt;=3.11</code>, where it raises <code>SyntaxError</code> at import. Rewrote to the <code>JsonValue: TypeAlias = …</code> assignment form (3.11-safe) in both <code>design.html</code> and the shipped module, with an inline comment recording why. Caught before any code was written.</td>
+        </tr>
+        <tr>
+          <td>AP#4 (Type safety): <code>dict</code> value-type invariance — <code>dict[str, int]</code> / <code>dict[str, object]</code> are <em>not</em> assignable to <code>dict[str, JsonValue]</code></td>
+          <td>Step-1 build self-review (<code>mypy --strict</code>, 3 errors)</td>
+          <td>Annotated the test payload variables and the <code>_build_chain</code> helper parameter as <code>dict[str, JsonValue]</code> so the dict literals are checked element-wise in an expected-type context (bidirectional inference), removing the need for any <code># type: ignore</code>. One justified <code># type: ignore[dict-item]</code> remains — the deliberately non-JSON <code>set</code> payload that exercises the <code>TypeError</code> rejection path.</td>
+        </tr>
+        <tr>
+          <td>Doc-as-promise drift: two <code>stack.md</code> rows reserved a non-existent <code>AuditChain</code> class and a phantom <code>tests/fixtures/audit.py</code></td>
+          <td>Step-3 docs build (confirmed by <code>ls</code>: <code>audit.py</code> absent)</td>
+          <td>Both rows were placeholders for the abandoned class-based design. Rewrote the module row to the free-function API and the fixture row to "needs no fixture — pure functions are threaded via a local <code>_build_chain</code> helper", so the registry describes what <em>is</em>, not what was once planned.</td>
         </tr>
       </tbody>
     </table>
@@ -165,37 +179,38 @@
     <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
     <ul class="checklist">
       <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None missed</span>
+        <input class="check" type="checkbox" checked disabled>
+        <span>None at the time of writing. CI on PR #10 is pending and no peer review has run yet — this section will be revisited if CI or the reviewer surfaces anything. (Honest "none so far", not a claim that none can exist.)</span>
       </li>
     </ul>
-    <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="placeholder">e.g. #8 Async Misuse</td>
-          <td class="placeholder">CI load test</td>
-          <td class="placeholder">200ms latency spike</td>
-          <td class="placeholder">Wrapped in asyncio.to_thread().</td>
-        </tr>
-      </tbody>
-    </table>
   </section>
 
   <section id="timeline">
     <h2 class="neutral">Step-by-Step Timeline</h2>
     <div class="timeline">
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">Think + Plan locked</div>
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Think — both OQs resolved (caller timestamp, canonical JSON); spec locked</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label"><span class="placeholder">Step N shipped — commit hash</span></div>
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Plan — architect drafted <code>design.html</code> (PEP-695 floor defect caught + fixed); plan-reviewer <strong>approved</strong>; planning artifacts on fresh branch (<code>5877593</code>)</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">PR merged — v<!-- x.y.z-rcN --></div>
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 1 — <code>core/audit_chain.py</code> + 11 tests; dict-invariance mypy trap fixed (<code>7b708a8</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 2 — re-export 5-name surface from <code>core/__init__.py</code> + extend import tests (<code>a1d14d1</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Step 3 — <code>stack.md</code> free-fn rows + CHANGELOG feat + ADR-0005 golden vector (<code>3c7c7b0</code>)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-01</div>
+        <div class="tl-label">Review approved (0 findings) &rarr; Test (206 passed, 5/5 ACs, golden vector recomputed = match) &rarr; PR #10 opened. <strong>Not yet merged.</strong></div>
       </div>
     </div>
   </section>
@@ -203,26 +218,29 @@
   <section id="process-changes">
     <h2 class="neutral">Process Changes Proposed</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No process changes needed for this task.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to <code>AGENT_RULES.md</code>: describe.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to skill: which one, what change.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed new CI gate: describe.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span><strong>Promote the "missing-gate-script tolerance" proposal from tolerated to documented — this is the 4th task in a row (007, 008, 009, 010).</strong> The ship/reflect skills call <code>scripts/_flip_ac_badges.py</code>, <code>scripts/_product_docs.py ship_gate()</code>, and <code>_memory_writer.append_estimate_actual()</code>; none exist on this branch (the M34 product-docs + BILTIQ-006 memory-spine tooling has not landed in <code>biltiq-privacy</code>). The skills should formally treat these as <em>optional-when-absent</em> (allow-with-warning + manual fallback), not imply a hard call. Four confirmations &rarr; recommend codifying at the next Friday review.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span><strong>New <code>biltiq-code-architect</code> guard:</strong> when <code>requires-python</code> floors below 3.12, the architect must not emit the PEP-695 <code>type X = …</code> statement (use <code>TypeAlias =</code>). A one-line caution in the architect skill — or a row in <code>approved-versions.md</code> — would catch this at design time instead of relying on a human read of the floor. This defect was caught here, but only because the floor was checked manually.</span></li>
+      <li><input class="check" type="checkbox" disabled><span>No <code>AGENT_RULES.md</code> change proposed.</span></li>
     </ul>
   </section>
 
   <section id="cleanup-confirmation">
     <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Throwaway scripts deleted.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>, <code>test_scratch_*</code> files left in repo (verified via <code>git status</code> at each step commit and in the Review range scan).</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>The scratch PR-body file (<code>docs/eod/_pr_body_biltiq010.md</code>) was deleted immediately after <code>gh pr create</code>. AC demonstration probes were run inline via stdin heredoc, never written to disk.</span></li>
+      <li><input class="check" type="checkbox" disabled><span><strong>Branch not deleted</strong> — <code>feature/biltiq-010-audit-chain</code> stays until PR #10 merges (after CI green + reviewer approval). <code>MEMORY.md</code> working-tree drift left untouched (reserved for BILTIQ-006 AC8). <code>docs/eod/</code> left untracked.</span></li>
     </ul>
   </section>
 
   <section id="tech-debt">
     <h2 class="neutral">Tech Debt Logged</h2>
     <ul>
-      <li class="placeholder">Link to follow-up ticket, or "none".</li>
+      <li><strong>None from this code.</strong> The module is a self-contained pure leaf; Review returned 0 findings and no shortcut was taken to ship.</li>
+      <li><strong>Deferred (by design, not debt):</strong> end-to-end exercise of the chain — BILTIQ-012's orchestrator will emit a <code>ChainedRow</code> per anonymise call and BILTIQ-011 will verify the trail. Until then <code>audit_chain</code> has unit coverage but no in-pipeline exercise.</li>
+      <li><strong>Deferred (not debt against this code):</strong> the <code>MEMORY.md</code> session-log + "Recently completed" update and the M17 estimate-actuals row were <em>not</em> written — <code>MEMORY.md</code> is reserved for BILTIQ-006 AC8 reproduction and the <code>append_estimate_actual()</code> tooling is absent on this branch. Both reconcile when BILTIQ-006 lands the memory-spine and the reserved drift clears.</li>
+      <li><strong>Deferred:</strong> the ADR-0005 &harr; <code>MEMORY.md</code> link (Ship skill step 4) is held for the same 006 AC8 reserve; noted in the PR #10 body.</li>
+      <li><strong>Pre-existing (not from this PR):</strong> <code>test-scaffolds/python/example_test.py:27</code> F821 <code>pytest_mock</code> undefined — carried from the BILTIQ-000 bootstrap. Still warrants a cleanup ticket.</li>
     </ul>
   </section>
 
@@ -232,10 +250,10 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-01</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft at task close — Build (3 steps) &rarr; Review (approved, 0 findings) &rarr; Test (206 passed, 5/5 ACs, golden vector recomputed = match) &rarr; Ship (PR #10 opened, not merged). 5 AC badges flipped OPEN&rarr;DONE in spec.html.</td>
+          <td>BILTIQ-010</td>
         </tr>
       </tbody>
     </table>

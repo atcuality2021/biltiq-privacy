@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Spec: Audit hash-chain (pure)</title>
   <style>
-    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--color-ac-done:#16a34a;--radius:6px;--max-width:860px;}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
     main{max-width:var(--max-width);margin:0 auto;}
@@ -23,6 +23,7 @@
     .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
     .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
     .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-done{background:#dcfce7;color:var(--color-ac-done);border:1px solid #86efac;}
     .ac-label{font-size:0.85rem;}
     table{width:100%;border-collapse:collapse;font-size:0.85rem;}
     th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
@@ -66,11 +67,11 @@
   <section id="acceptance-criteria">
     <h2>Acceptance Criteria</h2>
     <ul class="ac-list">
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — <code>core/audit_chain.py</code> exposes a pure way to append an event to a chain: given <code>prev_hash</code> + event fields, produce a row whose <code>hash</code> commits to <code>(prev_hash, payload)</code>.</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>verify_chain(rows) -> report</code> returns valid/invalid and the first broken index; altering any field of any row fails verification (tamper-evident).</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — No SQLAlchemy/DB/session/FastAPI imports. Persistence is documented as a consumer-supplied interface; the library never writes storage.</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Hashing is deterministic with a documented, canonical row schema + serialization (stable key order) so chains verify across machines/languages.</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Tests: build a multi-row chain, verify it passes; mutate a middle row, verify it is detected at the right index; empty-chain + single-row edge cases.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC1</strong> — <code>core/audit_chain.py</code> exposes a pure way to append an event to a chain: given <code>prev_hash</code> + event fields, produce a row whose <code>hash</code> commits to <code>(prev_hash, payload)</code>.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC2</strong> — <code>verify_chain(rows) -> report</code> returns valid/invalid and the first broken index; altering any field of any row fails verification (tamper-evident).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC3</strong> — No SQLAlchemy/DB/session/FastAPI imports. Persistence is documented as a consumer-supplied interface; the library never writes storage.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC4</strong> — Hashing is deterministic with a documented, canonical row schema + serialization (stable key order) so chains verify across machines/languages.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC5</strong> — Tests: build a multi-row chain, verify it passes; mutate a middle row, verify it is detected at the right index; empty-chain + single-row edge cases.</span></li>
     </ul>
   </section>
 
@@ -98,6 +99,7 @@
       <tbody>
         <tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-010</td></tr>
         <tr><td>2026-06-01</td><td>open-questions</td><td>Resolved both OQs at Think: caller-supplied timestamp; canonical JSON (sorted keys, compact separators). Spec locked.</td><td>think</td></tr>
+        <tr><td>2026-06-01</td><td>acceptance-criteria</td><td>All 5 ACs flipped OPEN→DONE after Step 5 verification (live AC1–AC5 evidence; 206 passed, mypy --strict + ruff clean); added <code>.ac-done</code> badge CSS.</td><td>reflect</td></tr>
       </tbody>
     </table>
   </section>
