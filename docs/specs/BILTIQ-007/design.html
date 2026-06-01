@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Design: [TASK_TITLE]</title>
-  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <title>Design: Core hashing &amp; HMAC pseudonymiser</title>
   <style>
     :root {
       --color-border:    #e5e7eb;
@@ -81,6 +80,7 @@
     .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
     .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
     .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
     .placeholder { color: var(--color-muted); font-style: italic; }
     @media (max-width: 600px) { .meta { flex-direction: column; } }
   </style>
@@ -88,20 +88,49 @@
 <body>
 <main>
   <header>
-    <h1>Design: [TASK_TITLE]</h1>
+    <h1>Design: Core hashing &amp; HMAC pseudonymiser</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-007</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
     </dl>
   </header>
 
   <section id="approach">
     <h2>Approach</h2>
     <h3>Name</h3>
-    <p class="placeholder">One-line name for the chosen approach.</p>
+    <p>Free-function hasher + key-bound <code>Pseudonymiser</code> class, with a dedicated
+    <code>core.exceptions</code> module for <code>HMACKeyRequiredError</code>.</p>
     <h3>Description</h3>
-    <p class="placeholder">Chosen approach narrative — why this option, what it trades off, what it preserves. 3–6 sentences.</p>
+    <p>The CDSCO logic is split across two responsibilities, so we port it into two
+    modules that mirror the names already reserved in <code>stack.md</code> and
+    <code>overview.md</code>:
+    <code>core/doc_hasher.py</code> (stateless hashing) and
+    <code>core/pseudonymiser.py</code> (entity → token replacement).</p>
+    <p><strong>doc_hasher</strong> stays a set of pure free functions, matching both the
+    CDSCO original and the signature already advertised in <code>stack.md</code>
+    (<code>hmac_pseudonymise(text, *, key)</code>). The only behavioural change from CDSCO is
+    de-coupling from <code>settings.HMAC_KEY</code>: the key becomes a <em>keyword-only</em>
+    parameter typed <code>bytes | str</code>. A one-line private normaliser utf-8-encodes
+    a <code>str</code> key to <code>bytes</code> (the locked <code>str</code>-convenience decision), so the wire
+    behaviour is byte-identical to CDSCO when the same key text is passed. The two
+    plain SHA-256 functions (<code>hash_document</code>, <code>hash_text</code>) take no key and port verbatim.</p>
+    <p><strong>pseudonymiser</strong> is ported as a <code>Pseudonymiser</code> class (the exact name
+    <code>stack.md</code> reserves) that holds the normalised key on the instance. The key is
+    validated <em>once, in <code>__init__</code></em>: an empty / missing key raises
+    <code>HMACKeyRequiredError</code> before any text is processed — satisfying AC4 and the
+    <code>overview.md</code> failure-mode contract ("at constructor time, before any text").
+    <code>make_token(entity_type, value, *, token_length=8)</code> and
+    <code>pseudonymise_text(text, detections)</code> become methods that reuse the instance key,
+    so callers inject the key exactly once rather than threading it through every call.
+    <code>token_length</code> defaults to <code>8</code> (CDSCO-equivalent) and slices the hex digest to that
+    width, leaving the <code>[TYPE_&lt;hex&gt;]</code> token form unchanged at the default.</p>
+    <p><strong>exceptions</strong>: <code>HMACKeyRequiredError</code> is named in <code>overview.md</code> but has no
+    home yet. We add <code>core/exceptions.py</code> as the single home for library exceptions
+    (the sibling <code>BiltiqPrivacyImportError</code> / <code>MissingNERModelError</code> named in
+    <code>overview.md</code> will land beside it later). It subclasses <code>ValueError</code> so existing
+    consumers catching value errors are not surprised, while remaining a distinct,
+    catchable type.</p>
   </section>
 
   <section id="alternatives">
@@ -111,8 +140,10 @@
         <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
       </thead>
       <tbody>
-        <tr><td>1</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
-        <tr><td>2</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
+        <tr><td>1</td><td>Per-call key on the pseudonymiser (key passed to every <code>make_token</code>/<code>pseudonymise_text</code> call)</td><td>Cannot satisfy AC4's "fail fast at constructor time, before any text is processed"; also re-normalises the key on every call and invites callers to pass inconsistent keys mid-document.</td></tr>
+        <tr><td>2</td><td>Module-level singleton key (set once via a module function, read by free functions)</td><td>Reintroduces exactly the global-state coupling we are porting <em>away</em> from (<code>settings.HMAC_KEY</code>); not safe across multi-tenant keys; violates the "constructor-arg only" rule in <code>overview.md</code> forbidden placements.</td></tr>
+        <tr><td>3</td><td>One combined <code>core/pseudonymiser.py</code> holding both hashing and tokenising</td><td>Hides the stateless SHA-256 helpers (<code>hash_document</code>/<code>hash_text</code>) that <code>audit_chain</code> will want without a key; <code>stack.md</code> already reserves two distinct module names, so merging diverges from the documented surface.</td></tr>
+        <tr><td>4</td><td>Raise on missing key only when <code>pseudonymise_text</code> is first called (lazy)</td><td>Defers the failure past the AC4 boundary ("before any text is processed") and makes the error fire deep in a loop rather than at the injection point; constructor-time validation is cheaper to diagnose.</td></tr>
       </tbody>
     </table>
   </section>
@@ -123,53 +154,146 @@
     <table>
       <thead><tr><th>File</th><th>Purpose</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What it does.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/exceptions.py</code></td><td><strong>Create.</strong> Home for <code>HMACKeyRequiredError(ValueError)</code> (named by <code>overview.md</code> failure modes, currently homeless). Single library-exception module so future <code>overview.md</code> errors land beside it.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/doc_hasher.py</code></td><td><strong>Create.</strong> Ports <code>hash_document</code>, <code>hash_text</code> (verbatim SHA-256) and <code>hmac_pseudonymise</code> (key as keyword-only <code>bytes | str</code>, utf-8-encoded internally). No <code>settings</code>/env import (AC1).</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/pseudonymiser.py</code></td><td><strong>Create.</strong> <code>Pseudonymiser</code> class binding the normalised key; <code>make_token(..., *, token_length=8)</code> + <code>pseudonymise_text</code>; constructor raises <code>HMACKeyRequiredError</code> (AC2, AC4).</td></tr>
+        <tr><td><code>packages/python-core/tests/core/__init__.py</code></td><td><strong>Create.</strong> Regular-package marker so the <code>core/</code> test tree resolves under the repo-root pytest plumbing (mirrors <code>tests/indian/__init__.py</code>).</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_exceptions.py</code></td><td><strong>Create.</strong> Pins <code>HMACKeyRequiredError</code> subclasses <code>ValueError</code> and is importable from <code>core.exceptions</code> (AC4). Lands with Step 1 alongside the exception module.</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_doc_hasher.py</code></td><td><strong>Create.</strong> Happy + failure paths for the three hasher functions; determinism &amp; key-sensitivity; <code>str</code>/<code>bytes</code> key equivalence (AC1, AC3, AC5).</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_pseudonymiser.py</code></td><td><strong>Create.</strong> Token format, default <code>token_length=8</code>, configurable length, multi-entity replacement, audit-list shape, <code>HMACKeyRequiredError</code> on empty key (AC2, AC3, AC4, AC5).</td></tr>
+        <tr><td><code>packages/python-core/tests/conftest.py</code></td><td><strong>Create.</strong> Adds the <code>hmac_key</code> fixture (deterministic 32-byte test key) already promised in <code>stack.md</code> § Test fixtures but not yet present.</td></tr>
       </tbody>
     </table>
     <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
     <table>
       <thead><tr><th>File</th><th>Change</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What changes.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/__init__.py</code></td><td><strong>Edit.</strong> Drop the "modules land in BILTIQ-002+" stub note; re-export <code>Pseudonymiser</code>, <code>hmac_pseudonymise</code>, <code>HMACKeyRequiredError</code> via <code>__all__</code> for a stable <code>biltiq_privacy.core</code> import surface. (Re-export is optional; submodule imports remain canonical.)</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td><strong>Edit.</strong> Add an <code>[Unreleased]</code> <code>feat:</code> line for the two core modules + exceptions (BILTIQ-007), matching the BILTIQ-002 entry style.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td><strong>Edit (only if surface drifts).</strong> The <code>doc_hasher</code> and <code>Pseudonymiser</code> rows already exist; update the <code>Pseudonymiser</code> row wording to note constructor-injected key + <code>token_length</code> if the reviewer wants the row to reflect the final signature. No new row needed.</td></tr>
       </tbody>
     </table>
+    <p><em>No <code>pyproject.toml</code> change.</em> Both modules use stdlib only (<code>hashlib</code>, <code>hmac</code>); no new dependency, no test-dep beyond the existing <code>pytest</code> group.</p>
   </section>
 
   <section id="data-model">
     <h2>Data Model Changes</h2>
-    <p class="placeholder">Schema deltas, new JSONL fields, new SQLite tables. Write "None" if no model changes.</p>
+    <p>None. No schema, no JSONL field, no SQLite table. The audit list returned by
+    <code>pseudonymise_text</code> is an in-memory list the caller persists (consistent with the
+    library's "no persistence layer" rule in <code>approved-versions.md</code>). Audit-record
+    keys are preserved verbatim from CDSCO: <code>entity_type</code>, <code>pseudonym_token</code>,
+    <code>position_start</code>, <code>position_end</code>, <code>confidence</code>.</p>
   </section>
 
   <section id="api-contract">
     <h2>API Contract Changes</h2>
-    <p class="placeholder">New or changed function signatures, CLI interfaces, env vars. Write "None" if no API changes.</p>
-    <pre><code class="placeholder"># Example:
-# function_name(param: type) -> return_type
+    <p>New public surface under <code>biltiq_privacy.core</code>. No existing contract changes
+    (the modules are new). All signatures are fully typed; no <code>Any</code>, no
+    <code>type: ignore</code>. Detections are typed via a narrow <code>TypedDict</code> rather than bare
+    <code>dict</code> to keep <code>--strict</code> clean while preserving the CDSCO dict shape.</p>
+    <pre><code># core/exceptions.py
+class HMACKeyRequiredError(ValueError): ...
+
+# core/doc_hasher.py
+def hash_document(file_bytes: bytes) -> str: ...
+def hash_text(text: str) -> str: ...
+def hmac_pseudonymise(value: str, *, key: bytes | str) -> str: ...
+
+# core/pseudonymiser.py
+class Detection(TypedDict):
+    entity_type: str
+    text: str
+    start: int
+    end: int
+    score: float
+
+class AuditRecord(TypedDict):
+    entity_type: str
+    pseudonym_token: str
+    position_start: int
+    position_end: int
+    confidence: float
+
+class Pseudonymiser:
+    def __init__(self, *, key: bytes | str) -> None: ...   # raises HMACKeyRequiredError on empty key
+    def make_token(self, entity_type: str, value: str, *, token_length: int = 8) -> str: ...
+    def pseudonymise_text(
+        self, text: str, detections: list[Detection]
+    ) -> tuple[str, list[AuditRecord]]: ...
 </code></pre>
+    <p>No new environment variables. No CLI change. The HMAC key never appears as an
+    env read in <code>python-core</code>; it is always a constructor / keyword argument.</p>
   </section>
 
   <section id="security-compliance">
     <h2>Security &amp; Compliance</h2>
     <ul>
-      <li class="placeholder">Compliance mode: <code>on_prem_preferred</code> — note any external call gating.</li>
-      <li class="placeholder">Secret handling: env vars only, never hardcoded.</li>
-      <li class="placeholder">Input escaping: note any user-controlled data embedded in output.</li>
+      <li>Compliance mode <code>on_prem_preferred</code>: no external / cloud AI calls, no network, no LLM. Pure stdlib hashing. No ADR required — nothing crosses a trust boundary.</li>
+      <li><strong>Key handling — the core compliance point.</strong> The HMAC key is never read from env, <code>settings</code>, or any config object inside <code>packages/python-core/</code>. It is a keyword argument only. This is the direct fix for the <code>overview.md</code> forbidden placement "HMAC key reading from env inside <code>packages/python-core/</code> — constructor-arg only". Env resolution stays in the server tier (<code>Depends()</code> per <code>approved-versions.md</code>), which injects the key into the constructor.</li>
+      <li>Algorithm: HMAC-SHA256 (AC1), unchanged from CDSCO. Plain SHA-256 for document/text fingerprints. No weak digests.</li>
+      <li>Fail-closed on missing key: <code>HMACKeyRequiredError</code> at constructor time prevents any text being tokenised with an absent/empty key (AC4).</li>
+      <li>No secret logging: the key is held on the instance and never logged; tokens are derived one-way and safe to emit. No <code>print()</code>; if logging is added it uses <code>RedactionFilter</code> per <code>stack.md</code>.</li>
+      <li>Pseudonymisation is forward-only by design (spec § Out of Scope) — reversal is the key-holder's concern; no re-identification store is created.</li>
     </ul>
   </section>
 
   <section id="performance">
     <h2>Performance Considerations</h2>
-    <p class="placeholder">Latency budget, data volume, hot paths. Write "None" if not applicable.</p>
+    <p>Negligible. HMAC-SHA256 over short entity strings and SHA-256 over a document
+    are sub-microsecond to low-microsecond operations; this matches the
+    <code>overview.md</code> budget ("Pseudonymisation + generalisation + audit row: &lt;1 ms").
+    <code>pseudonymise_text</code> is O(n) in detection count and rebuilds the string from the
+    end backwards (CDSCO algorithm preserved) so offsets stay valid — no quadratic
+    re-scan. Not a hot path relative to Presidio detection (~10–40 ms/KB). No caching
+    needed; the only per-instance setup is one key normalisation.</p>
   </section>
 
   <section id="rollout">
     <h2>Rollout Plan</h2>
     <ol style="padding-left: 1.4rem;">
-      <li class="placeholder">Step 1 — first safe change to land.</li>
-      <li class="placeholder">Step 2 — next change, depends on step 1.</li>
+      <li>Step 1 — <code>core/exceptions.py</code> with <code>HMACKeyRequiredError</code> + its test. No dependents, lands first.</li>
+      <li>Step 2 — <code>core/doc_hasher.py</code> (three functions) + <code>tests/core/test_doc_hasher.py</code> + <code>tests/conftest.py</code> <code>hmac_key</code> fixture. Depends on nothing in this task.</li>
+      <li>Step 3 — <code>core/pseudonymiser.py</code> (<code>Pseudonymiser</code> class) + <code>tests/core/test_pseudonymiser.py</code>. Depends on Steps 1 and 2.</li>
+      <li>Step 4 — update <code>core/__init__.py</code> exports + <code>CHANGELOG.md</code> (+ <code>stack.md</code> row wording if reviewer asks). Depends on Steps 1–3.</li>
     </ol>
     <h3>Rollback</h3>
-    <p class="placeholder">How to undo if something goes wrong after merge.</p>
+    <p>Pure additive change — new modules, no data migration, no contract change to
+    existing code. Rollback is deleting the four new modules and reverting the
+    <code>__init__.py</code> / <code>CHANGELOG.md</code> edits (single revert commit). No data or schema to
+    unwind.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Behaviour drift from CDSCO (token format, digest bytes, audit-list keys/order) during the port.</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Characterization tests (AC5) pin the exact token form <code>[TYPE_&lt;hex&gt;]</code>, the end-to-start replacement order, the restored audit ordering, and the five audit-record keys against known-fake inputs. Determinism / key-sensitivity test (AC3) locks the digest given a fixed key.</td>
+        </tr>
+        <tr>
+          <td>Token collision at the default <code>token_length=8</code> (32 bits of hex) for very large entity volumes.</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Accepted as CDSCO-equivalent default; <code>token_length</code> is configurable so high-scale consumers widen collision resistance. Document the birthday-bound trade-off in the <code>make_token</code> docstring. A collision vault is out of scope (spec § Out of Scope).</td>
+        </tr>
+        <tr>
+          <td><code>str</code> vs <code>bytes</code> key producing different digests for the "same" key if a caller mixes forms.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Locked decision: <code>str</code> is utf-8-encoded internally, so <code>"k"</code> and <code>b"k"</code> yield identical digests. A test asserts <code>str</code>/<code>bytes</code> equivalence to pin this.</td>
+        </tr>
+        <tr>
+          <td><code>HMACKeyRequiredError</code> placement: an inline definition would orphan the future sibling errors named in <code>overview.md</code>.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Dedicated <code>core/exceptions.py</code> as the single exception home; subclasses <code>ValueError</code> for backward-friendly catching.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Coordination:</strong> <code>core/</code> is otherwise an empty stub; no other in-flight task
+    touches these files (per <code>MEMORY.md</code>; BILTIQ-006 is in <code>scripts/</code> memory-spine,
+    disjoint). The new <code>tests/conftest.py</code> + <code>hmac_key</code> fixture is shared scaffolding
+    that BILTIQ-011 / BILTIQ-012 will consume.</p>
   </section>
 
   <section id="change-history">
@@ -180,10 +304,10 @@
       </thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-01</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft from locked spec (key bytes+str, token_length default 8)</td>
+          <td>BILTIQ-007</td>
         </tr>
       </tbody>
     </table>

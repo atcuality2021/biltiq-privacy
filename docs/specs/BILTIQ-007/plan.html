@@ -3,131 +3,112 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan: [TASK_TITLE]</title>
-  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <title>Plan: Core hashing &amp; HMAC pseudonymiser</title>
   <style>
-    :root {
-      --color-border:    #e5e7eb;
-      --color-bg:        #ffffff;
-      --color-bg-subtle: #f9fafb;
-      --color-text:      #111827;
-      --color-muted:     #6b7280;
-      --color-step-bg:   #f0fdf4;
-      --color-step-bdr:  #bbf7d0;
-      --color-risk-high: #dc2626;
-      --color-risk-med:  #d97706;
-      --color-risk-low:  #16a34a;
-      --radius:          6px;
-      --max-width:       860px;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-      color: var(--color-text);
-      background: var(--color-bg);
-      padding: 2rem 1rem;
-    }
-    main { max-width: var(--max-width); margin: 0 auto; }
-    header {
-      border-bottom: 2px solid var(--color-border);
-      padding-bottom: 1.25rem;
-      margin-bottom: 2rem;
-    }
-    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
-    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
-    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .meta dd { font-size: 0.9rem; }
-    section { margin-bottom: 2rem; }
-    h2 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      border-left: 4px solid var(--color-border);
-      padding-left: 0.75rem;
-      margin-bottom: 0.75rem;
-    }
-    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
-    p, li { margin-bottom: 0.4rem; }
-    ul, ol { padding-left: 1.4rem; }
-    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
-    .step {
-      border: 1px solid var(--color-step-bdr);
-      background: var(--color-step-bg);
-      border-radius: var(--radius);
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
-    }
-    .step-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
-    .step-title { font-weight: 700; font-size: 0.95rem; }
-    .band {
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 0.15rem 0.5rem;
-      border-radius: 9999px;
-      background: #e0f2fe;
-      color: #0369a1;
-      border: 1px solid #7dd3fc;
-    }
-    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
-    .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
-    .step-tests strong { color: var(--color-muted); }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
-    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
-    th { background: var(--color-bg-subtle); font-weight: 600; }
-    .risk-h { color: var(--color-risk-high); font-weight: 700; }
-    .risk-m { color: var(--color-risk-med);  font-weight: 700; }
-    .risk-l { color: var(--color-risk-low);  font-weight: 700; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
-    @media (max-width: 600px) { .meta { flex-direction: column; } }
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-step-bg:#f0fdf4;--color-step-bdr:#bbf7d0;--color-risk-high:#dc2626;--color-risk-med:#d97706;--color-risk-low:#16a34a;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    h3{font-size:0.95rem;font-weight:600;margin:1rem 0 0.4rem;}
+    p,li{margin-bottom:0.4rem;}
+    ul,ol{padding-left:1.4rem;}
+    code{font-family:ui-monospace,monospace;font-size:0.85em;background:var(--color-bg-subtle);padding:0.1em 0.3em;border-radius:3px;}
+    .step{border:1px solid var(--color-step-bdr);background:var(--color-step-bg);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;}
+    .step-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.5rem;}
+    .step-title{font-weight:700;font-size:0.95rem;}
+    .band{font-size:0.7rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:9999px;background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc;}
+    .step-meta{font-size:0.8rem;color:var(--color-muted);margin-bottom:0.5rem;}
+    .step-tests{font-size:0.82rem;margin-top:0.5rem;}
+    .step-tests strong{color:var(--color-muted);}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;margin:0.5rem 0;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+    .risk-h{color:var(--color-risk-high);font-weight:700;}
+    .risk-m{color:var(--color-risk-med);font-weight:700;}
+    .risk-l{color:var(--color-risk-low);font-weight:700;}
+    @media (max-width:600px){.meta{flex-direction:column;}}
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Plan: [TASK_TITLE]</h1>
+    <h1>Plan: Core hashing &amp; HMAC pseudonymiser</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Branch</dt><dd><!-- feature/xxx --></dd></div>
-      <div><dt>Base</dt><dd><!-- main --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-007</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-007-core-pseudonymiser</dd></div>
+      <div><dt>Base</dt><dd>main</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
     </dl>
   </header>
 
   <section id="steps">
     <h2>Build Sequence</h2>
-    <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
-      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding.
+    <p style="margin-bottom:1rem;font-size:0.85rem;color:var(--color-muted);">
+      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding. All modules stdlib-only; no dependency or schema change.
     </p>
 
     <div class="step">
-      <div class="step-header">
-        <span class="step-title">Step 1 — [Step title]</span>
-        <span class="band">M</span>
-      </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step comes first.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files created / modified</span></p>
-      <div class="step-tests">
-        <strong>Tests:</strong>
+      <div class="step-header"><span class="step-title">Step 1 — core/exceptions.py + HMACKeyRequiredError</span><span class="band">S</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> The exception is named in <code>overview.md</code> but homeless; everything else depends on it. Land it first with zero dependents. Est. ~20 min.</p>
+      <p class="step-meta"><strong>Files:</strong> CREATE <code>biltiq_privacy/core/exceptions.py</code>; CREATE <code>tests/core/__init__.py</code>; CREATE <code>tests/core/test_exceptions.py</code>.</p>
+      <div class="step-tests"><strong>Tests:</strong>
         <ul>
-          <li class="placeholder">test_function_name — asserts X (AC1)</li>
+          <li><code>test_hmac_key_required_is_value_error</code> — <code>HMACKeyRequiredError</code> subclasses <code>ValueError</code> and is importable from <code>biltiq_privacy.core.exceptions</code> (AC4).</li>
         </ul>
       </div>
-      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code class="placeholder">pytest tests/path/to/test.py</code> — GREEN</p>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/core/test_exceptions.py</code> — GREEN.</p>
     </div>
 
     <div class="step">
-      <div class="step-header">
-        <span class="step-title">Step 2 — [Step title]</span>
-        <span class="band">S</span>
+      <div class="step-header"><span class="step-title">Step 2 — core/doc_hasher.py + hmac_key fixture</span><span class="band">M</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> Stateless hashing has no in-task deps; the <code>Pseudonymiser</code> (Step 3) consumes <code>hmac_pseudonymise</code>. Adds the shared <code>hmac_key</code> fixture that 011/012 will reuse. Est. ~45 min.</p>
+      <p class="step-meta"><strong>Files:</strong> CREATE <code>biltiq_privacy/core/doc_hasher.py</code> (<code>hash_document</code>, <code>hash_text</code>, <code>hmac_pseudonymise(value, *, key: bytes|str)</code>); CREATE <code>tests/conftest.py</code> (deterministic 32-byte <code>hmac_key</code> fixture per <code>stack.md</code>); CREATE <code>tests/core/test_doc_hasher.py</code>.</p>
+      <div class="step-tests"><strong>Tests:</strong>
+        <ul>
+          <li><code>test_hash_text_is_sha256_hex</code> / <code>test_hash_document_bytes</code> — known input → known SHA-256 digest (AC1).</li>
+          <li><code>test_hmac_deterministic</code> — same (value, key) → same digest across calls (AC3).</li>
+          <li><code>test_hmac_key_sensitivity</code> — different key → different digest (AC3).</li>
+          <li><code>test_str_and_bytes_key_equivalent</code> — <code>"k"</code> and <code>b"k"</code> yield identical output (locked str-convenience).</li>
+          <li><code>test_no_settings_import</code> — module source contains no <code>settings</code>/<code>os.environ</code> read (AC1, static assert).</li>
+        </ul>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step follows step 1.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files</span></p>
-      <div class="step-tests">
-        <strong>Tests:</strong> <span class="placeholder">none (static files — structural correctness verified by step N)</span>
-      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/core/test_doc_hasher.py</code> — GREEN.</p>
     </div>
-    <!-- Add more steps by copying a .step block -->
+
+    <div class="step">
+      <div class="step-header"><span class="step-title">Step 3 — core/pseudonymiser.py (Pseudonymiser class)</span><span class="band">M</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> The task's core deliverable; depends on Steps 1 (exception) and 2 (hasher). Est. ~50 min.</p>
+      <p class="step-meta"><strong>Files:</strong> CREATE <code>biltiq_privacy/core/pseudonymiser.py</code> (<code>Detection</code>/<code>AuditRecord</code> TypedDicts; <code>Pseudonymiser.__init__(*, key)</code>, <code>make_token(entity_type, value, *, token_length=8)</code>, <code>pseudonymise_text(text, detections)</code>); CREATE <code>tests/core/test_pseudonymiser.py</code>.</p>
+      <div class="step-tests"><strong>Tests:</strong>
+        <ul>
+          <li><code>test_make_token_format</code> — token matches <code>[TYPE_&lt;8 hex&gt;]</code> at default (AC2, characterization).</li>
+          <li><code>test_token_length_configurable</code> — <code>token_length=12</code> → 12 hex chars (AC2).</li>
+          <li><code>test_token_deterministic_per_key</code> — same value+key → same token; different key → different (AC3).</li>
+          <li><code>test_pseudonymise_text_multi_entity</code> — multiple detections replaced; end→start order keeps offsets valid; audit list has the 5 CDSCO keys in restored order (AC2, AC5).</li>
+          <li><code>test_empty_key_raises</code> — <code>Pseudonymiser(key=b"")</code> / missing → <code>HMACKeyRequiredError</code> at construction, before any text (AC4).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/core/</code> — GREEN; <code>mypy --strict</code> clean.</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header"><span class="step-title">Step 4 — exports + CHANGELOG + stack.md row</span><span class="band">S</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> Stable public surface + docs move with the code (AP defense). Depends on Steps 1–3. Est. ~20 min.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>biltiq_privacy/core/__init__.py</code> (drop stub note; <code>__all__</code> re-exports <code>Pseudonymiser</code>, <code>hmac_pseudonymise</code>, <code>HMACKeyRequiredError</code>); EDIT <code>CHANGELOG.md</code> (<code>[Unreleased]</code> feat line); EDIT <code>docs/architecture/stack.md</code> (refresh <code>Pseudonymiser</code> row wording — no new row).</p>
+      <div class="step-tests"><strong>Tests:</strong>
+        <ul>
+          <li><code>test_public_imports</code> — <code>from biltiq_privacy.core import Pseudonymiser, HMACKeyRequiredError</code> resolves (AC2).</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> full <code>pytest</code> green; <code>mypy --strict</code> clean; banned-vocab + residue scan clean.</p>
+    </div>
   </section>
 
   <section id="test-strategy">
@@ -135,16 +116,17 @@
     <table>
       <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
       <tbody>
-        <tr><td>Unit</td><td class="placeholder">function behavior</td><td class="placeholder">tests/path/test_foo.py</td></tr>
-        <tr><td>Integration</td><td class="placeholder">end-to-end round-trip</td><td class="placeholder">tests/path/test_integration.py</td></tr>
-        <tr><td>Manual</td><td class="placeholder">open in browser, verify rendered output</td><td>—</td></tr>
+        <tr><td>Unit</td><td>Hasher determinism / key-sensitivity / str-bytes equivalence; token format + configurable length; constructor fail-fast</td><td><code>tests/core/test_doc_hasher.py</code>, <code>tests/core/test_pseudonymiser.py</code>, <code>tests/core/test_exceptions.py</code></td></tr>
+        <tr><td>Characterization</td><td>Token form, end→start replacement order, 5 audit-record keys pinned against CDSCO behaviour with fixed fake inputs</td><td><code>tests/core/test_pseudonymiser.py</code></td></tr>
+        <tr><td>Integration</td><td>Deferred to BILTIQ-012 (full <code>anonymise()</code> chain). Not in scope here.</td><td>—</td></tr>
+        <tr><td>Static</td><td><code>mypy --strict</code> (no <code>Any</code>/<code>type: ignore</code>); source-level assert of no <code>settings</code>/env read in core</td><td>CI + <code>test_doc_hasher.py</code></td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="rollback-plan">
     <h2>Rollback Plan</h2>
-    <p class="placeholder">How to undo if something goes wrong. For additive-only changes: "Remove new files, revert text insertions. No data loss."</p>
+    <p>Additive-only: new modules + tests, plus three text edits (<code>core/__init__.py</code>, <code>CHANGELOG.md</code>, <code>stack.md</code>). No data, schema, or contract change. Rollback = single revert commit deleting the new files and reverting the three edits. No persistence to unwind.</p>
   </section>
 
   <section id="risks">
@@ -152,12 +134,10 @@
     <table>
       <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
       <tbody>
-        <tr>
-          <td class="placeholder">Risk description</td>
-          <td class="placeholder">1</td>
-          <td><span class="risk-m">MED</span></td>
-          <td class="placeholder">How it is mitigated.</td>
-        </tr>
+        <tr><td>Behaviour drift from CDSCO (token form, digest, audit keys/order)</td><td>3</td><td><span class="risk-m">MED</span></td><td>Characterization tests pin token form, replacement order, and the 5 audit keys against fixed inputs (AC5); determinism test locks the digest (AC3).</td></tr>
+        <tr><td>Token collision at default <code>token_length=8</code> (32 bits) at high volume</td><td>3</td><td><span class="risk-m">MED</span></td><td>CDSCO-equivalent default; <code>token_length</code> configurable; birthday-bound trade-off documented in <code>make_token</code> docstring. Collision vault out of scope.</td></tr>
+        <tr><td><code>tests/conftest.py</code> / <code>hmac_key</code> fixture collides with a future broader conftest</td><td>2</td><td><span class="risk-l">LOW</span></td><td>Fixture name + 32-byte value taken verbatim from <code>stack.md</code> § Test fixtures; this is the documented owner.</td></tr>
+        <tr><td>Re-export surface in <code>core/__init__.py</code> drifts from submodule canonical imports</td><td>4</td><td><span class="risk-l">LOW</span></td><td>Re-export is additive convenience; submodule imports remain canonical; <code>test_public_imports</code> pins the surface.</td></tr>
       </tbody>
     </table>
   </section>
@@ -167,12 +147,7 @@
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
-        <tr>
-          <td><!-- YYYY-MM-DD --></td>
-          <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
-        </tr>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft from locked spec + design (4 atomic steps)</td><td>BILTIQ-007</td></tr>
       </tbody>
     </table>
   </section>
