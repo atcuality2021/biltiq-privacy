@@ -3,131 +3,109 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan: [TASK_TITLE]</title>
-  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <title>Plan: Generaliser (k-anonymity rollups)</title>
   <style>
-    :root {
-      --color-border:    #e5e7eb;
-      --color-bg:        #ffffff;
-      --color-bg-subtle: #f9fafb;
-      --color-text:      #111827;
-      --color-muted:     #6b7280;
-      --color-step-bg:   #f0fdf4;
-      --color-step-bdr:  #bbf7d0;
-      --color-risk-high: #dc2626;
-      --color-risk-med:  #d97706;
-      --color-risk-low:  #16a34a;
-      --radius:          6px;
-      --max-width:       860px;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-      color: var(--color-text);
-      background: var(--color-bg);
-      padding: 2rem 1rem;
-    }
-    main { max-width: var(--max-width); margin: 0 auto; }
-    header {
-      border-bottom: 2px solid var(--color-border);
-      padding-bottom: 1.25rem;
-      margin-bottom: 2rem;
-    }
-    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
-    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
-    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .meta dd { font-size: 0.9rem; }
-    section { margin-bottom: 2rem; }
-    h2 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      border-left: 4px solid var(--color-border);
-      padding-left: 0.75rem;
-      margin-bottom: 0.75rem;
-    }
-    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
-    p, li { margin-bottom: 0.4rem; }
-    ul, ol { padding-left: 1.4rem; }
-    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
-    .step {
-      border: 1px solid var(--color-step-bdr);
-      background: var(--color-step-bg);
-      border-radius: var(--radius);
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
-    }
-    .step-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
-    .step-title { font-weight: 700; font-size: 0.95rem; }
-    .band {
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 0.15rem 0.5rem;
-      border-radius: 9999px;
-      background: #e0f2fe;
-      color: #0369a1;
-      border: 1px solid #7dd3fc;
-    }
-    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
-    .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
-    .step-tests strong { color: var(--color-muted); }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
-    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
-    th { background: var(--color-bg-subtle); font-weight: 600; }
-    .risk-h { color: var(--color-risk-high); font-weight: 700; }
-    .risk-m { color: var(--color-risk-med);  font-weight: 700; }
-    .risk-l { color: var(--color-risk-low);  font-weight: 700; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
-    @media (max-width: 600px) { .meta { flex-direction: column; } }
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-step-bg:#f0fdf4;--color-step-bdr:#bbf7d0;--color-risk-high:#dc2626;--color-risk-med:#d97706;--color-risk-low:#16a34a;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    h3{font-size:0.95rem;font-weight:600;margin:1rem 0 0.4rem;}
+    p,li{margin-bottom:0.4rem;}
+    ul,ol{padding-left:1.4rem;}
+    code{font-family:ui-monospace,monospace;font-size:0.85em;background:var(--color-bg-subtle);padding:0.1em 0.3em;border-radius:3px;}
+    .step{border:1px solid var(--color-step-bdr);background:var(--color-step-bg);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;}
+    .step-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.5rem;}
+    .step-title{font-weight:700;font-size:0.95rem;}
+    .band{font-size:0.7rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:9999px;background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc;}
+    .step-meta{font-size:0.8rem;color:var(--color-muted);margin-bottom:0.5rem;}
+    .step-tests{font-size:0.82rem;margin-top:0.5rem;}
+    .step-tests strong{color:var(--color-muted);}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;margin:0.5rem 0;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+    .risk-h{color:var(--color-risk-high);font-weight:700;}
+    .risk-m{color:var(--color-risk-med);font-weight:700;}
+    .risk-l{color:var(--color-risk-low);font-weight:700;}
+    @media (max-width:600px){.meta{flex-direction:column;}}
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Plan: [TASK_TITLE]</h1>
+    <h1>Plan: Generaliser (k-anonymity rollups)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Branch</dt><dd><!-- feature/xxx --></dd></div>
-      <div><dt>Base</dt><dd><!-- main --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-008</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-phase-a-core</dd></div>
+      <div><dt>Base</dt><dd>main</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
     </dl>
   </header>
 
   <section id="steps">
     <h2>Build Sequence</h2>
-    <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
-      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding.
+    <p style="margin-bottom:1rem;font-size:0.85rem;color:var(--color-muted);">
+      Each step = one logical commit. TDD: RED &rarr; GREEN in the same step. Run <code>pytest</code> before proceeding. The module is stdlib-only (<code>re</code>); no dependency, schema, or contract change. Golden output strings are hand-derived literals (not recomputed with a copy of the regex) so the characterization tests are a true gate, not a tautology &mdash; per the BILTIQ-007 reflect lesson.
     </p>
 
     <div class="step">
-      <div class="step-header">
-        <span class="step-title">Step 1 — [Step title]</span>
-        <span class="band">M</span>
-      </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step comes first.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files created / modified</span></p>
-      <div class="step-tests">
-        <strong>Tests:</strong>
+      <div class="step-header"><span class="step-title">Step 1 &mdash; core/generaliser.py: the six field generalisers</span><span class="band">M</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> The leaf primitives the dispatch layer (Step 2) routes to. Near-verbatim lift of the six CDSCO functions, with the one decoupling delta on <code>generalise_location</code> (inject-with-default <code>region_map</code>). Self-contained; depends on nothing in this task. Est. ~45 min.</p>
+      <p class="step-meta"><strong>Files:</strong> CREATE <code>packages/python-core/biltiq_privacy/core/generaliser.py</code> &mdash; SPDX header, module docstring naming the CDSCO origin + the AC5 no-overclaim note (rule-based generalisation, NOT a dataset-level k-anonymity guarantee; measurement is BILTIQ-021); <code>from __future__ import annotations</code>; <code>import re</code>; module-level <code>_AGE_BRACKETS</code> and default <code>_REGION_MAP</code> (verbatim, 21 states); the six functions <code>generalise_age</code>, <code>generalise_date</code>, <code>generalise_location(location, *, region_map=None)</code>, <code>generalise_phone</code>, <code>generalise_aadhaar</code>, <code>generalise_pan</code>. CREATE <code>packages/python-core/tests/core/test_generaliser.py</code> (field-generaliser cases below).</p>
+      <div class="step-tests"><strong>Tests (each function: success path + fallback path + irreversibility &mdash; AC1, AC6):</strong>
         <ul>
-          <li class="placeholder">test_function_name — asserts X (AC1)</li>
+          <li><code>test_generalise_age_brackets</code> &mdash; <code>35&rarr;"20-39"</code>, boundaries <code>0&rarr;"0-19"</code>, <code>19&rarr;"0-19"</code>, <code>20&rarr;"20-39"</code>, <code>79&rarr;"60-79"</code> (AC1).</li>
+          <li><code>test_generalise_age_overflow_floor</code> &mdash; <code>80&rarr;"80+"</code>, <code>120&rarr;"80+"</code>, and the documented quirk <code>-5&rarr;"80+"</code> (no negative-redaction path; pins fall-through behaviour verbatim).</li>
+          <li><code>test_generalise_date_ddmm</code> &mdash; <code>"15/03/2020"&rarr;"March 2020"</code>, <code>"01-12-1999"&rarr;"December 1999"</code> (DD/MM ordering pinned per dev decision 2026-06-01).</li>
+          <li><code>test_generalise_date_redacted_fallback</code> &mdash; malformed <code>"not a date"&rarr;"[DATE_REDACTED]"</code>; and the DD/MM consequence <code>"05/13/2020"&rarr;"[DATE_REDACTED]"</code> (group(2)=13&gt;12), documenting that MM/DD input is redacted, not mis-mapped.</li>
+          <li><code>test_generalise_location_known_state</code> &mdash; <code>"AIIMS Delhi"&rarr;"Healthcare Facility, North India"</code>, <code>"Kochi, Kerala"&rarr;"Healthcare Facility, South India"</code> (substring match, AC1).</li>
+          <li><code>test_generalise_location_unknown_fallback</code> &mdash; <code>"Somewhere"&rarr;"Healthcare Facility, India"</code> (no state matched).</li>
+          <li><code>test_generalise_location_region_map_override</code> &mdash; passing <code>region_map={"narnia":"Far North"}</code> routes <code>"Narnia clinic"&rarr;"Healthcare Facility, Far North"</code> and the bundled Indian states no longer match (AC4 inject-with-default seam).</li>
+          <li><code>test_generalise_phone</code> &mdash; <code>"9876543210"&rarr;"+91 XXXXX XX210"</code> (success); <code>"12"&rarr;"[PHONE_REDACTED]"</code> (&lt;3 digits, fallback).</li>
+          <li><code>test_generalise_aadhaar</code> &mdash; <code>"1234 5678 9012"&rarr;"XXXX XXXX 9012"</code> (success); <code>"12"&rarr;"[AADHAAR_REDACTED]"</code> (&lt;4 digits, fallback).</li>
+          <li><code>test_generalise_pan</code> &mdash; <code>"ABCDE1234F"&rarr;"XXXXX1234X"</code> (success, exactly 10 chars); <code>"ABC"&rarr;"[PAN_REDACTED]"</code> (wrong length, fallback).</li>
+          <li><code>test_irreversibility</code> &mdash; for age/phone/aadhaar/pan, the exact input value is NOT a substring of the output and cannot be reconstructed from the coarsened form alone (AC6, per-value property only &mdash; not a dataset k-anonymity claim).</li>
+          <li><code>test_module_is_pure</code> &mdash; static source-assertion: <code>generaliser.py</code>'s import lines reference only stdlib (<code>re</code>, <code>__future__</code>, <code>typing</code>); no <code>settings</code>/<code>os.environ</code>/config/FastAPI/Pydantic/SQLAlchemy/LLM import (AC3). Mirrors the BILTIQ-007 <code>test_no_settings_or_env_import</code> shape &mdash; <code>mypy</code> alone does not verify import provenance, so this is the gate for the framework-free invariant.</li>
         </ul>
       </div>
-      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code class="placeholder">pytest tests/path/to/test.py</code> — GREEN</p>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/core/test_generaliser.py</code> &mdash; GREEN; <code>mypy --strict</code> clean on the new module.</p>
     </div>
 
     <div class="step">
-      <div class="step-header">
-        <span class="step-title">Step 2 — [Step title]</span>
-        <span class="band">S</span>
+      <div class="step-header"><span class="step-title">Step 2 &mdash; GeneralisationSpan + dispatch table + generalise_text</span><span class="band">S</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> The orchestration layer over Step 1's primitives. Adds the typed input contract BILTIQ-012 will assemble and consume. Depends on Step 1. Est. ~30 min.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>packages/python-core/biltiq_privacy/core/generaliser.py</code> &mdash; add the <code>GeneralisationSpan(TypedDict)</code> {<code>entity_type: str</code>, <code>text: str</code>, <code>pseudonym_token: str</code>}; the <code>_GENERALISER</code> dispatch dict (7 keys verbatim: <code>IN_AADHAAR</code>, <code>IN_PAN</code>, <code>IN_PHONE</code>, <code>PHONE_NUMBER</code>, <code>LOCATION</code>, <code>ADDRESS</code>, <code>HOSPITAL</code>); and <code>generalise_text(pseudonymised_text, spans, *, region_map=None)</code> &mdash; bounded <code>str.replace(token, generalised, 1)</code> per span, skipping unknown entity types and absent tokens. <code>region_map</code> is threaded into the <code>LOCATION</code>/<code>ADDRESS</code>/<code>HOSPITAL</code> dispatch calls. EDIT <code>packages/python-core/tests/core/test_generaliser.py</code> (dispatch/orchestration cases below).</p>
+      <div class="step-tests"><strong>Tests (AC2, AC4, AC6):</strong>
+        <ul>
+          <li><code>test_generalise_text_multi_span</code> &mdash; two spans (e.g. a <code>PHONE_NUMBER</code> token + a <code>LOCATION</code> token) both replaced once each; output contains the generalised forms and neither pseudonym token survives (AC2 success path).</li>
+          <li><code>test_generalise_text_unknown_entity_skipped</code> &mdash; a span with <code>entity_type="PERSON"</code> (not in <code>_GENERALISER</code>) leaves its token untouched in the output (failure/skip path).</li>
+          <li><code>test_generalise_text_absent_token_noop</code> &mdash; a span whose <code>pseudonym_token</code> is not present in the text leaves the text unchanged (guard path).</li>
+          <li><code>test_generalise_text_empty_spans</code> &mdash; empty span list returns the input text verbatim.</li>
+          <li><code>test_generalise_text_region_map_propagates</code> &mdash; a custom <code>region_map</code> passed to <code>generalise_text</code> reaches the location dispatch and changes a <code>LOCATION</code> span's generalised value (AC4 seam end-to-end).</li>
+          <li><code>test_dispatch_table_keys</code> &mdash; <code>_GENERALISER</code> has exactly the 7 expected keys mapped to the 3 expected callables (pins the table intact; no phantom ABHA).</li>
+        </ul>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step follows step 1.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files</span></p>
-      <div class="step-tests">
-        <strong>Tests:</strong> <span class="placeholder">none (static files — structural correctness verified by step N)</span>
-      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/core/test_generaliser.py</code> &mdash; GREEN; <code>mypy --strict</code> clean (no <code>Any</code>, no <code>type: ignore</code>).</p>
     </div>
-    <!-- Add more steps by copying a .step block -->
+
+    <div class="step">
+      <div class="step-header"><span class="step-title">Step 3 &mdash; public surface + docs</span><span class="band">S</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> Stable <code>biltiq_privacy.core</code> import surface + docs move with the code (AP #1/#6 defense). Depends on Steps 1&ndash;2. Est. ~20 min.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>packages/python-core/biltiq_privacy/core/__init__.py</code> (drop the &ldquo;<code>generaliser</code> &hellip; land in later Phase A tasks&rdquo; stub note; re-export <code>GeneralisationSpan</code> + the 7 functions; extend <code>__all__</code> alphabetically &mdash; submodule import stays canonical); EDIT <code>packages/python-core/tests/core/test_public_imports.py</code> (assert the new symbols resolve from <code>biltiq_privacy.core</code> and appear in the sorted <code>__all__</code>); EDIT <code>docs/architecture/stack.md</code> (flip the reserved Generaliser row, line ~65, to shipped &mdash; six functions + <code>generalise_text</code> + <code>GeneralisationSpan</code> + region_map seam); EDIT <code>CHANGELOG.md</code> (<code>[Unreleased]</code> <code>feat:</code> line).</p>
+      <div class="step-tests"><strong>Tests (AC1, AC2):</strong>
+        <ul>
+          <li><code>test_public_imports</code> (extend) &mdash; <code>from biltiq_privacy.core import GeneralisationSpan, generalise_text, generalise_age</code> (and the rest) resolve.</li>
+          <li><code>test_all_is_sorted</code> / surface test (extend) &mdash; updated <code>__all__</code> includes the new symbols and stays sorted, mirroring the BILTIQ-007 surface assertion.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> full <code>pytest</code> green; <code>mypy --strict</code> clean; banned-vocab + residue scan clean.</p>
+    </div>
   </section>
 
   <section id="test-strategy">
@@ -135,16 +113,19 @@
     <table>
       <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
       <tbody>
-        <tr><td>Unit</td><td class="placeholder">function behavior</td><td class="placeholder">tests/path/test_foo.py</td></tr>
-        <tr><td>Integration</td><td class="placeholder">end-to-end round-trip</td><td class="placeholder">tests/path/test_integration.py</td></tr>
-        <tr><td>Manual</td><td class="placeholder">open in browser, verify rendered output</td><td>—</td></tr>
+        <tr><td>Characterization</td><td>Each of the six generalisers pinned to hand-derived golden output strings (success + fallback); DD/MM date ordering + <code>[DATE_REDACTED]</code> consequence; the 7-key dispatch table</td><td><code>tests/core/test_generaliser.py</code></td></tr>
+        <tr><td>Unit</td><td>region_map inject-with-default seam (override + propagation); generalise_text skip/guard/empty paths</td><td><code>tests/core/test_generaliser.py</code></td></tr>
+        <tr><td>Property</td><td>Irreversibility (AC6): exact input value not recoverable from coarsened output &mdash; per-value only, explicitly NOT a dataset k-anonymity guarantee</td><td><code>tests/core/test_generaliser.py</code></td></tr>
+        <tr><td>Surface</td><td>Public re-export resolves; <code>__all__</code> sorted + complete</td><td><code>tests/core/test_public_imports.py</code></td></tr>
+        <tr><td>Integration</td><td>Deferred to BILTIQ-012 (orchestrator assembles <code>GeneralisationSpan</code> from 007 <code>Detection</code>+<code>AuditRecord</code> and runs the full pseudonymise&rarr;generalise chain). Not in scope here.</td><td>&mdash;</td></tr>
+        <tr><td>Static</td><td><code>mypy --strict</code> (no <code>Any</code>/<code>type: ignore</code>) via CI; plus an explicit source-assertion that the module imports only stdlib &mdash; no config/DB/FastAPI/LLM import (AC3, framework-free)</td><td>CI + <code>tests/core/test_generaliser.py</code> (<code>test_module_is_pure</code>)</td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="rollback-plan">
     <h2>Rollback Plan</h2>
-    <p class="placeholder">How to undo if something goes wrong. For additive-only changes: "Remove new files, revert text insertions. No data loss."</p>
+    <p>Additive-only: one new module + its test, plus four text edits (<code>core/__init__.py</code>, <code>tests/core/test_public_imports.py</code>, <code>stack.md</code>, <code>CHANGELOG.md</code>). No data, schema, or contract change to existing code &mdash; the BILTIQ-007 types are untouched and BILTIQ-012 has not yet consumed the surface. Rollback = single revert commit deleting the new files and reverting the four edits. Nothing to unwind downstream.</p>
   </section>
 
   <section id="risks">
@@ -152,12 +133,11 @@
     <table>
       <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
       <tbody>
-        <tr>
-          <td class="placeholder">Risk description</td>
-          <td class="placeholder">1</td>
-          <td><span class="risk-m">MED</span></td>
-          <td class="placeholder">How it is mitigated.</td>
-        </tr>
+        <tr><td>Date-parse ordering: CDSCO's regex takes group(2) as month, assuming DD/MM/YYYY; MM/DD input is redacted, not mis-mapped</td><td>1</td><td><span class="risk-m">MED</span></td><td>Dev decision 2026-06-01: port DD/MM verbatim + pin behaviour with explicit tests (<code>test_generalise_date_ddmm</code> + <code>test_generalise_date_redacted_fallback</code>). Cross-locale handling deferred to Phase C region packs (spec § Out of Scope).</td></tr>
+        <tr><td>Behaviour drift from CDSCO during the port (bracket bounds, region strings, mask formats, dispatch keys)</td><td>1, 2</td><td><span class="risk-m">MED</span></td><td>Copy regex + format strings byte-for-byte from source; golden outputs hand-derived as literals (not recomputed with a regex copy) so the test is a true gate; <code>test_dispatch_table_keys</code> pins all 7 keys.</td></tr>
+        <tr><td>Location fallback string drift (<code>"Healthcare Facility, India"</code>, not <code>", India"</code>) &mdash; an easy mis-port</td><td>1</td><td><span class="risk-l">LOW</span></td><td><code>test_generalise_location_unknown_fallback</code> pins the exact fallback string verbatim.</td></tr>
+        <tr><td><code>region_map</code> default-arg mutability if a dict literal were used as the default</td><td>1, 2</td><td><span class="risk-l">LOW</span></td><td>Default is <code>None</code> sentinel; the function falls back to the module-level <code>_REGION_MAP</code> internally (design § API Contract). No mutable default exposed.</td></tr>
+        <tr><td>Re-export surface in <code>core/__init__.py</code> drifts from submodule canonical imports</td><td>3</td><td><span class="risk-l">LOW</span></td><td>Re-export is additive convenience; submodule imports stay canonical; <code>test_public_imports</code> pins the surface.</td></tr>
       </tbody>
     </table>
   </section>
@@ -167,12 +147,8 @@
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
-        <tr>
-          <td><!-- YYYY-MM-DD --></td>
-          <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
-        </tr>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft from locked spec + design (3 atomic steps: field generalisers &rarr; dispatch/generalise_text &rarr; surface+docs). Branch set to <code>feature/biltiq-phase-a-core</code> &mdash; the branch carrying the approved artifacts and BILTIQ-007 core (avoids the BILTIQ-007 plan/branch drift logged in that reflect). DD/MM date ordering pinned per dev decision.</td><td>plan</td></tr>
+        <tr><td>2026-06-01</td><td>Step 1, Test Strategy</td><td>plan-reviewer fix: added <code>test_module_is_pure</code> source-assertion for AC3 (framework-free invariant) &mdash; AC3 previously relied on mypy/CI, which does not verify import provenance. Mirrors BILTIQ-007's <code>test_no_settings_or_env_import</code>.</td><td>plan-reviewer</td></tr>
       </tbody>
     </table>
   </section>
