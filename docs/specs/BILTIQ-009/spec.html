@@ -87,7 +87,11 @@
   <section id="open-questions">
     <h2>Open Questions</h2>
     <ul>
-      <li>Return type — plain <code>dict</code> (matches CDSCO + 011/012 consumers) or a typed <code>Entity</code> dataclass? Lean dataclass with dict-compat; confirm in design.</li>
+      <li><strong>RESOLVED (2026-06-01):</strong> Return type — subclass the shipped BILTIQ-007 <code>Detection</code> TypedDict: <code>class DetectedEntity(Detection): source: str</code>. <code>Detection</code> is <code>{entity_type, text, start, end, score}</code>; the detector record adds only <code>source</code>. A <code>TypedDict</code> is a plain <code>dict</code> at runtime, so AC1's <code>list[dict]</code> contract holds literally, CDSCO + 011/012 dict consumers are unaffected, and the pseudonymiser (which consumes <code>Detection</code>) accepts it structurally. Avoids Anti-Pattern #1 (no parallel type).</li>
+      <li><strong>RESOLVED (2026-06-01):</strong> Singleton placement — instance-level lazy <code>self._engine</code> on <code>PresidioDetector</code>, NOT a module global. Preserves BILTIQ-002's deliberate no-global-singleton design (<code>build_engine()</code> stays a pure factory); CDSCO's module-level <code>_engine</code> is not ported. v0.1.0 assumes single-threaded construction — no init lock (revisit if the sidecar shares one detector across threads).</li>
+      <li><strong>RESOLVED (2026-06-01):</strong> <code>MissingNERModelError</code> trigger — catch the <code>OSError</code> spaCy raises when <code>en_core_web_sm</code> is absent during lazy engine init, and re-raise as <code>MissingNERModelError</code> (added to <code>core/exceptions.py</code> beside <code>HMACKeyRequiredError</code>, as overview.md § Failure modes reserves) with <code>python -m spacy download en_core_web_sm</code> install guidance. Catch <code>OSError</code> specifically, not bare <code>Exception</code> (Anti-Pattern #3).</li>
+      <li><strong>RESOLVED (2026-06-01):</strong> Test fixtures — add the <code>presidio_engine_indian</code> and <code>sample_indian_pii</code> fixtures that <code>stack.md</code> already documents but which do not yet exist (only <code>hmac_key</code> is in conftest), closing the stack.md drift.</li>
+      <li><strong>RESOLVED (2026-06-01):</strong> Score rounding — preserve CDSCO's <code>round(score, 4)</code> in the output record verbatim (characterization fidelity).</li>
     </ul>
   </section>
 
@@ -95,7 +99,10 @@
     <h2>Change History</h2>
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
-      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-009</td></tr></tbody>
+      <tbody>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-009</td></tr>
+        <tr><td>2026-06-01</td><td>open-questions</td><td>Locked 5 Think decisions: DetectedEntity(Detection) TypedDict return type; instance-level lazy singleton (no module global); OSError→MissingNERModelError in core/exceptions.py; add presidio_engine_indian + sample_indian_pii fixtures; preserve round(score,4)</td><td>think</td></tr>
+      </tbody>
     </table>
   </section>
 </main>
