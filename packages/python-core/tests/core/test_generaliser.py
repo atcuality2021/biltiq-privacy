@@ -15,7 +15,6 @@ from pathlib import Path
 
 from biltiq_privacy.core import generaliser
 
-
 # --- generalise_age (AC1) ---------------------------------------------------
 
 def test_generalise_age_brackets() -> None:
