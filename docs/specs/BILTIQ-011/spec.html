@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: Regime ABC + DPDP validator</title>
+  <style>
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-label{font-size:0.85rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: Regime ABC + DPDP validator</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-011</dd></div>
+      <div><dt>Phase</dt><dd>A — core pipeline (v0.1.0)</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
+      <div><dt>Wall-clock</dt><dd>M</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Human review (min)</dt><dd>30 (high-risk: compliance)</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.8</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>The engine must <em>attest</em> anonymised output against a regulatory regime, not just
+    transform it. CDSCO's <code>backend/compliance/dpdp_validator.py</code> (151 LOC) runs 8 checks
+    (residual-PII scan, audit trail present, token reversibility, generalisation
+    irreversibility, Indian-PII coverage, data minimisation, NDHM, ICMR) using
+    <code>pii_patterns</code>. Port it behind a generic <code>Regime</code> abstraction so GDPR/HIPAA/CCPA
+    (Phase C) slot in later, and so consumers get a structured <code>ComplianceReport</code>.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>Internal/infra → external attestation. Consumers can call one regime and get a
+    pass/fail <code>ComplianceReport</code> with per-check results — the feature that distinguishes
+    biltiq-privacy from a plain redaction library. First regime: DPDP 2023 (India).</p>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — <code>regimes/base.py</code> defines a <code>Regime</code> ABC plus <code>ComplianceCheck</code> and <code>ComplianceReport</code> dataclasses (typed, no <code>Any</code>).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>regimes/dpdp.py</code> implements all 8 CDSCO checks via <code>validate(original, anonymised, detections, audit_records) -> ComplianceReport</code>, behaviour-equivalent to the source.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — Residual-PII scan reuses shared patterns; Indian patterns reuse BILTIQ-002 rather than redefining (port only what 002 lacks, e.g. EMAIL).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Pure: no FastAPI/DB. CDSCO/NDHM/ICMR framework references are data/config, not hardcoded behaviour that blocks reuse.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Tests: each of the 8 checks has a passing and a failing case (e.g. residual Aadhaar → fail; clean text → pass).</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>GDPR / HIPAA / CCPA regimes (BILTIQ-017/018/019).</li>
+      <li><code>responsible_ai</code> (fairness, model cards, transparency) — CDSCO-specific; deferred / may be dropped.</li>
+      <li>HTTP exposure of the report (BILTIQ-013).</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li>Is this "high-risk" (compliance attestation) and therefore requiring human plan-review? Likely yes — flag to plan-reviewer.</li>
+      <li>How much of the NDHM/ICMR check is India-only vs general data-minimisation? Decide what stays in <code>dpdp</code> vs a shared base.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-011</td></tr></tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: Generaliser (k-anonymity rollups)</title>
+  <style>
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--color-ac-done:#16a34a;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-label{font-size:0.85rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: Generaliser (k-anonymity rollups)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-008</dd></div>
+      <div><dt>Phase</dt><dd>A — core pipeline (v0.1.0)</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
+      <div><dt>Wall-clock</dt><dd>S/M</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Human review (min)</dt><dd>20</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.8</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>The pipeline needs an irreversible generalisation step after pseudonymisation
+    — coarsening quasi-identifiers (exact age → bracket, exact date → month/year,
+    precise location → region) so re-identification by linkage is harder. CDSCO
+    has this as <code>backend/modules/anonymisation/generaliser.py</code> (112 LOC, pure regex +
+    string ops, no coupling). It is India-centric (region maps, Aadhaar/PAN/ABHA
+    patterns). Port it into <code>core/generaliser.py</code>, keeping the Indian rules as the
+    default while leaving room for region packs to extend it.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>Internal/infra. Adds the generalisation stage so anonymised output is not just
+    token-substituted but also coarsened — the difference between pseudonymisation
+    and a genuine privacy posture. Feeds BILTIQ-011 (DPDP generalisation-irreversibility check).</p>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — <code>generalise_age(age: int) -> str</code> (20-year brackets), <code>generalise_date(date_str) -> str</code> ("Month Year"), <code>generalise_location(location) -> str</code> (region rollup) ported with CDSCO behaviour preserved.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>generalise_text(pseudonymised_text, detections) -> str</code> applies the above across detected spans.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — Module is pure: stdlib + <code>re</code> only; no config/DB/FastAPI/LLM imports.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Indian region/ID rules are the documented default; structured so a future region pack can supply its own rollup tables without editing core.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Docstring + docs state explicitly: this is <em>rule-based generalisation</em>, NOT a dataset-level k-anonymity guarantee (measurement is BILTIQ-021). No overclaiming.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC6</strong> — Characterization tests cover each generaliser + irreversibility (output cannot recover the exact input). Passes <code>--strict</code>.</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>Dataset-level k-anonymity / l-diversity / t-closeness <em>measurement</em> (BILTIQ-021).</li>
+      <li>EU/US/UK generalisation rules (region packs, Phase C).</li>
+      <li>Detection and pseudonymisation (BILTIQ-009 / 007).</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li>Age bracket width — CDSCO uses 20-year bands; <code>overview.md</code> also says 20-year. Confirm and pin.</li>
+      <li>Region rollup table — port CDSCO's state→region map verbatim, or genericise to an injectable mapping now? Lean: port now, genericise when EU/US packs land.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-008</td></tr></tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

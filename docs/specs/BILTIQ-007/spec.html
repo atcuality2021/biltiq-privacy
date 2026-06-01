@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: Core hashing &amp; HMAC pseudonymiser</title>
+  <style>
+    :root {
+      --color-shipped:#16a34a;--color-wip:#d97706;--color-blocker:#dc2626;
+      --color-ac-open:#d97706;--color-ac-done:#16a34a;--color-border:#e5e7eb;
+      --color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;
+      --color-muted:#6b7280;--radius:6px;--max-width:860px;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-done{background:#dcfce7;color:var(--color-ac-done);border:1px solid #86efac;}
+    .ac-label{font-size:0.85rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+    @media (max-width:600px){.meta{flex-direction:column;}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: Core hashing &amp; HMAC pseudonymiser</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-007</dd></div>
+      <div><dt>Phase</dt><dd>A — core pipeline (v0.1.0)</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
+      <div><dt>Wall-clock</dt><dd>S</dd></div>
+      <div><dt>Tokens</dt><dd>S</dd></div>
+      <div><dt>Human review (min)</dt><dd>20</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.8</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p><code>biltiq_privacy/core/</code> is an empty package stub. The deterministic
+    HMAC pseudonymisation logic the engine needs already exists in CDSCO-RegAI
+    (<code>backend/utils/doc_hasher.py</code>, <code>backend/modules/anonymisation/pseudonymiser.py</code>)
+    but is coupled to that app: <code>doc_hasher</code> reads <code>settings.HMAC_KEY</code> from a
+    global config object. To productise the engine as a standalone, leaf-of-tree
+    library, this logic must be ported with the key injected as a constructor
+    argument — never read from the environment inside <code>python-core</code> (a forbidden
+    placement per <code>overview.md</code>).</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>Internal/infra. Establishes the first real <code>core/</code> module: consumers get
+    deterministic, reversible-by-key-holder pseudonymisation with an explicit,
+    auditable key-handling contract. Unblocks BILTIQ-012 (orchestration) and
+    BILTIQ-011 (DPDP token-reversibility check).</p>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — <code>core/doc_hasher.py</code> exposes <code>hash_document(file_bytes: bytes) -> str</code>, <code>hash_text(text: str) -> str</code> (SHA-256), and <code>hmac_pseudonymise(value: str, *, key: bytes|str) -> str</code> (HMAC-SHA256). The HMAC key is a parameter; no <code>settings</code>/env/config import anywhere in the module.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>core/pseudonymiser.py</code> exposes <code>make_token(entity_type, value) -> str</code> producing a stable <code>[TYPE_&lt;8-hex&gt;]</code> token, and <code>pseudonymise_text(text, detections) -> tuple[str, list[dict]]</code> returning (anonymised_text, audit_list).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — Determinism: identical (value, entity_type, key) yields an identical token across processes; a different key yields a different token. Pinned by test.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Missing key fails fast: constructing/using the pseudonymiser without a key raises <code>HMACKeyRequiredError</code> before any text is processed (per <code>overview.md</code> failure modes).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Characterization tests port CDSCO behaviour: token format, determinism, multi-entity replacement, audit-list shape. No <code>Any</code>/<code># type: ignore</code> without justification; passes <code>--strict</code>.</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>PII <em>detection</em> (BILTIQ-009) and <em>generalisation</em> (BILTIQ-008).</li>
+      <li>A reversible-token vault / re-identification store — pseudonymisation here is forward-only; reversal is the key-holder's concern.</li>
+      <li>Regime checks that consume the audit list (BILTIQ-011).</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li>Key type at the API boundary — accept <code>bytes</code> only, or also <code>str</code> (utf-8 encode)? Lean <code>bytes</code> with <code>str</code> convenience. — confirm in design.</li>
+      <li>Token digest length — CDSCO uses 8 hex chars; keep, or widen to reduce collision risk? — design decision.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-007</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

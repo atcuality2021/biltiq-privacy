@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: Detector abstraction + Presidio backend</title>
+  <style>
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-label{font-size:0.85rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: Detector abstraction + Presidio backend</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-009</dd></div>
+      <div><dt>Phase</dt><dd>A — core pipeline (v0.1.0)</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
+      <div><dt>Wall-clock</dt><dd>M</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Human review (min)</dt><dd>25</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.8</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>The pipeline needs a pluggable detection abstraction so backends (rule-based
+    Presidio now; LLM/hybrid later) are swappable. BILTIQ-002 already ported the 8
+    Indian recognisers + <code>build_engine()</code> into <code>indian/recognisers.py</code>. CDSCO's
+    <code>presidio_engine.py</code> wraps Presidio + those recognisers behind a
+    <code>detect_pii_rules(text) -> list[dict]</code> call. This task defines a <code>Detector</code> ABC
+    and a <code>PresidioDetector</code> that <em>reuses</em> the existing 002 engine — it must not
+    re-implement the recognisers.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>Internal/infra. Gives the engine a stable detection interface the orchestrator
+    (BILTIQ-012) depends on, and the seam where Phase D's LLM/hybrid backends plug
+    in without touching the core pipeline.</p>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — <code>detectors/base.py</code> defines a <code>Detector</code> ABC with <code>detect(text: str, language: str = "en") -> list[dict]</code> returning <code>{entity_type, start, end, score, text, source}</code> records.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>detectors/presidio_backend.py</code> implements the ABC over the existing <code>indian.recognisers.build_engine()</code>; it imports and reuses 002, and does not redefine any recogniser/pattern.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — spaCy/Presidio init is lazy + singleton; a missing NER model raises <code>MissingNERModelError</code> with install guidance (per <code>overview.md</code>).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Confidence threshold is configurable (default 0.5, matching CDSCO).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — No FastAPI/DB/LLM imports in either module; lazy-import gate keeps Presidio out of import-time for callers that don't detect.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC6</strong> — Tests: backend detects each of the 8 Indian entity types on sample text; threshold filtering verified.</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>LLM/contextual backend and hybrid ensemble (BILTIQ-020, needs ADR).</li>
+      <li>EU/US/UK recogniser packs (Phase C).</li>
+      <li>New recogniser definitions — reuse 002 only.</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li>Return type — plain <code>dict</code> (matches CDSCO + 011/012 consumers) or a typed <code>Entity</code> dataclass? Lean dataclass with dict-compat; confirm in design.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-009</td></tr></tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
