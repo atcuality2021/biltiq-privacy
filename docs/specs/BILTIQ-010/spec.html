@@ -84,10 +84,10 @@
   </section>
 
   <section id="open-questions">
-    <h2>Open Questions</h2>
+    <h2>Open Questions <span style="font-size:0.8rem;font-weight:400;color:var(--color-muted);">(resolved 2026-06-01)</span></h2>
     <ul>
-      <li>Timestamp source — caller-supplied vs library <code>utcnow()</code>? Caller-supplied keeps it pure + testable; confirm.</li>
-      <li>Canonical serialization — JSON with sorted keys vs a fixed field concatenation? Decide in design for cross-language verifiability.</li>
+      <li><strong>RESOLVED</strong> — Timestamp source: <strong>caller-supplied</strong>. The library never calls the clock; the consumer passes any <code>timestamp</code> as an ordinary payload field. Keeps the module pure and deterministic (AC3/AC4); consumers that generate one use <code>datetime.now(timezone.utc)</code> per <code>approved-versions.md</code>.</li>
+      <li><strong>RESOLVED</strong> — Canonical serialization: <strong>canonical JSON</strong> — <code>json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)</code>. Portable + cross-language verifiable (AC4); fixed-field concatenation rejected (delimiter-injection + field-order fragility).</li>
     </ul>
   </section>
 
@@ -95,7 +95,10 @@
     <h2>Change History</h2>
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
-      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-010</td></tr></tbody>
+      <tbody>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-010</td></tr>
+        <tr><td>2026-06-01</td><td>open-questions</td><td>Resolved both OQs at Think: caller-supplied timestamp; canonical JSON (sorted keys, compact separators). Spec locked.</td><td>think</td></tr>
+      </tbody>
     </table>
   </section>
 </main>

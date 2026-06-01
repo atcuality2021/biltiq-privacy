@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Design: [TASK_TITLE]</title>
+  <title>Design: Audit hash-chain (pure)</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -81,6 +81,7 @@
     .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
     .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
     .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
     .placeholder { color: var(--color-muted); font-style: italic; }
     @media (max-width: 600px) { .meta { flex-direction: column; } }
   </style>
@@ -88,20 +89,97 @@
 <body>
 <main>
   <header>
-    <h1>Design: [TASK_TITLE]</h1>
+    <h1>Design: Audit hash-chain (pure)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-010</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
     </dl>
   </header>
 
   <section id="approach">
     <h2>Approach</h2>
     <h3>Name</h3>
-    <p class="placeholder">One-line name for the chosen approach.</p>
+    <p>Pure free-function hash chain: two module-level functions
+    (<code>append_row</code>, <code>verify_chain</code>) plus a documented genesis-hash
+    constant in <code>core/audit_chain.py</code>, committing each row's
+    <code>hash</code> to <code>(prev_hash, canonical_json(payload))</code> via the
+    already-shipped <code>doc_hasher.hash_text</code>. No class, no clock, no
+    storage.</p>
     <h3>Description</h3>
-    <p class="placeholder">Chosen approach narrative — why this option, what it trades off, what it preserves. 3–6 sentences.</p>
+    <p>CDSCO's <code>backend/modules/audit.py</code> hash-chains audit rows but binds the
+    algorithm to an async SQLAlchemy session — only the ~50-LOC chaining core belongs in a
+    leaf library (spec § Problem). This task ports <strong>only the commitment logic</strong>:
+    each row carries an opaque caller-supplied <code>payload</code> plus a <code>hash</code> that
+    cryptographically commits to the row before it (<code>prev_hash</code>) and the row's own
+    content. Persistence stays entirely in the consumer (AC3) — the library returns rows;
+    the consumer writes them wherever it likes.</p>
+
+    <p><strong>Row schema.</strong> A row is a <code>ChainedRow</code> TypedDict with exactly
+    three keys: <code>prev_hash: str</code> (the hash of the preceding row, or the genesis
+    sentinel for the first row), <code>payload: dict[str, JsonValue]</code> (the
+    caller-supplied event fields — any JSON-serialisable mapping, including a
+    caller-supplied <code>timestamp</code> string per the resolved open question), and
+    <code>hash: str</code> (the row's own commitment digest). The TypedDict is named
+    <code>ChainedRow</code> — deliberately <strong>not</strong> <code>AuditRecord</code>, which is
+    already taken by <code>core/pseudonymiser.py</code> for the per-span pseudonymisation row
+    (a different concept: one replaced PII span, not one chained audit event). Reusing that
+    name would be Anti-Pattern #1 (a parallel type under a colliding name).</p>
+
+    <p><strong>Commitment recipe (the cross-language contract — AC4).</strong> Canonical
+    serialization is fixed as
+    <code>json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)</code>
+    (resolved open question). The committed pre-image is the genesis-or-previous hash string
+    concatenated directly with that canonical JSON, and the digest is taken by reusing
+    <code>doc_hasher.hash_text</code> (AC1 reuse target — never a raw <code>hashlib</code> call):</p>
+    <pre><code>canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+row_hash  = doc_hasher.hash_text(prev_hash + canonical)
+#           = sha256((prev_hash + canonical).encode("utf-8")).hexdigest()</code></pre>
+    <p>The pre-image ordering is <code>prev_hash</code> first, then canonical JSON. This is safe
+    against the concatenation-ambiguity that plagues fixed-field schemes: <code>prev_hash</code>
+    is <strong>always</strong> exactly 64 lowercase hex characters (a SHA-256 hex digest, or the
+    genesis sentinel which is also 64 hex chars), so the boundary between the two segments is
+    unambiguous by construction — the first 64 characters of the pre-image are the parent hash
+    and everything after is the canonical payload. No delimiter is needed and none is used (a
+    delimiter would itself become an injection surface). <code>hash_text</code> already
+    utf-8-encodes its input, so the byte image is fully specified.</p>
+
+    <p><strong>Genesis constant.</strong> The first row's <code>prev_hash</code> is a documented
+    sentinel exported as <code>GENESIS_PREV_HASH: Final[str] = "0" * 64</code> — 64 zero hex
+    characters. Rationale: it is the same width and alphabet as a real SHA-256 hex digest (so
+    the "<code>prev_hash</code> is always 64 hex chars" boundary invariant above holds for row 0
+    too, with no special-casing in the hashing path), it is the widely-recognised "null
+    parent" convention from hash-chain practice, and the all-zero string is not itself a
+    reachable SHA-256 output for any practical input, so it cannot be forged as a mid-chain
+    link. It is a module-level <code>Final</code> constant, not a magic literal, so consumers
+    and the native SDKs (011/012) bind to one documented value.</p>
+
+    <p><strong><code>append_row</code>.</strong> A pure function
+    <code>append_row(prev_hash, payload) -&gt; ChainedRow</code>: it computes the canonical JSON
+    and the digest by the recipe above and returns the fully-populated <code>ChainedRow</code>.
+    It does not mutate inputs, hold state, or read the clock — the caller passes
+    <code>GENESIS_PREV_HASH</code> for the first row and the previous row's <code>hash</code>
+    thereafter. To keep verification reproducible, <code>payload</code> must be
+    canonical-JSON-serialisable; <code>append_row</code> validates this by performing the
+    <code>json.dumps</code> (which raises the stdlib <code>TypeError</code> on a non-serialisable
+    value) — that native exception is the rejection path, so <strong>no new library exception
+    type is needed</strong> (see § Files to Touch).</p>
+
+    <p><strong><code>verify_chain</code>.</strong> A pure function
+    <code>verify_chain(rows) -&gt; VerifyReport</code> that walks the list once. For each row at
+    index <code>i</code> it (a) recomputes the expected digest from the row's own stored
+    <code>prev_hash</code> + canonical payload and checks it equals the stored <code>hash</code>
+    (detects any mutation of <code>payload</code> or <code>hash</code> — AC2 tamper-evidence), and
+    (b) checks the link: row 0's <code>prev_hash</code> must equal <code>GENESIS_PREV_HASH</code>,
+    and every later row's <code>prev_hash</code> must equal the previous row's <code>hash</code>
+    (detects reordering, insertion, deletion). The first index that fails either check is
+    reported. The report is a <code>VerifyReport</code> TypedDict
+    <code>{valid: bool, first_broken_index: int | None}</code>:
+    <code>{valid: True, first_broken_index: None}</code> for an intact chain (including the
+    empty chain — vacuously valid — and a single valid row), and
+    <code>{valid: False, first_broken_index: i}</code> at the first break. <code>verify_chain</code>
+    <strong>returns a report; it never raises on tamper</strong> (AC2) — tampering is a normal,
+    reportable outcome, not an exceptional one.</p>
   </section>
 
   <section id="alternatives">
@@ -111,8 +189,12 @@
         <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
       </thead>
       <tbody>
-        <tr><td>1</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
-        <tr><td>2</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
+        <tr><td>1</td><td>Stateful <code>AuditChain</code> class holding the chain and a running <code>prev_hash</code> (the name <code>stack.md</code> currently reserves)</td><td>Reserved name collides with intent and fights purity. A mutable chain object carries per-instance state that defeats the deterministic, side-effect-free contract AC3/AC4 demand, complicates the cross-language reproduction the native SDKs need, and reintroduces the kind of hidden state the library elsewhere avoids. The reserved <code>stack.md</code> row is rewritten to the free-function API (see § Files to Touch).</td></tr>
+        <tr><td>2</td><td>Fixed-field string concatenation of the pre-image (e.g. <code>prev_hash + "|" + entity + "|" + ts</code>) instead of canonical JSON</td><td>Delimiter-injection (a payload value containing the delimiter shifts field boundaries and lets two distinct payloads collide on one pre-image) plus field-order fragility (any caller or language ordering fields differently produces a different digest, breaking cross-machine verification — AC4). Canonical JSON with <code>sort_keys=True</code> fixes key order once for all languages.</td></tr>
+        <tr><td>3</td><td>Library-generated timestamp (call <code>datetime.now(timezone.utc)</code> inside <code>append_row</code>)</td><td>Breaks purity/determinism (AC3, AC4): identical inputs would produce different hashes across calls, so chains could not be reproduced or verified offline. The resolved open question fixes timestamps as a caller-supplied ordinary <code>payload</code> field; the module imports no clock. (Consumers needing one still use <code>datetime.now(timezone.utc)</code> per <code>approved-versions.md</code> — outside this module.)</td></tr>
+        <tr><td>4</td><td><code>@dataclass(slots=True, frozen=True)</code> row type (the <code>stack.md</code> default for return values)</td><td>The chain must round-trip through arbitrary consumer storage (JSON files, Postgres rows) and across the native SDKs, where the natural wire shape is a plain JSON object. A <code>TypedDict</code> is a runtime <code>dict</code> — it serialises and re-loads with no conversion and mirrors the shipped <code>Detection</code>/<code>AuditRecord</code> TypedDict precedent in this package, whereas a frozen dataclass would force a serialise/deserialise shim at every persistence boundary.</td></tr>
+        <tr><td>5</td><td>HMAC-keyed chain (MAC each row with the BILTIQ-007 HMAC key) instead of a plain hash</td><td>Out of scope per spec § Out of Scope (asymmetric/keyed signing is a follow-up if a consumer needs non-repudiation). A keyed MAC would thread a secret into a module that is deliberately key-free and stateless, and a plain hash already satisfies the tamper-evidence contract (AC2) for the integrity use case. Flagged as an explicit non-goal in § Security &amp; Compliance.</td></tr>
+        <tr><td>6</td><td>Embed <code>prev_hash</code> inside <code>payload</code> and hash only the payload</td><td>Conflates two roles in one field (caller-owned event data vs. the chain link the library owns) and makes it ambiguous whether <code>prev_hash</code> is auditable content or chain plumbing. Keeping <code>prev_hash</code> a top-level row field, committed via the pre-image prefix, keeps the payload purely the consumer's event and the link purely the library's.</td></tr>
       </tbody>
     </table>
   </section>
@@ -123,53 +205,196 @@
     <table>
       <thead><tr><th>File</th><th>Purpose</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What it does.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/audit_chain.py</code></td><td><strong>Create.</strong> The pure module. Exports <code>GENESIS_PREV_HASH: Final[str]</code>, the <code>ChainedRow</code> and <code>VerifyReport</code> TypedDicts, a private <code>_canonical_json(payload)</code> helper (the exact <code>json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)</code> call), and the two free functions <code>append_row</code> + <code>verify_chain</code>. Imports: <code>from __future__ import annotations</code>, stdlib <code>json</code>, <code>typing</code>, and <code>from biltiq_privacy.core.doc_hasher import hash_text</code> (the AC1 reuse target). SPDX header + CDSCO-origin docstring noting the SQLAlchemy coupling was dropped (AC3). <strong>No</strong> SQLAlchemy/DB/session/FastAPI/LLM import (AC3, structurally enforced).</td></tr>
+        <tr><td><code>docs/adr/0005-audit-chain-canonical-serialization.md</code></td><td><strong>Create (at Ship).</strong> ADR pinning the cross-language commitment recipe: canonical JSON params (<code>sort_keys=True</code>, <code>separators=(",", ":")</code>, <code>ensure_ascii=False</code>), the <code>prev_hash</code>-first pre-image ordering, the <code>"0"*64</code> genesis sentinel, and a committed golden vector (fixed payload → fixed row hash) so BILTIQ-011/012 and the native Node/PHP/Go SDKs bind to a written spec rather than a reading of the Python source. Documents a serialization contract, <strong>not</strong> a new dependency. Number 0005 chosen to avoid the in-flight <code>ADR-0003</code> (BILTIQ-004) / <code>ADR-0004</code> (BILTIQ-006) on sibling branches. Uses <code>docs/adr/_template.md</code>; status <code>accepted</code>; linked from <code>MEMORY.md</code> at Ship.</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_audit_chain.py</code></td><td><strong>Create.</strong> AC5 tests in the existing regular <code>tests/core/</code> package (no new <code>__init__.py</code> needed — the dir already has one). Covers: multi-row chain builds and verifies <code>valid=True</code> (AC5); mutating a middle row's <code>payload</code> detected at that row's index (AC2/AC5); mutating a row's stored <code>hash</code> detected; reordering/deleting a row detected via the link check; empty chain → <code>{valid: True, first_broken_index: None}</code> (AC5); single valid row → valid (AC5); single row with a bad genesis <code>prev_hash</code> → broken at index 0; canonical-JSON determinism — a payload built with keys in a different insertion order yields the same row hash (AC4); golden-vector test pinning <code>append_row(GENESIS_PREV_HASH, {...})["hash"]</code> to a fixed expected digest (cross-language reproduction anchor, AC4); <code>append_row</code> raises stdlib <code>TypeError</code> on a non-JSON-serialisable payload (validation path). Every public function gets a happy + failure path (test-rules). Synthetic data only.</td></tr>
       </tbody>
     </table>
     <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
     <table>
       <thead><tr><th>File</th><th>Change</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What changes.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/__init__.py</code></td><td><strong>Edit.</strong> Add a <code>from biltiq_privacy.core.audit_chain import (...)</code> block (matching the existing per-module import blocks for <code>doc_hasher</code>/<code>pseudonymiser</code>) re-exporting the public surface: <code>ChainedRow</code>, <code>GENESIS_PREV_HASH</code>, <code>VerifyReport</code>, <code>append_row</code>, <code>verify_chain</code>. Insert each into the existing <strong>sorted</strong> <code>__all__</code> in alphabetical position (capitalised names sort before lowercase under the current ordering — <code>ChainedRow</code> near <code>AuditRecord</code>/<code>Detection</code>; <code>GENESIS_PREV_HASH</code> + <code>VerifyReport</code> in the capitalised band; <code>append_row</code>/<code>verify_chain</code> in the lowercase tail). Also update the module docstring line that currently says "<code>audit_chain</code> lands in a later Phase A task (BILTIQ-010)" to describe the shipped free-function surface.</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_public_imports.py</code></td><td><strong>Edit.</strong> Extend the import-surface + <code>__all__</code> assertions to cover the five new names (mirrors how <code>HMACKeyRequiredError</code>/<code>MissingNERModelError</code> are asserted), incl. that <code>GENESIS_PREV_HASH == "0" * 64</code> and that the two TypedDicts are importable from <code>biltiq_privacy.core</code>.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td><strong>Edit.</strong> Rewrite the reserved "Audit hash-chain" row (currently <code>biltiq_privacy.core.audit_chain.AuditChain</code> — "Pure hashing; consumers persist rows"). Replace with the free-function API: <code>biltiq_privacy.core.audit_chain</code> — <code>append_row(prev_hash, payload) -&gt; ChainedRow</code>, <code>verify_chain(rows) -&gt; VerifyReport</code>, and the <code>GENESIS_PREV_HASH</code> sentinel; note the canonical-JSON commitment recipe, reuse of <code>doc_hasher.hash_text</code>, caller-supplied timestamp, and that persistence is the consumer's concern (no <code>AuditChain</code> class). Also fix the <code>audit_chain</code> test-fixture row (currently "Fresh <code>AuditChain</code> with a deterministic seed" — there is no class and no seed): restate it as a fixture providing a small deterministic synthetic chain (<code>list[ChainedRow]</code>) for tests, or drop the row if the test file builds chains inline (Build decides; flag either way).</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td><strong>Edit (at Ship).</strong> Add an <code>[Unreleased]</code> <code>feat:</code> line for <code>biltiq_privacy.core.audit_chain</code> (pure hash chain: <code>append_row</code>/<code>verify_chain</code> free functions + <code>GENESIS_PREV_HASH</code>, <code>ChainedRow</code>/<code>VerifyReport</code> TypedDicts, canonical-JSON commitment via <code>doc_hasher.hash_text</code>, caller-supplied timestamp, no DB/persistence), matching the BILTIQ-009/008 entry style, with the test count + <code>mypy --strict</code> clean note.</td></tr>
       </tbody>
     </table>
+    <h3>Explicitly NOT touched</h3>
+    <ul>
+      <li><strong><code>core/exceptions.py</code> — no change.</strong> <code>verify_chain</code> returns a report on tamper (AC2), it does not raise. <code>append_row</code>'s only rejection (a non-JSON-serialisable payload) is surfaced by the stdlib <code>json.dumps</code> <code>TypeError</code> — a precise, already-documented stdlib exception. Adding a bespoke library exception here would be unjustified surface (no AC asks for one). The <code>BiltiqPrivacyImportError</code> the exceptions docstring reserves is unrelated to this task.</li>
+      <li><strong><code>pyproject.toml</code> — no change.</strong> Pure stdlib <code>json</code> + the in-repo <code>doc_hasher</code>; no new dependency, no new test-dep.</li>
+      <li><strong>No new <code>tests/core/__init__.py</code></strong> — the regular package marker already exists; the new test file drops straight in.</li>
+    </ul>
   </section>
 
   <section id="data-model">
     <h2>Data Model Changes</h2>
-    <p class="placeholder">Schema deltas, new JSONL fields, new SQLite tables. Write "None" if no model changes.</p>
+    <p>Two new in-module TypedDicts and one module constant; no DB table, no JSONL field, no
+    schema migration. <code>JsonValue</code> is the recursive JSON type alias keeping
+    <code>payload</code> typed without <code>Any</code> (Anti-Pattern #4).</p>
+    <pre><code># core/audit_chain.py
+from __future__ import annotations
+from typing import Final, TypeAlias, TypedDict
+
+# Recursive JSON value alias — keeps payload fully typed, no Any.
+# TypeAlias form (not the PEP 695 `type X = ...` statement) so the module
+# imports cleanly on the supported floor, Python 3.11 (requires-python >=3.11);
+# the `type` statement is 3.12+ grammar. The `|` union operator and the
+# "JsonValue" string forward-refs are both 3.11-safe at runtime.
+JsonValue: TypeAlias = (
+    str | int | float | bool | None
+    | list["JsonValue"] | dict[str, "JsonValue"]
+)
+
+GENESIS_PREV_HASH: Final[str] = "0" * 64   # 64 zero hex chars = null parent
+
+class ChainedRow(TypedDict):
+    prev_hash: str                  # parent row's hash, or GENESIS_PREV_HASH for row 0
+    payload: dict[str, JsonValue]   # caller-supplied event fields (incl. any timestamp)
+    hash: str                       # sha256(prev_hash + canonical_json(payload))
+
+class VerifyReport(TypedDict):
+    valid: bool
+    first_broken_index: int | None  # None when valid; else the first failing row index</code></pre>
+    <p>The committed <code>payload</code> is an opaque caller-owned mapping. The library does not
+    inspect, require, or generate any field — including <code>timestamp</code>, which is an
+    ordinary caller-supplied payload key (resolved open question). <code>ChainedRow</code> is a
+    runtime <code>dict</code>, so a chain is a plain <code>list[ChainedRow]</code> that
+    JSON-serialises for storage and re-loads for <code>verify_chain</code> with no conversion.
+    The shipped BILTIQ-007 <code>AuditRecord</code>/<code>Detection</code> types are untouched.</p>
   </section>
 
   <section id="api-contract">
     <h2>API Contract Changes</h2>
-    <p class="placeholder">New or changed function signatures, CLI interfaces, env vars. Write "None" if no API changes.</p>
-    <pre><code class="placeholder"># Example:
-# function_name(param: type) -> return_type
-</code></pre>
+    <p>New public surface under <code>biltiq_privacy.core.audit_chain</code>, re-exported from
+    <code>biltiq_privacy.core</code>. No existing contract changes. All signatures fully typed; no
+    <code>Any</code>, no <code>type: ignore</code>; <code>mypy --strict</code> clean.</p>
+    <pre><code># core/audit_chain.py  — public surface
+
+GENESIS_PREV_HASH: Final[str]   # "0" * 64
+
+class ChainedRow(TypedDict):    # {prev_hash, payload, hash}  (see Data Model)
+    ...
+class VerifyReport(TypedDict):  # {valid, first_broken_index}
+    ...
+
+def append_row(prev_hash: str, payload: dict[str, JsonValue]) -> ChainedRow:
+    """Compute and return the next chained row.
+
+    hash = hash_text(prev_hash + json.dumps(payload, sort_keys=True,
+                     separators=(",", ":"), ensure_ascii=False)).
+    Pass GENESIS_PREV_HASH as prev_hash for the first row. Pure: no
+    state, no clock, no I/O. Raises TypeError (stdlib, from json.dumps)
+    if payload is not JSON-serialisable.
+    """
+
+def verify_chain(rows: list[ChainedRow]) -> VerifyReport:
+    """Recompute each row's hash and validate the prev_hash links.
+
+    Returns {valid: True, first_broken_index: None} for an intact chain
+    (empty chain is vacuously valid); {valid: False, first_broken_index: i}
+    at the first row whose recomputed hash mismatches its stored hash OR
+    whose prev_hash != the prior row's hash (row 0 must equal
+    GENESIS_PREV_HASH). Never raises on tamper.
+    """</code></pre>
+    <ul>
+      <li><strong>Commitment seam:</strong> the pre-image is <code>prev_hash + canonical_json(payload)</code>, digested through <code>doc_hasher.hash_text</code> (so the SHA-256 + utf-8 encoding is shared with the rest of the engine, not re-implemented). The 64-hex-char <code>prev_hash</code> prefix makes the segment boundary unambiguous with no delimiter.</li>
+      <li><strong>Determinism:</strong> identical <code>(prev_hash, payload)</code> always yields an identical row; <code>sort_keys=True</code> makes payload key insertion-order irrelevant (AC4).</li>
+      <li><strong>No clock, no env, no config, no network, no storage</strong> (AC3).</li>
+    </ul>
   </section>
 
   <section id="security-compliance">
     <h2>Security &amp; Compliance</h2>
     <ul>
-      <li class="placeholder">Compliance mode: <code>on_prem_preferred</code> — note any external call gating.</li>
-      <li class="placeholder">Secret handling: env vars only, never hardcoded.</li>
-      <li class="placeholder">Input escaping: note any user-controlled data embedded in output.</li>
+      <li><strong>Compliance mode <code>on_prem_preferred</code>:</strong> the module is pure
+      stdlib <code>json</code> + the in-repo <code>doc_hasher</code>. No external/cloud AI, no
+      network, no LLM, no new dependency → <strong>no ADR required for a dependency.</strong></li>
+      <li><strong>Cross-language contract ADR (recommended):</strong> the canonical-serialization
+      + pre-image recipe is a byte-exact contract that BILTIQ-011, BILTIQ-012, and the native
+      Node/PHP/Go SDKs must reproduce identically to verify chains across languages. A
+      lightweight ADR (next free number <strong>ADR-0005</strong> in <code>docs/adr/</code> —
+      0001–0004 are taken) documenting the recipe (canonical JSON params,
+      <code>prev_hash</code>-first pre-image ordering, <code>"0"*64</code> genesis) plus a committed
+      golden test vector is recommended so the SDK ports bind to a written spec, not to a
+      reading of the Python source. This ADR documents a serialization decision, <em>not</em> a
+      new dependency.</li>
+      <li><strong>AC3 framework-free gate:</strong> no SQLAlchemy / DB / session / FastAPI / LLM /
+      cloud import — the library-framework auto-block in code review is satisfied
+      structurally.</li>
+      <li><strong>No PII handling by the library:</strong> <code>payload</code> is opaque and
+      caller-owned; the library neither inspects nor logs it (the module has no
+      <code>logging</code> call and no <code>print()</code>). Whether a payload contains PII is the
+      consumer's concern. Tests use synthetic data only (DPDP 2023 §4) — no real identifiers in
+      any fixture or golden vector.</li>
+      <li><strong>Non-goal — keyed signing:</strong> this is a plain hash chain (integrity /
+      tamper-evidence), <strong>not</strong> a MAC and not an asymmetric signature, so it gives no
+      non-repudiation against a party who can rewrite the whole chain. That is explicitly out of
+      scope (spec § Out of Scope) and noted here as a future asymmetric-signing follow-up if a
+      consumer needs it.</li>
     </ul>
   </section>
 
   <section id="performance">
     <h2>Performance Considerations</h2>
-    <p class="placeholder">Latency budget, data volume, hot paths. Write "None" if not applicable.</p>
+    <p><code>append_row</code> is one <code>json.dumps</code> + one SHA-256 over a small string —
+    constant work per row, no hot path of concern. <code>verify_chain</code> is a single O(n) pass
+    over the chain, recomputing exactly one hash per row and comparing two strings; no nested
+    scan, no re-hash of earlier rows. Memory is O(1) beyond the input list (the walk keeps only
+    the previous row's hash). For any realistic audit volume the cost is dominated by the
+    consumer's storage I/O, which lives outside this module. No latency-budget concern.</p>
   </section>
 
   <section id="rollout">
     <h2>Rollout Plan</h2>
     <ol style="padding-left: 1.4rem;">
-      <li class="placeholder">Step 1 — first safe change to land.</li>
-      <li class="placeholder">Step 2 — next change, depends on step 1.</li>
+      <li>Step 1 — Create <code>core/audit_chain.py</code>: <code>GENESIS_PREV_HASH</code>, <code>JsonValue</code>, <code>ChainedRow</code>, <code>VerifyReport</code>, <code>_canonical_json</code>, <code>append_row</code>, <code>verify_chain</code>. Depends only on the shipped <code>doc_hasher.hash_text</code>. (AC1, AC3, AC4.)</li>
+      <li>Step 2 — Create <code>tests/core/test_audit_chain.py</code>: multi-row valid chain; middle-row mutation detected at index; hash mutation detected; link break (reorder/delete) detected; empty + single-row edge cases; canonical-JSON key-order determinism; golden-vector pin; non-serialisable-payload <code>TypeError</code>. Depends on Step 1. (AC2, AC4, AC5.)</li>
+      <li>Step 3 — Re-export the public surface from <code>core/__init__.py</code> (sorted <code>__all__</code> + docstring update) and extend <code>tests/core/test_public_imports.py</code>. Depends on Step 1. (AC1 surface.)</li>
+      <li>Step 4 (Ship) — Rewrite the reserved <code>AuditChain</code> rows in <code>stack.md</code> (module + fixture rows) to the free-function API, add the <code>CHANGELOG.md</code> <code>feat:</code> line, and (recommended) write ADR-0005 with the golden vector. Depends on Steps 1–3.</li>
     </ol>
     <h3>Rollback</h3>
-    <p class="placeholder">How to undo if something goes wrong after merge.</p>
+    <p>Greenfield leaf module — one new source file + one new test file, plus additive
+    re-exports and doc edits. No data model, no migration, no contract change to existing code,
+    no downstream consumer yet (BILTIQ-011/012 have not landed). Rollback is a single revert:
+    delete <code>audit_chain.py</code> + its test and revert the <code>__init__.py</code> /
+    <code>test_public_imports.py</code> / <code>stack.md</code> / <code>CHANGELOG.md</code> edits.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Canonical-JSON byte-reproduction across languages — Node <code>JSON.stringify</code>, PHP <code>json_encode</code>, and Go <code>encoding/json</code> differ from Python's <code>json.dumps</code> on float formatting, non-ASCII escaping, integer vs. float, and key sorting. A divergent byte image breaks cross-language verification (AC4).</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Pin the exact Python params (<code>sort_keys=True</code>, <code>separators=(",", ":")</code>, <code>ensure_ascii=False</code>) as the authoritative recipe in ADR-0005, and commit a golden test vector (a fixed payload → fixed row hash) the Python test asserts now and each native SDK must reproduce when it lands. Document the float/int caveat in the ADR so SDK ports constrain payloads to JSON-safe primitive shapes.</td>
+        </tr>
+        <tr>
+          <td>Empty-chain and single-row edge cases — an off-by-one in the link walk could make an empty chain raise (instead of returning <code>valid=True</code>) or skip the genesis check on the lone row.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>AC5 mandates explicit empty-chain and single-row tests; the design fixes empty → <code>{valid: True, first_broken_index: None}</code> (vacuous) and row 0's <code>prev_hash</code> must equal <code>GENESIS_PREV_HASH</code>. Both pinned by Step-2 tests including a single-row-with-bad-genesis negative case.</td>
+        </tr>
+        <tr>
+          <td><code>hash_text</code> input-encoding assumption — the commitment relies on <code>hash_text</code> utf-8-encoding its input; if that ever changed, every chain hash would shift.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td><code>hash_text</code> is the shipped BILTIQ-007 primitive with a fixed utf-8 contract and its own golden-digest tests; reusing it (rather than a raw <code>hashlib</code> call) keeps the encoding single-sourced. The golden-vector test in Step 2 fails loudly if the digest path ever drifts.</td>
+        </tr>
+        <tr>
+          <td><code>prev_hash</code> boundary assumption — the delimiter-free pre-image relies on <code>prev_hash</code> always being exactly 64 hex chars. A caller passing a malformed <code>prev_hash</code> to <code>append_row</code> would still hash, but <code>verify_chain</code> would later reject the link.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>The genesis sentinel and every produced <code>hash</code> are 64 hex chars by construction, so correct usage never violates the invariant. <code>verify_chain</code>'s link check catches any malformed <code>prev_hash</code> as a break at that index, so a misuse is reported, not silently accepted. (Strict format validation in <code>append_row</code> is deferred — flagged for the dev; see report.)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Coordination:</strong> <code>audit_chain.py</code> is a fresh file; no in-flight task
+    touches it. MEMORY.md's active work is BILTIQ-006 (memory-spine, in <code>scripts/</code>) —
+    disjoint. The <code>core/__init__.py</code> and <code>stack.md</code> edits are additive (new
+    re-exports; rewrite of a placeholder row), not changes to shipped behaviour. The
+    <code>ChainedRow</code>/<code>VerifyReport</code> surface is the contract BILTIQ-011 (verify) and
+    BILTIQ-012 (emit-per-call) will consume; this design freezes it.</p>
   </section>
 
   <section id="change-history">
@@ -180,10 +405,22 @@
       </thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-01</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft from locked spec. Pure free-function hash chain: <code>append_row</code> + <code>verify_chain</code> + <code>GENESIS_PREV_HASH</code> ("0"*64); <code>ChainedRow</code>/<code>VerifyReport</code> TypedDicts (row type renamed off the taken <code>AuditRecord</code>); commitment <code>hash_text(prev_hash + canonical_json(payload))</code> reusing <code>doc_hasher</code>; caller-supplied timestamp; no class, no clock, no storage, no new exception, no new dependency. Rewrites the reserved <code>AuditChain</code> rows in stack.md to the free-function API; recommends ADR-0005 for the cross-language commitment recipe + golden vector.</td>
+          <td>BILTIQ-010</td>
+        </tr>
+        <tr>
+          <td>2026-06-01</td>
+          <td>data-model</td>
+          <td>Replaced the PEP 695 <code>type JsonValue = ...</code> alias statement (3.12+ grammar) with the 3.11-safe <code>JsonValue: TypeAlias = ...</code> form — the package floor is <code>requires-python &gt;=3.11</code>, where the <code>type</code> statement is a <code>SyntaxError</code> at import (Anti-Pattern #9).</td>
+          <td>plan self-review</td>
+        </tr>
+        <tr>
+          <td>2026-06-01</td>
+          <td>files-to-touch, security-compliance</td>
+          <td>Dev ruled: (1) <code>append_row</code> stays <strong>lenient</strong> on <code>prev_hash</code> format — <code>verify_chain</code> reports any malformed link, no fail-fast <code>ValueError</code> (preserves the report-don't-raise symmetry; no extra failure-path test). (2) <strong>ADR-0005 written now</strong>, not deferred — added <code>docs/adr/0005-audit-chain-canonical-serialization.md</code> as a CREATE (at Ship) so the cross-language contract + golden vector are spec'd before 011/012/SDK consumers land.</td>
+          <td>dev decision</td>
         </tr>
       </tbody>
     </table>

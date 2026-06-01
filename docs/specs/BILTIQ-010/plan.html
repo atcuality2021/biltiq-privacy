@@ -3,131 +3,137 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan: [TASK_TITLE]</title>
-  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <title>Plan: Audit hash-chain (pure)</title>
   <style>
-    :root {
-      --color-border:    #e5e7eb;
-      --color-bg:        #ffffff;
-      --color-bg-subtle: #f9fafb;
-      --color-text:      #111827;
-      --color-muted:     #6b7280;
-      --color-step-bg:   #f0fdf4;
-      --color-step-bdr:  #bbf7d0;
-      --color-risk-high: #dc2626;
-      --color-risk-med:  #d97706;
-      --color-risk-low:  #16a34a;
-      --radius:          6px;
-      --max-width:       860px;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-      color: var(--color-text);
-      background: var(--color-bg);
-      padding: 2rem 1rem;
-    }
-    main { max-width: var(--max-width); margin: 0 auto; }
-    header {
-      border-bottom: 2px solid var(--color-border);
-      padding-bottom: 1.25rem;
-      margin-bottom: 2rem;
-    }
-    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
-    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
-    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .meta dd { font-size: 0.9rem; }
-    section { margin-bottom: 2rem; }
-    h2 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      border-left: 4px solid var(--color-border);
-      padding-left: 0.75rem;
-      margin-bottom: 0.75rem;
-    }
-    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
-    p, li { margin-bottom: 0.4rem; }
-    ul, ol { padding-left: 1.4rem; }
-    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
-    .step {
-      border: 1px solid var(--color-step-bdr);
-      background: var(--color-step-bg);
-      border-radius: var(--radius);
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
-    }
-    .step-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
-    .step-title { font-weight: 700; font-size: 0.95rem; }
-    .band {
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 0.15rem 0.5rem;
-      border-radius: 9999px;
-      background: #e0f2fe;
-      color: #0369a1;
-      border: 1px solid #7dd3fc;
-    }
-    .step-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 0.5rem; }
-    .step-tests { font-size: 0.82rem; margin-top: 0.5rem; }
-    .step-tests strong { color: var(--color-muted); }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
-    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
-    th { background: var(--color-bg-subtle); font-weight: 600; }
-    .risk-h { color: var(--color-risk-high); font-weight: 700; }
-    .risk-m { color: var(--color-risk-med);  font-weight: 700; }
-    .risk-l { color: var(--color-risk-low);  font-weight: 700; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
-    @media (max-width: 600px) { .meta { flex-direction: column; } }
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-step-bg:#f0fdf4;--color-step-bdr:#bbf7d0;--color-risk-high:#dc2626;--color-risk-med:#d97706;--color-risk-low:#16a34a;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    h3{font-size:0.95rem;font-weight:600;margin:1rem 0 0.4rem;}
+    p,li{margin-bottom:0.4rem;}
+    ul,ol{padding-left:1.4rem;}
+    code{font-family:ui-monospace,monospace;font-size:0.85em;background:var(--color-bg-subtle);padding:0.1em 0.3em;border-radius:3px;}
+    .step{border:1px solid var(--color-step-bdr);background:var(--color-step-bg);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;}
+    .step-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.5rem;}
+    .step-title{font-weight:700;font-size:0.95rem;}
+    .band{font-size:0.7rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:9999px;background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc;}
+    .step-meta{font-size:0.8rem;color:var(--color-muted);margin-bottom:0.5rem;}
+    .step-tests{font-size:0.82rem;margin-top:0.5rem;}
+    .step-tests strong{color:var(--color-muted);}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;margin:0.5rem 0;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+    .risk-h{color:var(--color-risk-high);font-weight:700;}
+    .risk-m{color:var(--color-risk-med);font-weight:700;}
+    .risk-l{color:var(--color-risk-low);font-weight:700;}
+    @media (max-width:600px){.meta{flex-direction:column;}}
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Plan: [TASK_TITLE]</h1>
+    <h1>Plan: Audit hash-chain (pure)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Branch</dt><dd><!-- feature/xxx --></dd></div>
-      <div><dt>Base</dt><dd><!-- main --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-010</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-010-audit-chain</dd></div>
+      <div><dt>Base</dt><dd>main</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
     </dl>
   </header>
 
+  <section id="branch-precondition">
+    <h2>Branch Precondition (read before Step 1)</h2>
+    <p style="font-size:0.85rem;color:var(--color-muted);">
+      PR #9 (BILTIQ-007/008/009) is already merged on the remote: <code>origin/main</code> is at
+      <code>2bc6863</code> (the merge commit), while the local <code>main</code> ref is stale at
+      <code>6fa7d6e</code> and the merged branch <code>feature/biltiq-phase-a-core</code> sits 22
+      commits ahead of it. BILTIQ-010 must <strong>not</strong> continue on the merged branch (its
+      PR base diff would carry the 22 already-merged commits &mdash; the exact plan/branch drift the
+      BILTIQ-007 reflect logged). Build starts by fast-forwarding local <code>main</code> to
+      <code>origin/main</code> (already fetched &mdash; no network needed) and cutting a fresh
+      <code>feature/biltiq-010-audit-chain</code> from it:
+      <code>git branch -f main origin/main &amp;&amp; git switch -c feature/biltiq-010-audit-chain main</code>.
+      The untracked BILTIQ-010 planning artifacts (<code>spec.html</code>, <code>design.html</code>,
+      <code>plan.html</code>) carry across the switch; commit them first as
+      <code>BILTIQ-010: planning artifacts (spec + design + plan)</code> (mirrors BILTIQ-009's
+      <code>52bbb08</code>). Leave <code>MEMORY.md</code> drift unstaged (reserved for BILTIQ-006
+      AC8) and <code>docs/eod/</code> untracked.
+    </p>
+  </section>
+
   <section id="steps">
     <h2>Build Sequence</h2>
-    <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
-      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding.
+    <p style="margin-bottom:1rem;font-size:0.85rem;color:var(--color-muted);">
+      Each step = one logical commit. TDD: RED &rarr; GREEN in the same step. Run <code>pytest</code>
+      via the repo editable venv (<code>.venv/bin/python -m pytest</code> &mdash; bare
+      <code>python3</code> fails with <code>PackageNotFoundError</code> because
+      <code>__init__.py</code> reads <code>importlib.metadata.version("biltiq-privacy")</code>) before
+      proceeding. Decouple-don't-rewrite: this ports CDSCO's hash-chain commitment logic ONLY,
+      reusing the shipped BILTIQ-007 <code>doc_hasher.hash_text</code> for SHA-256 (AC1 reuse target
+      &mdash; never a raw <code>hashlib</code> call) and dropping all SQLAlchemy/session coupling
+      (AC3). Pure stdlib <code>json</code> + <code>doc_hasher</code>; no new dependency, no schema, no
+      contract change to shipped code. Confirmed design decisions: caller-supplied timestamp (no
+      clock read), canonical JSON <code>sort_keys=True, separators=(",", ":"), ensure_ascii=False</code>,
+      free functions <code>append_row</code>/<code>verify_chain</code> + <code>GENESIS_PREV_HASH</code>
+      (no class), row type <code>ChainedRow</code> (renamed off the taken
+      <code>pseudonymiser.AuditRecord</code>), <code>append_row</code> stays lenient on
+      <code>prev_hash</code> format (verify reports a bad link &mdash; no fail-fast).
     </p>
 
     <div class="step">
-      <div class="step-header">
-        <span class="step-title">Step 1 — [Step title]</span>
-        <span class="band">M</span>
-      </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step comes first.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files created / modified</span></p>
-      <div class="step-tests">
-        <strong>Tests:</strong>
+      <div class="step-header"><span class="step-title">Step 1 &mdash; core/audit_chain.py: pure hash chain + full test suite</span><span class="band">M</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> The whole feature is one cohesive leaf module &mdash; the two free functions plus the genesis constant and two TypedDicts &mdash; with no consumer yet, so it lands as a single TDD commit (RED suite &rarr; GREEN). Depends only on the shipped <code>doc_hasher.hash_text</code>. Covers AC1&ndash;AC5 in code + tests. Est. ~50 min (within the 1-hour atomic bound; ~50 LOC module + ~11 focused test cases).</p>
+      <p class="step-meta"><strong>Files:</strong> CREATE <code>packages/python-core/biltiq_privacy/core/audit_chain.py</code> &mdash; SPDX header + CDSCO-origin docstring noting the SQLAlchemy coupling was dropped (AC3); <code>from __future__ import annotations</code>; <code>import json</code>; <code>from typing import Final, TypeAlias, TypedDict</code>; <code>from biltiq_privacy.core.doc_hasher import hash_text</code>. Defines <code>JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]</code> (the <code>TypeAlias</code> form, NOT the PEP 695 <code>type X = ...</code> statement &mdash; the latter is 3.12+ grammar and the floor is <code>requires-python &gt;=3.11</code>; keeps <code>payload</code> typed without <code>Any</code>); <code>GENESIS_PREV_HASH: Final[str] = "0" * 64</code>; <code>class ChainedRow(TypedDict){prev_hash, payload, hash}</code>; <code>class VerifyReport(TypedDict){valid, first_broken_index}</code>; private <code>_canonical_json(payload) -&gt; str</code> = the exact <code>json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)</code> call; <code>append_row(prev_hash, payload) -&gt; ChainedRow</code> computing <code>hash = hash_text(prev_hash + _canonical_json(payload))</code>; <code>verify_chain(rows) -&gt; VerifyReport</code> walking once, recomputing each digest + checking links (row 0's <code>prev_hash == GENESIS_PREV_HASH</code>; later rows' <code>prev_hash == prior row's hash</code>), reporting the first failing index, never raising on tamper. No SQLAlchemy/DB/session/FastAPI/LLM import (AC3). CREATE <code>packages/python-core/tests/core/test_audit_chain.py</code> (cases below; <code>tests/core/__init__.py</code> already exists).</p>
+      <div class="step-tests"><strong>Tests (AC1, AC2, AC3, AC4, AC5):</strong>
         <ul>
-          <li class="placeholder">test_function_name — asserts X (AC1)</li>
+          <li><code>test_append_row_commits_to_prev_and_payload</code> &mdash; <code>append_row(GENESIS_PREV_HASH, payload)</code> returns a 3-key <code>ChainedRow</code> whose <code>hash</code> equals <code>hash_text(GENESIS_PREV_HASH + canonical_json(payload))</code> recomputed independently (AC1 success path); <code>prev_hash</code> and <code>payload</code> are stored verbatim.</li>
+          <li><code>test_multi_row_chain_verifies_valid</code> &mdash; build a 3+ row chain by threading each row's <code>hash</code> into the next <code>append_row</code>; <code>verify_chain</code> returns <code>{valid: True, first_broken_index: None}</code> (AC2/AC5 success path).</li>
+          <li><code>test_mutated_middle_payload_detected_at_index</code> &mdash; flip a field in the middle row's <code>payload</code>; <code>verify_chain</code> returns <code>{valid: False, first_broken_index: i}</code> at that exact row (AC2 tamper-evidence, AC5).</li>
+          <li><code>test_mutated_hash_detected</code> &mdash; corrupt a row's stored <code>hash</code>; detected at that index (AC2 &mdash; the stored-hash recompute path, distinct from the payload path).</li>
+          <li><code>test_reordered_or_deleted_row_detected_via_link</code> &mdash; delete/reorder a middle row; the broken <code>prev_hash</code> link is reported at the first offending index (AC2 link check).</li>
+          <li><code>test_bad_genesis_detected_at_index_0</code> &mdash; a single row whose <code>prev_hash</code> is not <code>GENESIS_PREV_HASH</code> reports <code>first_broken_index: 0</code> (genesis-link failure path).</li>
+          <li><code>test_empty_chain_is_vacuously_valid</code> &mdash; <code>verify_chain([])</code> returns <code>{valid: True, first_broken_index: None}</code> (AC5 edge case &mdash; no raise).</li>
+          <li><code>test_single_valid_row_verifies</code> &mdash; one <code>append_row(GENESIS_PREV_HASH, ...)</code> row verifies valid (AC5 edge case).</li>
+          <li><code>test_canonical_json_key_order_determinism</code> &mdash; two payloads with the same items inserted in different key order produce an identical row <code>hash</code> (AC4 &mdash; <code>sort_keys=True</code> contract).</li>
+          <li><code>test_golden_vector_pins_cross_language_recipe</code> &mdash; <code>append_row(GENESIS_PREV_HASH, {fixed synthetic payload})["hash"]</code> equals a committed expected hex digest (computed once at Build); the cross-language reproduction anchor each native SDK must match (AC4). Synthetic data only.</li>
+          <li><code>test_append_row_rejects_non_serialisable_payload</code> &mdash; a payload with a non-JSON value (e.g. a <code>set</code>) makes <code>append_row</code> raise the stdlib <code>TypeError</code> from <code>json.dumps</code> &mdash; the validation/failure path; no bespoke exception (AC1 contract boundary).</li>
         </ul>
       </div>
-      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code class="placeholder">pytest tests/path/to/test.py</code> — GREEN</p>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>.venv/bin/python -m pytest packages/python-core/tests/core/test_audit_chain.py</code> &mdash; GREEN; <code>mypy --strict</code> clean (no <code>Any</code>, no <code>type: ignore</code>); <code>ruff check</code> clean.</p>
     </div>
 
     <div class="step">
-      <div class="step-header">
-        <span class="step-title">Step 2 — [Step title]</span>
-        <span class="band">S</span>
+      <div class="step-header"><span class="step-title">Step 2 &mdash; public surface: core/__init__.py re-export</span><span class="band">S</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> The stable <code>biltiq_privacy.core</code> import surface BILTIQ-011 (verify) and BILTIQ-012 (emit-per-call) consume. Mirrors the shipped <code>doc_hasher</code>/<code>pseudonymiser</code> re-export pattern. Depends on Step 1. Est. ~20 min.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>packages/python-core/biltiq_privacy/core/__init__.py</code> &mdash; add a <code>from biltiq_privacy.core.audit_chain import (...)</code> block re-exporting <code>ChainedRow</code>, <code>GENESIS_PREV_HASH</code>, <code>VerifyReport</code>, <code>append_row</code>, <code>verify_chain</code>; insert each into the existing <strong>sorted</strong> <code>__all__</code> in alphabetical position; update the module docstring line that currently says <code>audit_chain</code> lands in a later Phase A task to describe the shipped free-function surface. EDIT <code>packages/python-core/tests/core/test_public_imports.py</code> &mdash; extend the import-surface + <code>__all__</code> assertions to cover the five new names (mirrors the <code>HMACKeyRequiredError</code>/<code>MissingNERModelError</code> assertions), incl. <code>GENESIS_PREV_HASH == "0" * 64</code> and that both TypedDicts import from <code>biltiq_privacy.core</code>.</p>
+      <div class="step-tests"><strong>Tests (AC1 surface):</strong>
+        <ul>
+          <li><code>test_public_imports</code> (extend) &mdash; <code>from biltiq_privacy.core import append_row, verify_chain, ChainedRow, VerifyReport, GENESIS_PREV_HASH</code> all resolve (success path); <code>GENESIS_PREV_HASH == "0" * 64</code> and <code>len(GENESIS_PREV_HASH) == 64</code>.</li>
+          <li><code>test_all_matches_exported_surface</code> (extend) &mdash; the five names are present in the sorted <code>__all__</code>, and <code>__all__</code> stays sorted.</li>
+        </ul>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step follows step 1.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files</span></p>
-      <div class="step-tests">
-        <strong>Tests:</strong> <span class="placeholder">none (static files — structural correctness verified by step N)</span>
-      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>.venv/bin/python -m pytest packages/python-core/tests/core/test_public_imports.py packages/python-core/tests/core/test_audit_chain.py</code> &mdash; GREEN; <code>mypy --strict</code> clean.</p>
     </div>
-    <!-- Add more steps by copying a .step block -->
+
+    <div class="step">
+      <div class="step-header"><span class="step-title">Step 3 (Ship) &mdash; docs + ADR-0005 + golden vector</span><span class="band">S</span></div>
+      <p class="step-meta"><strong>Rationale:</strong> Docs move with the code (AP #1/#6 defense) and the cross-language commitment contract is pinned in writing before any consumer (011/012/SDKs) binds to it. Depends on Steps 1&ndash;2. Est. ~25 min.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>docs/architecture/stack.md</code> &mdash; rewrite the reserved &ldquo;Audit hash-chain&rdquo; module row (currently <code>...audit_chain.AuditChain</code>) to the free-function API: <code>append_row(prev_hash, payload) -&gt; ChainedRow</code>, <code>verify_chain(rows) -&gt; VerifyReport</code>, the <code>GENESIS_PREV_HASH</code> sentinel, canonical-JSON recipe, reuse of <code>doc_hasher.hash_text</code>, caller-supplied timestamp, persistence-is-the-consumer's-concern, no class; restate the <code>audit_chain</code> test-fixture row (currently &ldquo;Fresh <code>AuditChain</code> with a deterministic seed&rdquo; &mdash; there is no class/seed) as a small deterministic synthetic <code>list[ChainedRow]</code> fixture, or drop it if the test builds chains inline (Build decides &mdash; flag either way). EDIT <code>CHANGELOG.md</code> &mdash; <code>[Unreleased]</code> <code>feat:</code> line for <code>biltiq_privacy.core.audit_chain</code> (free-function hash chain; <code>append_row</code>/<code>verify_chain</code>/<code>GENESIS_PREV_HASH</code>; <code>ChainedRow</code>/<code>VerifyReport</code>; canonical-JSON commitment via <code>doc_hasher.hash_text</code>; caller-supplied timestamp; no DB) with the test count + <code>mypy --strict</code> clean note. CREATE <code>docs/adr/0005-audit-chain-canonical-serialization.md</code> &mdash; from <code>docs/adr/_template.md</code>; status <code>accepted</code>; documents the canonical-JSON params, the <code>prev_hash</code>-first pre-image ordering, the <code>"0"*64</code> genesis, and the committed golden vector from Step 1; states it is a serialization contract, NOT a new dependency; number 0005 avoids in-flight ADR-0003 (BILTIQ-004) / ADR-0004 (BILTIQ-006) on sibling branches; link from <code>MEMORY.md</code> deferred (MEMORY.md reserved for BILTIQ-006 AC8 &mdash; note the pending link in the PR instead).</p>
+      <div class="step-tests"><strong>Tests:</strong>
+        <ul>
+          <li>No new runtime test &mdash; the golden vector is already asserted by <code>test_golden_vector_pins_cross_language_recipe</code> (Step 1); the ADR documents that committed vector. Doc/ADR edits are validated by the full-suite + architecture-gate run below.</li>
+          <li>Re-run the full suite to confirm no doc-gate / canonical-doc / banned-vocab regression from the <code>stack.md</code> + <code>CHANGELOG.md</code> edits.</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> full <code>.venv/bin/python -m pytest</code> green; <code>mypy --strict</code> clean; <code>ruff check</code> clean on changed files; banned-vocab + residue scan clean; <code>.md</code>-artifact check (ADR is <code>docs/adr/*.md</code> &mdash; allowed; spec/design/plan/reflect stay <code>.html</code> per AP #11).</p>
+    </div>
   </section>
 
   <section id="test-strategy">
@@ -135,16 +141,29 @@
     <table>
       <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
       <tbody>
-        <tr><td>Unit</td><td class="placeholder">function behavior</td><td class="placeholder">tests/path/test_foo.py</td></tr>
-        <tr><td>Integration</td><td class="placeholder">end-to-end round-trip</td><td class="placeholder">tests/path/test_integration.py</td></tr>
-        <tr><td>Manual</td><td class="placeholder">open in browser, verify rendered output</td><td>—</td></tr>
+        <tr><td>Commitment / characterization</td><td><code>append_row</code> commits <code>hash</code> to <code>(prev_hash, canonical_json(payload))</code> via <code>doc_hasher.hash_text</code>; stores <code>prev_hash</code>/<code>payload</code> verbatim (AC1)</td><td><code>tests/core/test_audit_chain.py</code></td></tr>
+        <tr><td>Tamper-evidence</td><td>Multi-row chain verifies valid; mutated middle payload, corrupted stored hash, and reordered/deleted row each detected at the right first-broken index; bad genesis at index 0 (AC2)</td><td><code>tests/core/test_audit_chain.py</code></td></tr>
+        <tr><td>Determinism / cross-language</td><td>Key-insertion-order independence (<code>sort_keys=True</code>); committed golden vector pinning a fixed payload &rarr; fixed row hash (AC4)</td><td><code>tests/core/test_audit_chain.py</code></td></tr>
+        <tr><td>Edge cases</td><td>Empty chain vacuously valid (no raise); single valid row (AC5)</td><td><code>tests/core/test_audit_chain.py</code></td></tr>
+        <tr><td>Failure path</td><td>Non-JSON-serialisable payload &rarr; stdlib <code>TypeError</code> from <code>append_row</code> (no bespoke exception); <code>verify_chain</code> reports, never raises, on tamper</td><td><code>tests/core/test_audit_chain.py</code></td></tr>
+        <tr><td>Structural (AC3)</td><td>No SQLAlchemy/DB/session/FastAPI/LLM import &mdash; enforced by the library-framework auto-block in code review + the pure stdlib import list</td><td>Review / static</td></tr>
+        <tr><td>Surface</td><td>Five public names resolve from <code>biltiq_privacy.core</code>; <code>__all__</code> sorted + complete; <code>GENESIS_PREV_HASH == "0"*64</code></td><td><code>tests/core/test_public_imports.py</code></td></tr>
+        <tr><td>Integration</td><td>Deferred to BILTIQ-012 (orchestrator emits one chained row per <code>anonymise()</code> call). Not in scope here.</td><td>&mdash;</td></tr>
+        <tr><td>Static</td><td><code>mypy --strict</code> (no <code>Any</code>/<code>type: ignore</code>) + <code>ruff</code> via CI</td><td>CI</td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="rollback-plan">
     <h2>Rollback Plan</h2>
-    <p class="placeholder">How to undo if something goes wrong. For additive-only changes: "Remove new files, revert text insertions. No data loss."</p>
+    <p>Greenfield leaf module &mdash; one new source file + one new test file, plus additive re-exports
+    (<code>core/__init__.py</code>), an extended surface test, doc edits (<code>stack.md</code>,
+    <code>CHANGELOG.md</code>), and one new ADR. No data model, no migration, no contract change to
+    shipped code &mdash; the BILTIQ-007 <code>Detection</code>/<code>AuditRecord</code> types are
+    untouched and no downstream consumer has landed (BILTIQ-011/012 not yet built). Rollback = single
+    revert commit deleting <code>audit_chain.py</code> + its test and reverting the
+    <code>__init__.py</code> / <code>test_public_imports.py</code> / <code>stack.md</code> /
+    <code>CHANGELOG.md</code> / ADR edits. Nothing downstream to unwind.</p>
   </section>
 
   <section id="risks">
@@ -152,12 +171,11 @@
     <table>
       <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
       <tbody>
-        <tr>
-          <td class="placeholder">Risk description</td>
-          <td class="placeholder">1</td>
-          <td><span class="risk-m">MED</span></td>
-          <td class="placeholder">How it is mitigated.</td>
-        </tr>
+        <tr><td>Canonical-JSON byte-reproduction across languages &mdash; Node <code>JSON.stringify</code>, PHP <code>json_encode</code>, Go <code>encoding/json</code> differ from Python on float formatting, non-ASCII escaping, int-vs-float, key sorting; a divergent byte image breaks cross-language verification (AC4)</td><td>1, 3</td><td><span class="risk-m">MED</span></td><td>Pin the exact Python params (<code>sort_keys=True</code>, <code>separators=(",", ":")</code>, <code>ensure_ascii=False</code>) as the authoritative recipe in ADR-0005 + commit a golden vector (<code>test_golden_vector_pins_cross_language_recipe</code>) the Python suite asserts now and each SDK must reproduce on landing; document the float/int caveat so SDK ports constrain payloads to JSON-safe primitive shapes.</td></tr>
+        <tr><td>Empty-chain / single-row off-by-one &mdash; the link walk could make an empty chain raise (instead of <code>valid=True</code>) or skip the genesis check on the lone row</td><td>1</td><td><span class="risk-l">LOW</span></td><td>AC5 mandates explicit empty + single-row tests; design fixes empty &rarr; vacuous valid and row 0's <code>prev_hash == GENESIS_PREV_HASH</code>; pinned by <code>test_empty_chain_is_vacuously_valid</code>, <code>test_single_valid_row_verifies</code>, and <code>test_bad_genesis_detected_at_index_0</code>.</td></tr>
+        <tr><td><code>hash_text</code> input-encoding assumption &mdash; the commitment relies on <code>hash_text</code> utf-8-encoding its input; a future change would shift every chain hash</td><td>1</td><td><span class="risk-l">LOW</span></td><td>Reuse the shipped BILTIQ-007 <code>hash_text</code> (fixed utf-8 contract + its own golden-digest tests) rather than a raw <code>hashlib</code> call, single-sourcing the encoding; the Step-1 golden-vector test fails loudly if the digest path ever drifts.</td></tr>
+        <tr><td><code>prev_hash</code> boundary / lenient <code>append_row</code> &mdash; the delimiter-free pre-image relies on <code>prev_hash</code> being exactly 64 hex chars; a caller passing a malformed <code>prev_hash</code> still hashes (dev ruled: no fail-fast)</td><td>1</td><td><span class="risk-l">LOW</span></td><td>Genesis sentinel + every produced <code>hash</code> are 64 hex by construction, so correct usage never violates the invariant; <code>verify_chain</code>'s link check reports any malformed <code>prev_hash</code> as a break at that index (covered by <code>test_bad_genesis_detected_at_index_0</code>), so misuse is reported, not silently accepted &mdash; matching the report-don't-raise contract (AC2).</td></tr>
+        <tr><td>Branch drift &mdash; building on the merged <code>feature/biltiq-phase-a-core</code> would pollute the BILTIQ-010 PR base with 22 already-merged commits</td><td>pre-1</td><td><span class="risk-m">MED</span></td><td>Branch Precondition (above): fast-forward local <code>main</code> to <code>origin/main</code> (2bc6863) and cut a fresh <code>feature/biltiq-010-audit-chain</code> before Step 1; commit planning artifacts first. Directly addresses the BILTIQ-007 reflect's plan/branch-derivation finding.</td></tr>
       </tbody>
     </table>
   </section>
@@ -167,12 +185,7 @@
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
-        <tr>
-          <td><!-- YYYY-MM-DD --></td>
-          <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
-        </tr>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft from locked spec + design (3 atomic steps: pure module + full AC1&ndash;AC5 suite &rarr; public re-export &rarr; docs + ADR-0005 + golden vector). Encodes the 4 confirmed decisions + the two dev rulings (lenient <code>append_row</code>; ADR-0005 written now). Branch set to a fresh <code>feature/biltiq-010-audit-chain</code> off <code>origin/main</code> (2bc6863) per the Branch Precondition, not the merged phase-a-core branch.</td><td>plan</td></tr>
       </tbody>
     </table>
   </section>
