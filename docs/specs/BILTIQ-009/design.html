@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: Detector abstraction + Presidio backend</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: Detector abstraction + Presidio backend</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-009</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Approach</h2>
+    <h3>Name</h3>
+    <p>Decouple-don't-rewrite: a stateless <code>Detector</code> ABC in
+    <code>detectors/base.py</code> plus a <code>PresidioDetector</code> in
+    <code>detectors/presidio_backend.py</code> that wraps the already-shipped
+    BILTIQ-002 <code>indian.recognisers.build_engine()</code> behind an instance-level lazy
+    singleton.</p>
+    <h3>Description</h3>
+    <p>CDSCO's <code>presidio_engine.py</code> bundles three things into one file: the eight
+    Indian recognisers, a module-global <code>_engine</code> singleton, and the
+    <code>detect_pii_rules()</code> wrapper that calls <code>engine.analyze()</code> and projects
+    results into <code>{entity_type, start, end, score, text, source}</code> dicts filtered at
+    <code>score &gt;= 0.5</code>. BILTIQ-002 already owns the recognisers (as
+    <code>INDIAN_RECOGNISERS</code> + the pure <code>build_engine()</code> factory). This task ports
+    <strong>only the wrapper behaviour</strong>, and does so behind an abstraction so future
+    backends (LLM/hybrid, Phase D) plug in without touching the core pipeline.</p>
+    <p>The seam is exactly the line CDSCO already exposes: <code>PresidioDetector.detect()</code>
+    builds its engine once via <code>build_engine()</code> (reused verbatim — AC2, no recogniser
+    re-definition), caches it on <code>self._engine</code> (instance-level lazy singleton, AC3 —
+    not a module global; preserves 002's deliberate pure-factory design), calls
+    <code>engine.analyze(text=text, language=language)</code>, and projects each
+    <code>RecognizerResult</code> into a <code>DetectedEntity</code> record with
+    <code>round(score, 4)</code> (verbatim from CDSCO) filtered at the configurable
+    <code>self._score_threshold</code> (default <code>0.5</code>, AC4). The return type is
+    <code>DetectedEntity(Detection)</code> — a one-field subclass of the shipped BILTIQ-007
+    <code>Detection</code> TypedDict adding only <code>source: str</code>, defined in
+    <code>detectors/base.py</code>. A <code>TypedDict</code> is a plain <code>dict</code> at runtime, so AC1's
+    <code>list[dict]</code> contract holds literally and the dict-consuming 011/012 callers are
+    unaffected; subclassing <code>Detection</code> avoids Anti-Pattern #1 (no parallel type).</p>
+    <p>AC5 (framework-free + lazy import) is enforced structurally: both modules carry
+    no FastAPI/DB/LLM imports, and the <code>from presidio_analyzer import ...</code> /
+    <code>from biltiq_privacy.indian.recognisers import build_engine</code> statements live
+    <strong>inside methods</strong>, not at module top — so importing <code>detectors.base</code> or
+    <code>detectors.presidio_backend</code> does not transitively pull Presidio or spaCy into
+    <code>sys.modules</code>. This mirrors BILTIQ-002's lazy-import discipline and is proven the
+    same way: a subprocess import-probe test (the existing
+    <code>tests/indian/test_lazy_import.py</code> harness is the template). A missing
+    <code>en_core_web_sm</code> surfaces during lazy engine build as an <code>OSError</code>, which the
+    backend catches <em>specifically</em> (never bare <code>Exception</code>, Anti-Pattern #3) and
+    re-raises as the new <code>MissingNERModelError</code> (added to <code>core/exceptions.py</code>
+    beside <code>HMACKeyRequiredError</code>, as <code>overview.md</code> § Failure modes reserves) with
+    <code>python -m spacy download en_core_web_sm</code> install guidance.</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Port the CDSCO module verbatim, including its eight inline <code>PatternRecognizer</code>s and <code>_build_engine()</code></td><td>Anti-Pattern #1 — BILTIQ-002 already ships those recognisers + <code>build_engine()</code>; re-defining them creates a divergent parallel copy (the CDSCO regexes lack the 002 context-word boosts and single-source patterns). AC2 mandates reuse.</td></tr>
+        <tr><td>2</td><td>Module-global <code>_engine</code> singleton + module-level <code>get_engine()</code> (CDSCO shape)</td><td>Reintroduces the process-global state BILTIQ-002 deliberately removed (its <code>build_engine()</code> is a pure factory). A module global cannot be reset/garbage-collected per-consumer and complicates multi-detector use. Instance-level <code>self._engine</code> (resolved open question) keeps the singleton scoped to the detector.</td></tr>
+        <tr><td>3</td><td><code>@dataclass(slots=True, frozen=True)</code> return type (the stack.md default for return values)</td><td>Breaks the dict-consuming contract — CDSCO and BILTIQ-011/012 read <code>r["entity_type"]</code>; a frozen dataclass needs attribute access and would force a parallel shape next to the shipped <code>Detection</code> TypedDict (Anti-Pattern #1). The resolved open question fixes the return type as <code>DetectedEntity(Detection)</code>. (Dataclass remains the default for genuinely new return values; here a typed dict already exists to extend.)</td></tr>
+        <tr><td>4</td><td>Bare <code>list[dict]</code> with no element type (CDSCO verbatim)</td><td><code>dict</code> with no value type trips <code>mypy --strict</code> and the no-<code>Any</code> rule (Anti-Pattern #4 — silent type erosion). <code>DetectedEntity</code> documents the six keys while staying a runtime dict.</td></tr>
+        <tr><td>5</td><td>Eager engine build in <code>__init__</code></td><td>Breaks AC5 lazy-import (constructing a <code>PresidioDetector</code> would load spaCy + the ~2–4 s model even if <code>detect()</code> is never called) and slows every import path that merely references the class. Lazy <code>self._engine</code> on first <code>detect()</code> is required.</td></tr>
+        <tr><td>6</td><td>Catch bare <code>Exception</code> (or <code>Exception</code> + <code>isinstance</code> sniff) around engine build to map model-missing errors</td><td>Anti-Pattern #3 — masks unrelated failures (registry errors, config bugs) as "model missing". spaCy raises <code>OSError</code> specifically when the model package is absent; catch exactly that and let everything else propagate.</td></tr>
+        <tr><td>7</td><td>Wire <code>build_engine()</code> at module import and inject the engine via <code>PresidioDetector(engine=...)</code></td><td>Forces the caller to construct the engine (re-leaking the spaCy import to import-time at the call site) and removes the lazy/singleton guarantee the backend owns. The optional <code>nlp_engine</code> seam already exists on <code>build_engine()</code> for advanced wiring; the detector does not need to expose it in v0.1.0.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+    <h3>New <span class="tag tag-new">CREATE</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/python-core/biltiq_privacy/detectors/base.py</code></td><td><strong>Create.</strong> The <code>Detector</code> ABC (<code>abc.ABC</code> + <code>@abstractmethod detect(text, language="en") -&gt; list[DetectedEntity]</code>) and the <code>DetectedEntity(Detection)</code> TypedDict (imports <code>Detection</code> from <code>core.pseudonymiser</code>, adds <code>source: str</code>). SPDX header + CDSCO-origin docstring. No Presidio/spaCy import at module top (AC1, AC5).</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/detectors/presidio_backend.py</code></td><td><strong>Create.</strong> <code>PresidioDetector(*, score_threshold: float = 0.5)</code> implementing the ABC: lazy <code>self._engine</code> built from <code>indian.recognisers.build_engine()</code>, <code>detect()</code> calling <code>engine.analyze()</code> → <code>DetectedEntity</code> projection with <code>round(score, 4)</code> filtered at threshold, <code>OSError</code>→<code>MissingNERModelError</code> mapping. Lazy method-level imports of <code>presidio_analyzer</code> + <code>build_engine</code> (AC2, AC3, AC4, AC5).</td></tr>
+        <tr><td><code>packages/python-core/tests/detectors/__init__.py</code></td><td><strong>Create.</strong> Regular-package marker for the new test subtree (matches <code>tests/core/__init__.py</code> / <code>tests/indian/__init__.py</code>; required because <code>consider_namespace_packages = true</code> and these tests live under the regular <code>tests</code> package).</td></tr>
+        <tr><td><code>packages/python-core/tests/detectors/test_detectors_base.py</code></td><td><strong>Create.</strong> ABC contract tests: <code>Detector</code> cannot be instantiated directly; a minimal concrete subclass satisfies the interface; <code>DetectedEntity</code> is structurally a <code>Detection</code> (accepted by <code>Pseudonymiser.pseudonymise_text</code>) and carries <code>source</code>. (AC1.)</td></tr>
+        <tr><td><code>packages/python-core/tests/detectors/test_presidio_backend.py</code></td><td><strong>Create.</strong> Detects each of the 8 Indian entity types on sample text via the <code>presidio_engine_indian</code> + <code>sample_indian_pii</code> fixtures; asserts the 6-key record shape, <code>source == "presidio"</code>, <code>round(score, 4)</code>, threshold filtering (default 0.5 + a raised threshold dropping low-confidence hits, AC4); singleton identity across two <code>detect()</code> calls (AC3); <code>MissingNERModelError</code> raised + guidance string when the model load fails (monkeypatched <code>OSError</code>). (AC2, AC3, AC4, AC6.)</td></tr>
+        <tr><td><code>packages/python-core/tests/detectors/test_lazy_import.py</code></td><td><strong>Create.</strong> Subprocess import-probe (clone of <code>tests/indian/test_lazy_import.py</code>): importing <code>detectors.base</code> and <code>detectors.presidio_backend</code> must NOT load <code>presidio_analyzer</code> or <code>spacy</code>; a positive control proves the probe observes load state. (AC5.)</td></tr>
+        <tr><td><code>packages/python-core/tests/fixtures/presidio.py</code></td><td><strong>Create.</strong> The <code>presidio_engine_indian</code> fixture (module/session-scoped <code>AnalyzerEngine</code> from <code>build_engine()</code>) that <code>stack.md</code> line 95 documents but does not yet exist (today only <code>hmac_key</code> + a local module-scoped fixture inside <code>test_recognisers.py</code> exist).</td></tr>
+        <tr><td><code>packages/python-core/tests/detectors/test_fixtures.py</code></td><td><strong>Create.</strong> Fixture self-checks guarding the Step-4 detection test against a vacuous pass: <code>sample_indian_pii</code> embeds one known-valid value for each of the 8 entity types (drawn from the <code>*_VALID</code> tuples — no new PII), and <code>presidio_engine_indian</code> registers all eight <code>IN_*</code> entities. (AC6 support.)</td></tr>
+      </tbody>
+    </table>
+    <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/exceptions.py</code></td><td><strong>Edit.</strong> Add <code>MissingNERModelError</code> beside <code>HMACKeyRequiredError</code> (the module docstring already reserves this sibling). Subclass <code>RuntimeError</code> (an environment/setup fault, not a value error); message carries <code>python -m spacy download en_core_web_sm</code> guidance per <code>overview.md</code> § Failure modes.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/__init__.py</code></td><td><strong>Edit.</strong> Re-export <code>MissingNERModelError</code> alongside the existing <code>HMACKeyRequiredError</code> (add the import + the alphabetically-placed <code>__all__</code> entry). Keeps the exception surface consistent — both library exceptions are reachable from the stable <code>biltiq_privacy.core</code> import surface.</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_exceptions.py</code></td><td><strong>Edit.</strong> Add a unit test for <code>MissingNERModelError</code>: it subclasses <code>RuntimeError</code>, is distinct from <code>HMACKeyRequiredError</code>, and (success + failure paths) its message contains the <code>spacy download en_core_web_sm</code> install guidance. (AC3.)</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_public_imports.py</code></td><td><strong>Edit.</strong> Extend both the import test and the <code>__all__</code>-surface test to cover <code>MissingNERModelError</code> (mirrors the existing <code>HMACKeyRequiredError</code> assertions, incl. the <code>issubclass(RuntimeError)</code> check).</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/detectors/__init__.py</code></td><td><strong>Edit.</strong> Replace the "modules land in BILTIQ-002+" stub note; re-export <code>Detector</code>, <code>DetectedEntity</code>, and <code>PresidioDetector</code> with a sorted <code>__all__</code> (mirrors the <code>core/__init__.py</code> re-export pattern). <strong>Re-exports must stay lazy-safe</strong> — see Risk row; importing <code>detectors</code> must not pull Presidio, so the <code>presidio_backend</code> symbol is exposed without forcing its method-level imports to import-time.</td></tr>
+        <tr><td><code>packages/python-core/tests/fixtures/india.py</code></td><td><strong>Edit.</strong> Add the <code>sample_indian_pii</code> pytest fixture <code>stack.md</code> line 94 documents — a small synthetic text blob (or dict) embedding one known-valid value per entity type, assembled from the existing <code>*_VALID</code> constant tuples already in this file (no new PII). Constants stay; the fixture is additive.</td></tr>
+        <tr><td><code>packages/python-core/tests/conftest.py</code></td><td><strong>Edit.</strong> Register the two new fixture modules so <code>presidio_engine_indian</code> and <code>sample_indian_pii</code> resolve in the new <code>tests/detectors/</code> tree — by <strong>re-exporting</strong> each fixture by name into the package conftest (<code>from tests.fixtures.presidio import presidio_engine_indian  # noqa: F401</code>, and the india one). <strong>Not</strong> <code>pytest_plugins</code>: that key is only legal in the rootdir conftest and errors in pytest 8 when declared in this non-root package conftest. <code>hmac_key</code> stays.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td><strong>Edit.</strong> Flip the two reserved "Internal modules" rows (lines 67–68, <code>detectors.base.Detector</code> / <code>presidio_backend.PresidioDetector</code>) from placeholder to shipped (note the lazy instance singleton, <code>score_threshold</code> arg, <code>DetectedEntity</code> return). Update the two fixture rows (lines 94–95) to reflect the now-existing fixtures, and correct the line-95 "7 Indian recognisers" wording to <strong>8</strong> (the set is eight — Aadhaar, PAN, ABHA, GSTIN, Voter, IFSC, Phone, Medical Reg).</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td><strong>Edit.</strong> Add an <code>[Unreleased]</code> <code>feat:</code> line for <code>biltiq_privacy.detectors</code> (Detector ABC + DetectedEntity + PresidioDetector wrapping 002's <code>build_engine()</code>, lazy instance singleton, configurable threshold, <code>MissingNERModelError</code>), matching the BILTIQ-008 entry style.</td></tr>
+      </tbody>
+    </table>
+    <p><em>No <code>pyproject.toml</code> change.</em> Presidio/spaCy are already-approved, already-pinned deps; no new dependency, no new test-dep. The <code>tests/detectors/__init__.py</code> marker is the only collection-plumbing addition (no <code>pythonpath</code> change — <code>packages/python-core/</code> is already on it).</p>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model Changes</h2>
+    <p>One new in-module type and one ABC; no schema, no JSONL field, no DB table.</p>
+    <pre><code># detectors/base.py
+from biltiq_privacy.core.pseudonymiser import Detection
+
+class DetectedEntity(Detection):   # Detection = {entity_type, text, start, end, score}
+    source: str                    # adds the single extra key; runtime dict
+
+class Detector(abc.ABC):
+    @abc.abstractmethod
+    def detect(self, text: str, language: str = "en") -> list[DetectedEntity]: ...
+</code></pre>
+    <p><code>DetectedEntity</code> is a structural superset of <code>Detection</code>, so a
+    <code>list[DetectedEntity]</code> is accepted by <code>Pseudonymiser.pseudonymise_text</code>
+    (which consumes <code>list[Detection]</code>) without conversion. <strong>No edits to the shipped
+    BILTIQ-007 <code>Detection</code> / <code>AuditRecord</code> types</strong> — they remain frozen.</p>
+  </section>
+
+  <section id="api-contract">
+    <h2>API Contract Changes</h2>
+    <p>New public surface under <code>biltiq_privacy.detectors</code> (re-exported from the
+    package <code>__init__</code>). No existing contract changes — both modules are new and the
+    007 types are untouched. All signatures fully typed; no <code>Any</code>, no
+    <code>type: ignore</code>.</p>
+    <pre><code># detectors/presidio_backend.py
+class PresidioDetector(Detector):
+    def __init__(self, *, score_threshold: float = 0.5) -> None: ...
+    def detect(self, text: str, language: str = "en") -> list[DetectedEntity]: ...
+</code></pre>
+    <ul>
+      <li><strong>Engine reuse seam:</strong> <code>detect()</code> lazily builds and caches
+      <code>self._engine = build_engine()</code> (BILTIQ-002 factory) on first call; subsequent
+      calls reuse it. No <code>nlp_engine</code> arg is surfaced on the detector in v0.1.0
+      (advanced NLP wiring stays on <code>build_engine()</code> directly).</li>
+      <li><strong>detect() behaviour:</strong> calls <code>engine.analyze(text=text, language=language)</code>,
+      projects each result to <code>{entity_type, start, end, score: round(score, 4), text, source: "presidio"}</code>,
+      filters <code>score &gt;= self._score_threshold</code>. Order follows Presidio's result order
+      (CDSCO-equivalent; not sorted).</li>
+      <li><strong>Errors:</strong> a missing NER model raises <code>MissingNERModelError</code>
+      (with install guidance) on the first <code>detect()</code>; no other exception is wrapped.</li>
+    </ul>
+    <p>No new environment variables. No CLI change. No network, no config read.</p>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance</h2>
+    <ul>
+      <li>Compliance mode <code>on_prem_preferred</code>: detection is in-process Presidio +
+      local spaCy — no external/cloud AI call, no network, no LLM. <strong>No new dependency
+      introduced (Presidio/spaCy are already approved &amp; pinned) → no ADR required.</strong></li>
+      <li>AC5 framework-free gate: no FastAPI/Starlette/Pydantic/DB/LLM import in either
+      module; the auto-block in code review for library framework deps is satisfied. The
+      lazy method-level import keeps Presidio/spaCy out of import time, proven by the
+      subprocess probe test.</li>
+      <li>No key, no secret, no env read inside <code>python-core</code>. The detector holds only a
+      float threshold and the cached engine.</li>
+      <li>No PII logged: neither module has a <code>logging</code> call or <code>print()</code>; detected
+      span text is returned to the caller, never emitted to a log or stdout.</li>
+    </ul>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <p>Cold start: the first <code>detect()</code> on a fresh <code>PresidioDetector</code> builds the
+    engine and loads <code>en_core_web_sm</code> — ~2–4 s, once per instance
+    (<code>overview.md</code> latency budget, line 107). The instance-level singleton means that
+    cost is paid once per detector, not per call. Warm path: ~10–40 ms per kilobyte of
+    text (<code>overview.md</code> line 105 — Presidio + spaCy NER). The <code>DetectedEntity</code>
+    projection is an O(n) comprehension over results — negligible relative to
+    <code>analyze()</code>. <code>detect()</code> is the hot path; no extra allocation or re-scan is
+    introduced over CDSCO's wrapper. Threshold filtering is a single comparison per
+    result.</p>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <ol style="padding-left: 1.4rem;">
+      <li>Step 1 — <code>core/exceptions.py</code>: add <code>MissingNERModelError</code>, re-export it from <code>core/__init__.py</code>, + tests (extend <code>tests/core/test_exceptions.py</code> for the type/guidance, <code>tests/core/test_public_imports.py</code> for the export surface). Self-contained; nothing else depends on it yet. (AC3.)</li>
+      <li>Step 2 — <code>detectors/base.py</code> (<code>Detector</code> ABC + <code>DetectedEntity</code>) + <code>tests/detectors/__init__.py</code> + <code>tests/detectors/test_detectors_base.py</code>. Depends on the shipped 007 <code>Detection</code> only. (AC1.)</li>
+      <li>Step 3 — fixtures: <code>tests/fixtures/presidio.py</code> (<code>presidio_engine_indian</code>) + <code>sample_indian_pii</code> in <code>tests/fixtures/india.py</code> + conftest wiring + <code>tests/detectors/test_fixtures.py</code> self-checks. Depends on 002's <code>build_engine()</code>. (AC6 support.)</li>
+      <li>Step 4 — <code>detectors/presidio_backend.py</code> (<code>PresidioDetector</code>, lazy singleton, threshold, <code>OSError</code>→<code>MissingNERModelError</code>) + <code>tests/detectors/test_presidio_backend.py</code>. Depends on Steps 1–3. (AC2, AC3, AC4, AC6.)</li>
+      <li>Step 5 — <code>tests/detectors/test_lazy_import.py</code> (subprocess probe). Depends on Steps 2 + 4. (AC5.)</li>
+      <li>Step 6 — re-exports in <code>detectors/__init__.py</code>, flip <code>stack.md</code> rows (incl. the 7→8 fix), add <code>CHANGELOG.md</code> line. Depends on Steps 2 + 4 (and must not regress AC5 — re-run the Step 5 probe).</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p>Pure additive change — two new modules + one new exception, no data migration, no
+    contract change to existing code. Rollback is deleting the two <code>detectors/</code> modules,
+    their tests + fixtures, and reverting the <code>exceptions.py</code> / <code>__init__.py</code> /
+    <code>conftest.py</code> / <code>india.py</code> / <code>stack.md</code> / <code>CHANGELOG.md</code> edits (single
+    revert commit). Nothing downstream consumes it yet — BILTIQ-012 has not landed.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Lazy-import regression — a top-level <code>from presidio_analyzer import ...</code> (or an eager re-export in <code>detectors/__init__.py</code> that pulls <code>presidio_backend</code>'s imports to import-time) silently breaks AC5.</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Method-level imports only; the Step 5 subprocess probe asserts <code>detectors.base</code>, <code>detectors.presidio_backend</code>, AND <code>detectors</code> (the package) load neither presidio nor spaCy, with a positive control. Re-run after the Step 6 re-export edit. Keep the <code>presidio_backend</code> symbol re-export lazy-safe (the class body's method-level imports must not be hoisted).</td>
+        </tr>
+        <tr>
+          <td><code>OSError</code> catch scope — too broad swallows unrelated I/O faults as "model missing"; too narrow misses the real spaCy "model not found" surface (spaCy may wrap the missing-package error and the exact type / message can shift across spaCy 3.7–3.8).</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Catch <code>OSError</code> specifically around the engine-build call (never bare <code>Exception</code>, Anti-Pattern #3), re-raise <code>MissingNERModelError</code> with <code>from err</code> to preserve the chain, and let any non-<code>OSError</code> propagate. A test monkeypatches <code>build_engine</code> to raise <code>OSError</code> and asserts the mapping + guidance string; Build confirms the live spaCy missing-model error is an <code>OSError</code> subclass against the pinned <code>spacy &gt;= 3.7, &lt; 4</code>.</td>
+        </tr>
+        <tr>
+          <td>Fixture drift — <code>stack.md</code> documents <code>presidio_engine_indian</code> / <code>sample_indian_pii</code> but they don't exist, and the line-95 wording says "7 Indian recognisers" when the set is 8.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>This task creates both fixtures (closing the drift) and corrects the 7→8 wording in the same PR (stack.md edit row). The <code>sample_indian_pii</code> fixture is built from the existing synthetic <code>*_VALID</code> tuples — no new PII.</td>
+        </tr>
+        <tr>
+          <td>Threshold default mismatch — diverging from CDSCO's <code>0.5</code> would change which low-confidence hits (e.g. Medical Reg @0.6, Voter ID @0.7) survive.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Default fixed at <code>score_threshold = 0.5</code> (AC4, matches CDSCO). A characterization test pins both the default (0.5 keeps the entity hits) and a raised threshold (e.g. 0.8 drops Voter ID @0.7 / Medical Reg @0.6).</td>
+        </tr>
+        <tr>
+          <td>Presidio version skew — a future <code>analyze()</code> / <code>RecognizerResult</code> API change (the pin allows <code>&gt;= 2.2, &lt; 3</code>) could alter result fields or scoring.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Pin already tight (<code>&lt; 3</code>); the projection reads only the stable <code>entity_type</code>/<code>start</code>/<code>end</code>/<code>score</code> fields. Major-version bumps require an ADR + golden-corpus run per <code>approved-versions.md</code> line 114.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Coordination:</strong> the two <code>detectors/</code> modules are fresh files; no in-flight
+    task touches them. BILTIQ-006 (per <code>MEMORY.md</code>) is in <code>scripts/</code> memory-spine,
+    disjoint. The conftest + <code>tests/fixtures/</code> edits are additive (new fixtures, no
+    change to <code>hmac_key</code> or the existing collection plumbing). <code>DetectedEntity</code> and the
+    <code>Detector</code> ABC are the contract BILTIQ-012 will consume; this design freezes that
+    surface.</p>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-06-01</td>
+          <td>all</td>
+          <td>Initial draft from locked spec (decouple-don't-rewrite: Detector ABC + PresidioDetector wrapping 002's build_engine(); DetectedEntity(Detection); instance-level lazy singleton; OSError→MissingNERModelError; configurable 0.5 threshold; lazy-import gate; new presidio_engine_indian + sample_indian_pii fixtures)</td>
+          <td>BILTIQ-009</td>
+        </tr>
+        <tr>
+          <td>2026-06-01</td>
+          <td>files-to-touch, rollout</td>
+          <td>Build-time fix: added CREATE row for tests/detectors/test_fixtures.py (home for the Step-3 fixture self-checks the plan's Step-3 gate requires — neither artifact had declared a test file for them). Also tightened the conftest row from pytest_plugins to the re-export pattern (pytest_plugins errors in a non-root package conftest under pytest 8).</td>
+          <td>build</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

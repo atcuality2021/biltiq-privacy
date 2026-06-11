@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: anonymise() orchestration + public API (v0.1.0)</title>
+  <style>
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-label{font-size:0.85rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: anonymise() orchestration + public API (v0.1.0)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-012</dd></div>
+      <div><dt>Phase</dt><dd>A — core pipeline → tag v0.1.0</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
+      <div><dt>Wall-clock</dt><dd>M</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Human review (min)</dt><dd>30</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.8</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>BILTIQ-007–011 deliver the pipeline pieces; nothing yet ties them together or
+    presents a public entry point. CDSCO's <code>pipeline.py</code> orchestrates
+    detect→merge→pseudonymise→generalise but is coupled to a PDF extractor and an
+    optional LLM call. This task ports the orchestration as a clean library function
+    over <em>text input</em> (extraction is the caller's concern), wires the public
+    <code>biltiq_privacy</code> API, and tags the first publishable release <code>v0.1.0</code>.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>External. First usable release: <code>pip install biltiq-privacy</code>, then
+    <code>anonymise(text, detector=..., key=..., regime=...)</code> returns anonymised text +
+    detections + audit row + compliance report. This is the milestone where the
+    library becomes consumable by CDSCO, CommandCenter, and ManthanQuant.</p>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — A top-level <code>anonymise(text, *, detector, key, regime=None, generalise=True) -> AnonymiseResult</code> chains Detector→Pseudonymiser→Generaliser→(Regime)→AuditChain; result carries <code>anonymised_text</code>, <code>detections</code>, <code>audit_row</code>, and <code>compliance</code> (when a regime is given).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>biltiq_privacy/__init__.py</code> exports the public surface (<code>anonymise</code>, <code>PresidioDetector</code>, <code>Detector</code>, <code>Regime</code>, <code>DPDPRegime</code>, error types) with a stable, documented API.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — End-to-end integration test: raw text containing Indian PII → detected → pseudonymised → generalised → DPDP report passes → audit row verifies.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Default path imports no PDF/LLM/DB/FastAPI; LLM detection is opt-in only via an injected detector (Phase D). Compliance: <code>on_prem_preferred</code> respected.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Package version set to <code>0.1.0</code>; <code>CHANGELOG.md</code> entry added; <code>README</code> has a runnable usage example.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC6</strong> — <code>python-core</code> builds and imports cleanly; full test suite green; passes <code>--strict</code> type check + banned-vocab/residue gates.</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>REST sidecar (BILTIQ-013) and native SDKs (Phase E).</li>
+      <li>PDF/CSV extraction adapters — caller passes text (may be a thin follow-up helper).</li>
+      <li>LLM/hybrid detection (Phase D); extra regimes/region packs (Phase C).</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li>Result type — dataclass vs TypedDict? Lean dataclass for the public API.</li>
+      <li>Should <code>anonymise()</code> require a regime, or make compliance opt-in? Lean opt-in (detection+pseudonymise+generalise is useful alone).</li>
+      <li>Publish to PyPI as part of this task, or tag-only and publish in a separate release task? Confirm.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-012</td></tr></tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

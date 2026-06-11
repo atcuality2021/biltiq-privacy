@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: Generaliser (k-anonymity rollups)</title>
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: Generaliser (k-anonymity rollups)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-008</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-01</dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Approach</h2>
+    <h3>Name</h3>
+    <p>Decouple-don't-rewrite port into one stateless free-function module
+    <code>core/generaliser.py</code>, with an inject-with-default <code>region_map</code> seam.</p>
+    <h3>Description</h3>
+    <p>CDSCO's <code>backend/modules/anonymisation/generaliser.py</code> is already
+    framework-free (pure <code>re</code> + stdlib, no <code>settings</code>, no DB), so the port is a
+    near-verbatim lift into <code>packages/python-core/biltiq_privacy/core/generaliser.py</code> —
+    the exact module name <code>stack.md</code> line 65 reserves. We preserve every behaviour
+    exactly: the <code>_AGE_BRACKETS</code> bands, the <code>_REGION_MAP</code> state→region table, each
+    function's regex and output format, and the <code>_GENERALISER</code> entity-type dispatch
+    dict (keys <code>IN_AADHAAR</code>, <code>IN_PAN</code>, <code>IN_PHONE</code>, <code>PHONE_NUMBER</code>,
+    <code>LOCATION</code>, <code>ADDRESS</code>, <code>HOSPITAL</code>).</p>
+    <p>The module stays a set of module-level <em>free functions</em> (mirroring
+    <code>core/doc_hasher.py</code>), not a key-bound class like <code>Pseudonymiser</code> — generalisation
+    is stateless and holds no key. Two decoupling changes from CDSCO: (1) the
+    module-level <code>_REGION_MAP</code> default is exposed through an <em>inject-with-default</em>
+    seam — <code>generalise_location</code> and <code>generalise_text</code> take an optional keyword-only
+    <code>region_map</code> that defaults to the bundled Indian table, so a future region pack
+    overrides without editing core (AC4; full pack loader deferred to Phase C). (2)
+    <code>generalise_text</code>'s loop input is typed as <code>list[GeneralisationSpan]</code> — a new
+    <code>TypedDict</code> {<code>entity_type</code>, <code>text</code>, <code>pseudonym_token</code>} defined in this
+    module — replacing CDSCO's bare <code>list[dict]</code> to keep <code>mypy --strict</code> clean. The
+    BILTIQ-012 orchestrator assembles each span from BILTIQ-007's <code>Detection</code> +
+    <code>AuditRecord</code> (which between them carry all three fields); we do <strong>not</strong> edit the
+    shipped BILTIQ-007 types. The module docstring names the CDSCO origin and states
+    explicitly that this is rule-based generalisation, NOT a dataset-level k-anonymity
+    guarantee (measurement is BILTIQ-021) — the AC5 no-overclaim contract.</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Key-bound class like <code>Pseudonymiser</code> (state injected in <code>__init__</code>)</td><td>Generalisation is stateless and holds no key/secret; a class adds ceremony with no instance state. <code>doc_hasher</code>'s free-function shape is the right precedent.</td></tr>
+        <tr><td>2</td><td>Edit BILTIQ-007 <code>Detection</code>/<code>AuditRecord</code> to carry <code>entity_type</code>+<code>text</code>+<code>pseudonym_token</code> together, then reuse one of them as the <code>generalise_text</code> input</td><td>Neither shipped 007 type carries all three fields, and BILTIQ-007 is closed/shipped code; mutating it risks behaviour drift in a frozen surface. A new <code>GeneralisationSpan</code> TypedDict in this module is additive and leaves 007 untouched (resolved open question).</td></tr>
+        <tr><td>3</td><td>Build the full Phase-C region-pack loader now (file/entry-point discovery for region maps)</td><td>YAGNI — the spec defers the loader to Phase C and only needs the inject-with-default seam today. The optional <code>region_map</code> keyword is the minimal forward-compatible hook.</td></tr>
+        <tr><td>4</td><td>Reuse a generic anonymisation / k-anonymity library (e.g. an off-the-shelf generaliser)</td><td><code>stack.md</code> lists none, the library core is deliberately framework-free, and the rules are India-specific (Aadhaar/PAN/phone formats, state→region map). A dependency would add surface for behaviour we must preserve verbatim from CDSCO.</td></tr>
+        <tr><td>5</td><td>Keep <code>generalise_text</code>'s loop input as a bare <code>list[dict]</code> (CDSCO verbatim)</td><td><code>dict</code> without a value type trips <code>mypy --strict</code> and the no-<code>Any</code> rule; a narrow <code>TypedDict</code> documents the contract while preserving the runtime shape (same access keys).</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+    <h3>New <span class="tag tag-new">CREATE</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/generaliser.py</code></td><td><strong>Create.</strong> The ported module: <code>_AGE_BRACKETS</code>, default <code>_REGION_MAP</code>, the six generaliser functions, the <code>_GENERALISER</code> dispatch dict, the new <code>GeneralisationSpan</code> TypedDict, and <code>generalise_text(...)</code>. Stdlib + <code>re</code> only; SPDX header + CDSCO-origin docstring + AC5 no-overclaim note (AC1, AC2, AC3, AC4, AC5).</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_generaliser.py</code></td><td><strong>Create.</strong> Characterization tests for each of the six functions (golden output per bracket/format), the dispatch routing through <code>generalise_text</code>, the <code>region_map</code> override seam, and the irreversibility assertion (output cannot recover exact input). Uses synthetic PII only. Lands in the existing <code>tests/core/</code> tree (AC1, AC2, AC4, AC6).</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_public_imports.py</code></td><td><strong>Edit (not create — already exists from BILTIQ-007).</strong> See Modified table. Listed here only to flag it is touched, not created.</td></tr>
+      </tbody>
+    </table>
+    <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/python-core/biltiq_privacy/core/__init__.py</code></td><td><strong>Edit.</strong> Drop the "<code>generaliser</code> … land in later Phase A tasks (BILTIQ-008 …)" stub note; re-export <code>GeneralisationSpan</code> and the seven public functions (<code>generalise_age</code>, <code>generalise_date</code>, <code>generalise_location</code>, <code>generalise_phone</code>, <code>generalise_aadhaar</code>, <code>generalise_pan</code>, <code>generalise_text</code>) and extend <code>__all__</code> alphabetically, matching the BILTIQ-007 re-export pattern. (Submodule import stays canonical.)</td></tr>
+        <tr><td><code>packages/python-core/tests/core/test_public_imports.py</code></td><td><strong>Edit.</strong> Extend both tests to assert the new generaliser symbols resolve from <code>biltiq_privacy.core</code> and appear in the updated <code>__all__</code> sorted list (mirrors the BILTIQ-007 surface test).</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td><strong>Edit.</strong> Flip the reserved <code>Generaliser</code> row (line ~65) from a placeholder to shipped: note the six functions + <code>generalise_text</code>, the inject-with-default <code>region_map</code> seam, and the new <code>GeneralisationSpan</code> TypedDict (BILTIQ-008).</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td><strong>Edit.</strong> Add an <code>[Unreleased]</code> <code>feat:</code> line for <code>biltiq_privacy.core.generaliser</code> (six generalisers + dispatch table + <code>generalise_text</code> + <code>GeneralisationSpan</code> + region_map seam, ported from CDSCO), matching the BILTIQ-007 entry style.</td></tr>
+      </tbody>
+    </table>
+    <p><em>No <code>pyproject.toml</code> change.</em> The module uses stdlib only (<code>re</code>); no new dependency, no new test-dep. No new <code>tests/core/__init__.py</code> needed — the regular-package marker already exists from BILTIQ-007.</p>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model Changes</h2>
+    <p>One new in-module type: <code>GeneralisationSpan(TypedDict)</code> with keys
+    <code>entity_type: str</code>, <code>text: str</code>, <code>pseudonym_token: str</code>. It is the input shape
+    for <code>generalise_text</code>; the BILTIQ-012 orchestrator assembles it from BILTIQ-007's
+    <code>Detection</code> (carries <code>entity_type</code> + <code>text</code>) and <code>AuditRecord</code> (carries
+    <code>pseudonym_token</code>). No schema, no JSONL field, no SQLite table. <strong>No edits to the
+    shipped BILTIQ-007 <code>Detection</code> / <code>AuditRecord</code> types</strong> — they remain frozen.</p>
+  </section>
+
+  <section id="api-contract">
+    <h2>API Contract Changes</h2>
+    <p>New public surface under <code>biltiq_privacy.core.generaliser</code> (re-exported from
+    <code>biltiq_privacy.core</code>). No existing contract changes — the module is new and the
+    007 types are untouched. All signatures fully typed; no <code>Any</code>, no
+    <code>type: ignore</code>.</p>
+    <pre><code># core/generaliser.py
+class GeneralisationSpan(TypedDict):
+    entity_type: str
+    text: str
+    pseudonym_token: str
+
+def generalise_age(age: int) -> str: ...
+def generalise_date(date_str: str) -> str: ...
+def generalise_location(location: str, *, region_map: dict[str, str] | None = None) -> str: ...
+def generalise_phone(phone: str) -> str: ...
+def generalise_aadhaar(aadhaar: str) -> str: ...
+def generalise_pan(pan: str) -> str: ...
+def generalise_text(
+    pseudonymised_text: str,
+    spans: list[GeneralisationSpan],
+    *,
+    region_map: dict[str, str] | None = None,
+) -> str: ...
+</code></pre>
+    <p>No new environment variables. No CLI change. No network, no config read.</p>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance</h2>
+    <ul>
+      <li>Compliance mode <code>on_prem_preferred</code>: no external / cloud AI call, no network, no LLM, no config/DB/FastAPI import (AC3). Pure <code>re</code> + string ops. <strong>No external AI dependency introduced → no ADR required.</strong> The framework-free auto-block in code review is satisfied.</li>
+      <li>No key, no secret, no env read inside <code>python-core</code> — the module is stateless and holds nothing sensitive.</li>
+      <li>No PII logged: the module has no <code>logging</code> call and no <code>print()</code>. It receives already-pseudonymised text and detected span values and returns coarsened strings; it never emits inputs.</li>
+      <li>Output is coarser-than-input by construction (brackets, month/year, region rollup, suffix/middle masking), supporting the AC6 irreversibility property.</li>
+      <li>Input escaping: outputs are fixed-format strings (no user input echoed into a markup/shell context); the span <code>text</code> is read only to compute a generalised value, never reflected verbatim.</li>
+    </ul>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <p>Negligible. Each generaliser is a single regex match or dict lookup over a short
+    string. <code>generalise_text</code> is O(n) in the number of spans, each doing one
+    dispatch-dict lookup and one bounded <code>str.replace(..., 1)</code> — linear in spans, no
+    quadratic re-scan. Comfortably inside the <code>overview.md</code> budget
+    ("Pseudonymisation + generalisation + audit row: &lt;1 ms"); not a hot path relative
+    to Presidio detection. No caching needed.</p>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <ol style="padding-left: 1.4rem;">
+      <li>Step 1 — <code>core/generaliser.py</code> (six functions + <code>_AGE_BRACKETS</code> + default <code>_REGION_MAP</code> + <code>_GENERALISER</code> dispatch + <code>GeneralisationSpan</code> + <code>generalise_text</code>) and <code>tests/core/test_generaliser.py</code>. Self-contained; depends on nothing in this task.</li>
+      <li>Step 2 — re-export from <code>core/__init__.py</code>, extend <code>tests/core/test_public_imports.py</code>, flip the <code>stack.md</code> row, add the <code>CHANGELOG.md</code> line. Depends on Step 1.</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p>Pure additive change — one new module, no data migration, no contract change to
+    existing code. Rollback is deleting <code>core/generaliser.py</code> + its test and reverting
+    the <code>__init__.py</code> / <code>test_public_imports.py</code> / <code>stack.md</code> / <code>CHANGELOG.md</code> edits
+    (single revert commit). Nothing to unwind downstream — BILTIQ-012 has not yet
+    consumed it.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Date-parse ordering ambiguity: CDSCO's <code>generalise_date</code> regex <code>(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})</code> takes <code>group(2)</code> as the month, i.e. it assumes <strong>DD/MM/YYYY</strong>. A <code>MM/DD/YYYY</code> input mis-maps the month (and <code>13/05/2020</code>-style values where group(2) &gt; 12 fall through to <code>[DATE_REDACTED]</code>). The spec does not resolve input date ordering.</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Port verbatim — preserve the DD/MM assumption (India-centric default, consistent with the India region map). A characterization test pins the DD/MM behaviour and the <code>[DATE_REDACTED]</code> fallback explicitly so the assumption is documented, not silent. Cross-locale date handling is out of scope (region packs, Phase C). <strong>Flag for the dev:</strong> confirm DD/MM is the intended default before Build.</td>
+        </tr>
+        <tr>
+          <td>Behaviour drift from CDSCO during the port (bracket boundaries, region strings like "Healthcare Facility, &lt;region&gt;", phone/aadhaar/pan mask formats, dispatch keys).</td>
+          <td><span class="tag tag-risk-m">MED</span></td>
+          <td>Characterization tests (AC6) pin each function's golden output and the seven <code>_GENERALISER</code> dispatch keys against synthetic inputs; copy the regex and format strings byte-for-byte from the CDSCO source.</td>
+        </tr>
+        <tr>
+          <td>Irreversibility is an AC6 property but a per-span replacement, not a dataset-level guarantee — risk of overclaiming k-anonymity.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>AC5 no-overclaim docstring states this is rule-based generalisation, not a k-anonymity guarantee (measurement is BILTIQ-021). Tests assert the per-value irreversibility property only (output ≠ input, exact value not recoverable from output alone).</td>
+        </tr>
+        <tr>
+          <td>Phantom "ABHA" generaliser from an earlier problem statement could creep back in.</td>
+          <td><span class="tag tag-risk-l">LOW</span></td>
+          <td>Resolved open question: there is no CDSCO ABHA generaliser — port exactly the six functions and the seven dispatch keys, no more.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><strong>Coordination:</strong> <code>core/generaliser.py</code> is a fresh file; no in-flight task
+    touches it. BILTIQ-006 (per <code>MEMORY.md</code>) is in <code>scripts/</code> memory-spine, disjoint.
+    The <code>GeneralisationSpan</code> type and <code>generalise_text</code> are the contract BILTIQ-012
+    will consume; this design freezes that surface.</p>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-06-01</td>
+          <td>all</td>
+          <td>Initial draft from locked spec (port all 6 generalisers; free-function module; inject-with-default region_map seam; new GeneralisationSpan TypedDict; AC5 no-overclaim)</td>
+          <td>BILTIQ-008</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
