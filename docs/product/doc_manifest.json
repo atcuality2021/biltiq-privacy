@@ -1,0 +1,50 @@
+{
+  "features": {
+    "BILTIQ-010": {
+      "developer": {
+        "content_hash": "sha256:a35f880059bc779fcb3c7fd1eb3769e6e7f71033105943b68442c9f555d9e3af",
+        "doc_version": "1.0.0",
+        "last_updated": "2026-06-11T01:46:35.685378+00:00",
+        "path": "docs/product/developer/biltiq-010.html",
+        "source_commit": "1bfb2087ee769ad5f61067b1840639cade7c598a",
+        "source_files": [
+          "docs/adr/0005-audit-chain-canonical-serialization.md",
+          "packages/python-core/biltiq_privacy/core/__init__.py",
+          "packages/python-core/biltiq_privacy/core/audit_chain.py"
+        ],
+        "vllm_quality_warning": false,
+        "vllm_role": "reason+chat"
+      },
+      "operations": {
+        "content_hash": "sha256:30421f9dc4de1e23fb5bba4f09a9bc6e26a88c0ecdfb773d19ea68dcf1b8959c",
+        "doc_version": "1.0.1",
+        "last_updated": "2026-06-11T01:53:10.992346+00:00",
+        "path": "docs/product/operations/biltiq-010.html",
+        "source_commit": "1bfb2087ee769ad5f61067b1840639cade7c598a",
+        "source_files": [
+          "docs/adr/0005-audit-chain-canonical-serialization.md",
+          "packages/python-core/biltiq_privacy/core/__init__.py",
+          "packages/python-core/biltiq_privacy/core/audit_chain.py"
+        ],
+        "vllm_quality_warning": false,
+        "vllm_role": "reason+chat"
+      },
+      "user": {
+        "content_hash": "sha256:3acb78e12eeb918b280e4bcd3cb1225eba363b558e38233d8bcf1f6f96ac9ee0",
+        "doc_version": "1.0.1",
+        "last_updated": "2026-06-11T01:56:29.850733+00:00",
+        "path": "docs/product/user/biltiq-010.html",
+        "source_commit": "1bfb2087ee769ad5f61067b1840639cade7c598a",
+        "source_files": [
+          "docs/adr/0005-audit-chain-canonical-serialization.md",
+          "packages/python-core/biltiq_privacy/core/__init__.py",
+          "packages/python-core/biltiq_privacy/core/audit_chain.py"
+        ],
+        "vllm_quality_warning": false,
+        "vllm_role": "reason+chat"
+      }
+    }
+  },
+  "generated_by": "product-docs-generator",
+  "schema": "v1"
+}

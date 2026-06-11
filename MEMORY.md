@@ -53,6 +53,7 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Recent decisions (last 30 days)
 
+- 2026-06-11 — **ADR-0005 accepted** (BILTIQ-010) — canonical-JSON commitment recipe for the audit hash-chain: `sort_keys=True`, compact separators, `ensure_ascii=False`, `prev_hash`-first pre-image, `"0"*64` genesis sentinel, plus a committed golden vector pinning the cross-language contract for the native SDKs (`docs/adr/0005-audit-chain-canonical-serialization.md`).
 - 2026-05-18 — **4 process changes from BILTIQ-002 reflect** — pending Friday architecture review (17:00 IST):
   - (a) `AGENT_RULES.md` Build-step rule: "sweep `design.html` for files-to-touch drift whenever a Build step touches a file not listed there" — closes the same root cause behind both BILTIQ-002 iteration_cycles overage and review_findings F1.
   - (b) `stack.md` row schema: split "shipped" vs "planned" so forward-looking rows (e.g. `age` + `scripts/install-age.sh`) don't read as already-implemented — surfaced by user's mid-session "is age enabled?" question.
@@ -145,6 +146,14 @@ _(no activity recorded today)_
 ## Open blockers
 
 _(no open blockers)_
+
+## Doctor installs
+
+_(no doctor installs recorded yet)_
+
+## Documentation updates
+
+_(no documentation updates recorded yet)_
 
 ## Archive
 

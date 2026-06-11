@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BILTIQ-010 — Developer Guide</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --text: #1f2937;
+            --text-light: #4b5563;
+            --bg: #ffffff;
+            --code-bg: #f3f4f6;
+            --border: #e5e7eb;
+            --success: #059669;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: #f9fafb;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            background: var(--bg);
+            padding: 3rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 2.25rem; margin-top: 0; border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; }
+        h2 { font-size: 1.5rem; margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; color: var(--primary); }
+        h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+        code {
+            background: var(--code-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.9em;
+        * { box-sizing: border-box; }
+        pre {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+        }
+        pre code { background: none; padding: 0; font-size: 0.85rem; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { background: #f8fafc; font-weight: 600; }
+        .badge-done {
+            background: var(--success);
+            color: white;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            margin: 1.5rem 0;
+        }
+        #change-history th { background: #f3f4f6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BILTIQ-010 — Developer Guide</h1>
+            <p><strong>Feature:</strong> Audit Hash-Chain (Pure Implementation)</p>
+            <p><strong>Audience:</strong> Developer</p>
+        </header>
+
+        <section id="overview">
+            <h2>Overview</h2>
+            <p>
+                BILTIQ-010 provides a pure, stateless, and tamper-evident audit hash-chain within the <code>biltiq_privacy.core.audit_chain</code> module. 
+                Unlike previous iterations coupled to SQLAlchemy and async database sessions, this implementation is a "leaf library" function. 
+                It focuses solely on the cryptographic commitment of data, leaving persistence (Postgres, S3, JSON files) entirely to the consumer.
+            </p>
+            <div class="info-box">
+                <strong>Compliance Spirit:</strong> Designed to meet 21 CFR Part 11 and Annex 11 requirements for data integrity through cryptographic chaining.
+            </div>
+            <ul>
+                <li><strong>Deterministic:</strong> Uses canonical JSON serialization to ensure cross-machine/language consistency.</li>
+                <li><strong>Stateless:</strong> No side effects, no database drivers, and no clock reads.</li>
+                <li><strong>Tamper-Evident:</strong> Detects payload mutation, hash corruption, reordering, insertion, and deletion.</li>
+            </ul>
+        </section>
+
+        <section id="architecture-apis">
+            <h2>Architecture and APIs</h2>
+            <p>The module relies on two primary functions and one global constant. All functions are pure and deterministic.</p>
+            
+            <h3>Core Constants</h3>
+            <pre><code>GENESIS_PREV_HASH: str = "0" * 64  # 64 zero hex characters</code></pre>
+            <p>Used as the <code>prev_hash</code> for the very first row in a chain.</p>
+
+            <h3>Data Structures</h3>
+            <p><strong>ChainedRow (TypedDict):</strong></p>
+            <pre><code>{
+    "prev_hash": str,    # Hash of preceding row or GENESIS_PREV_HASH
+    "payload": dict,     # Caller-supplied JSON-serializable data
+    "hash": str          # SHA-256(prev_hash + canonical_json(payload))
+}</code></pre>
+
+            <h3>Functions</h3>
+            <h4><code>append_row(prev_hash, payload) -> ChainedRow</code></h4>
+            <p>Computes a new row given the previous hash and a payload. It uses <code>doc_hasher.hash_text</code> for the digest.</p>
+
+            <h4><code>verify_chain(rows) -> VerifyReport</code></h4>
+            <p>A single-pass forward walk that validates both the individual row hashes and the link integrity between rows.</p>
+            <pre><code># Example VerifyReport
+{
+    "valid": bool,
+    "first_broken_index": int | None
+}</code></pre>
+        </section>
+
+        <section id="integration-extension">
+            <h2>Integration and Extension</h2>
+            <h3>Canonical Serialization (ADR-0005)</h3>
+            <p>To ensure the chain can be verified across different programming languages, the following serialization contract is enforced:</p>
+            <pre><code>json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)</code></pre>
+            
+            <h3>Persistence Strategy</h3>
+            <p>The library does <strong>not</strong> perform I/O. Integration follows this pattern:</p>
+            <ol>
+                <li>Fetch <code>last_hash</code> from your database.</li>
+                <li>Call <code>append_row(last_hash, new_event)</code>.</li>
+                <li>Persist the resulting <code>ChainedRow</code> to your storage medium.</li>
+            </ol>
+
+            <h3>Timestamps</h3>
+            <p>To maintain purity and determinism, the library <strong>never</strong> reads the system clock. Consumers must include a timestamp as a field within the <code>payload</code>.</p>
+        </section>
+
+        <section id="testing-local-run">
+            <h2>Testing and Local Run</h2>
+            <p>The implementation includes rigorous test suites covering the following scenarios:</p>
+            <ul>
+                <li><strong>Happy Path:</strong> Building a multi-row chain and verifying it returns <code>valid: True</code>.</li>
+                <li><strong>Tamper Detection:</strong> Mutating a single character in a payload or a hash and verifying the <code>first_broken_index</code> is correctly identified.</li>
+                <li><strong>Structural Integrity:</strong> Reordering rows or deleting a middle row to ensure the link check fails.</li>
+                <li><strong>Edge Cases:</strong> Verifying empty chains (vacuously valid) and single-row chains (linked to Genesis).</li>
+            </ul>
+            <p>Run tests via:</p>
+            <pre><code>pytest packages/python-core/tests/test_audit_chain.py</code></pre>
+        </section>
+
+        <section id="change-history">
+            <h2>Change History</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Section</th>
+                        <th>What Changed</th>
+                        <th>Trigger</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2026-06-01</td>
+                        <td>all</td>
+                        <td>Initial draft from port brainstorm BILTIQ-010</td>
+                        <td>Initial Task</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-01</td>
+                        <td>open-questions</td>
+                        <td>Resolved both OQs: caller-supplied timestamp; canonical JSON (sorted keys, compact separators).</td>
+                        <td>Spec Lock</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-01</td>
+                        <td>acceptance-criteria</td>
+                        <td>All 5 ACs flipped OPEN&rarr;DONE after Step 5 verification (live AC1&ndash;AC5 evidence; 206 passed, mypy --strict + ruff clean).</td>
+                        <td>Verification</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+</body>
+</html>

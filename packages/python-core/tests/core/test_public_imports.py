@@ -13,12 +13,16 @@ import biltiq_privacy.core as core
 def test_public_imports() -> None:
     """Core re-exports resolve from ``biltiq_privacy.core`` (AC2)."""
     from biltiq_privacy.core import (
+        GENESIS_PREV_HASH,
         AuditRecord,
+        ChainedRow,
         Detection,
         GeneralisationSpan,
         HMACKeyRequiredError,
         MissingNERModelError,
         Pseudonymiser,
+        VerifyReport,
+        append_row,
         generalise_aadhaar,
         generalise_age,
         generalise_date,
@@ -29,6 +33,7 @@ def test_public_imports() -> None:
         hash_document,
         hash_text,
         hmac_pseudonymise,
+        verify_chain,
     )
 
     # Reference each so the import is not flagged as unused and is proven live.
@@ -48,17 +53,29 @@ def test_public_imports() -> None:
     assert callable(generalise_aadhaar)
     assert callable(generalise_pan)
     assert callable(generalise_text)
+    # audit_chain surface (BILTIQ-010): two free functions, two row TypedDicts,
+    # and the genesis sentinel — the value is pinned so a drift in the constant
+    # (which every chain anchors on) fails here, not silently mid-chain.
+    assert callable(append_row)
+    assert callable(verify_chain)
+    assert ChainedRow.__name__ == "ChainedRow"
+    assert VerifyReport.__name__ == "VerifyReport"
+    assert GENESIS_PREV_HASH == "0" * 64
 
 
 def test_all_matches_exported_surface() -> None:
     """``__all__`` lists exactly the symbols the package re-exports (AC2)."""
     assert sorted(core.__all__) == [
         "AuditRecord",
+        "ChainedRow",
         "Detection",
+        "GENESIS_PREV_HASH",
         "GeneralisationSpan",
         "HMACKeyRequiredError",
         "MissingNERModelError",
         "Pseudonymiser",
+        "VerifyReport",
+        "append_row",
         "generalise_aadhaar",
         "generalise_age",
         "generalise_date",
@@ -69,6 +86,7 @@ def test_all_matches_exported_surface() -> None:
         "hash_document",
         "hash_text",
         "hmac_pseudonymise",
+        "verify_chain",
     ]
     for name in core.__all__:
         assert hasattr(core, name), f"{name} in __all__ but not importable from core"
