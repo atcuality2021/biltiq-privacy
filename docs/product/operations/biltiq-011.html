@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- vllm_quality_warning:true -->
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BILTIQ-011 — Operations Runbook</title>
+  <style>
+    :root {
+      --color-border: #e5e7eb; --color-bg: #ffffff; --color-bg-subtle: #f9fafb;
+      --color-text: #111827; --color-muted: #6b7280; --color-warn: #d97706;
+      --radius: 6px; --max-width: 860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px;
+      line-height: 1.6; color: var(--color-text); background: var(--color-bg);
+      padding: 2rem 1rem; }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header { border-bottom: 2px solid var(--color-border); padding-bottom: 1rem;
+      margin-bottom: 1.5rem; }
+    header h1 { font-size: 1.5rem; }
+    .tier-tag { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--color-muted); }
+    .vllm-warning { background: #fffbeb; border: 1px solid #fcd34d;
+      color: var(--color-warn); border-radius: var(--radius); padding: 0.6rem 0.9rem;
+      margin: 1rem 0; font-size: 0.85rem; }
+    h2 { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem; margin-bottom: 0.5rem; }
+    section { margin-bottom: 1.5rem; }
+    p { margin-bottom: 0.4rem; }
+    code { background: var(--color-bg-subtle); padding: 0.1rem 0.3rem; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="tier-tag">Operations Runbook</span>
+    <h1>BILTIQ-011 — Operations Runbook</h1>
+  </header>
+  <div class="vllm-warning" role="note">
+    Generated on the inline fallback path (vLLM unreachable). Prose fidelity is
+    reduced; review before publishing.
+  </div>
+  <p class="summary">BILTIQ-011 adds the regime attestation seam (Regime ABC + frozen ComplianceCheck/ComplianceReport dataclasses) and DPDPRegime, porting CDSCO&#x27;s eight DPDP/NDHM/ICMR compliance checks. validate(original, anonymised, detections, audit_records, *, generated_at) returns a typed report; compliant requires all eight checks to pass. Residual scan reuses the BILTIQ-002 Indian patterns plus a ported EMAIL pattern. Configurable: generalisation_markers (drives DPDP-1 filtering and DPDP-4 detection; (&#x27;XXXX&#x27;,) restores source-strict) and include_values (False default keeps PII out of report evidence). Caller-supplied timestamp; no clock/env/network; import-light.</p>
+  <section id="overview">
+    <h2>Overview</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <section id="deploy">
+    <h2>Deployment</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <section id="config">
+    <h2>Configuration</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <section id="rollback">
+    <h2>Rollback and Recovery</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <section id="monitoring">
+    <h2>Monitoring and Alerts</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <!-- biltiq:manual -->
+  <section id="notes"><h2>Notes</h2><p>Human-authored notes preserved across regeneration go here.</p></section>
+  <!-- /biltiq:manual -->
+  <section id="revision-history">
+    <h2>Revision history</h2>
+    <table>
+      <thead><tr><th>doc_version</th><th>source_commit</th><th>last_updated</th><th>change</th></tr></thead>
+      <tbody><tr><td>1.0.0</td><td>0eaf9b6</td><td>2026-06-11</td><td>feature</td></tr>
+        <!-- revision rows appended on update --></tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
