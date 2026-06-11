@@ -35,7 +35,7 @@
 
 biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package productised from CDSCO-RegAI. Python engine (framework-free) plus a FastAPI REST sidecar plus thin native SDKs (Node/PHP/Go, v0.1.1+) — one source of truth, polyglot consumption. Layers Indian/EU/US recognisers and DPDP/GDPR/HIPAA/CCPA regime adapters on top of Presidio (depended on, never forked). MIT, public PyPI from v0.1.0 alpha.
 
-**Status:** Engine-port phase nearly complete. Merged to main (`c6a8729`): BILTIQ-000–005, 007–010 — full pipeline substrate (detect → pseudonymise → generalise → audit) + age wrapper + tooling. In review: **BILTIQ-011** (Regime ABC + DPDP validator, PR #11, high-risk — mandatory human review before merge). Next up: BILTIQ-012 (`anonymise()` orchestration), BILTIQ-013 (FastAPI sidecar). Parked: BILTIQ-006 (spine vendoring, branch at step 3/8 — resume-or-abandon decision needed). Source to port: `/home/atc/Desktop/cdcso/CDSCO-RegAI` (branch `main`).
+**Status:** v0.1.0 core pipeline complete. Merged to main (`c114892`): BILTIQ-000–005, 007–011 — full substrate (detect → pseudonymise → generalise → DPDP regime → audit) + age wrapper + tooling. In review: **BILTIQ-012** (`anonymise()` facade + 18-name public API + PyPI-publishable packaging, PR #13). After merge: tag v0.1.0 + **PyPI publish (dev credentials needed)**. Next up: BILTIQ-013 (FastAPI sidecar). Parked: BILTIQ-006 (spine vendoring, branch at step 3/8 — resume-or-abandon decision needed). Source to port: `/home/atc/Desktop/cdcso/CDSCO-RegAI` (branch `main`).
 **Deployment:** Library → public PyPI. Server → native install preferred (`pip install biltiq-privacy-server`), Docker offered (`biltiq/privacy-server:0.1.0`). Both REST endpoints identical.
 **Compliance mode:** `on_prem_preferred` — must match `AGENT_RULES.md` § Compliance.
 **Primary stakeholders:** @harish — owns CDSCO-RegAI (first consumer), ATC CommandCenter, ManthanQuant.
@@ -44,11 +44,11 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Current focus (this week)
 
-- **Active sprint:** Close v0.1.0 — BILTIQ-011 (DPDP regime) merge, then BILTIQ-012 (`anonymise()` facade) and the BILTIQ-013 sidecar.
+- **Active sprint:** Close v0.1.0 — merge BILTIQ-012 (PR #13) → tag v0.1.0 → PyPI publish (dev-confirmed, dev credentials) → BILTIQ-013 sidecar.
 - **Top 3 tasks in flight:**
-  1. **BILTIQ-011** — Regime ABC + DPDP validator. **PR #11 open, awaiting mandatory human review** (high-risk: compliance). 43 tests, all 5 ACs DONE, reflect.html written. Branch `feature/biltiq-011-dpdp-regime`.
-  2. **BILTIQ-012** — `anonymise()` orchestration + public API (spec scaffolded). The integrator over all four shipped stages.
-  3. **`biltiq-gates.yml` fix** — workflow fails in 0s on every push to main; three tasks in a row shipped with zero CI signal. Needs its own ticket (proposed in BILTIQ-011 reflect).
+  1. **BILTIQ-012** — `anonymise()` facade + public API. **PR #13 open, awaiting review.** 24 new tests (284 total), all 7 ACs DONE (AC5's publish leg pending at merge), ADR-0006 accepted. Branch `feature/biltiq-012-anonymise-facade`.
+  2. **PyPI publish v0.1.0** — happens at PR #13 merge; wheel build + METADATA gate already verified; needs dev credentials (twine/uv publish + trusted-publishing decision).
+  3. **`biltiq-gates.yml` fix** — workflow fails in 0s on every push to main; now four tasks shipped with zero gates-CI signal. Needs its own ticket (re-upped in BILTIQ-012 reflect). Also unticketed: `RedactionFilter` (`core/log_filter.py`) listed in stack.md but never built — caught in BILTIQ-012 review; row marked PLANNED.
 - **Top 3 risks:**
   1. **Presidio default global recognisers leak through `build_engine()`** (BILTIQ-002 AC2 caveat — non-Indian entities like UK_NHS, PERSON also fire). Deferred via tech-debt #3 (`india_only=True` flag). Mitigation until then: callers strip non-`IN_*` results client-side.
   2. spaCy `en_core_web_sm` bundled adds ~15 MB to wheel. Acceptable v0.1.0; revisit at v0.2.0 if wheel size becomes a complaint.
@@ -58,11 +58,14 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Recent decisions (last 30 days)
 
-_(no decisions recorded)_
+- 2026-06-11 — **ADR-0006 accepted** (BILTIQ-012) — spaCy model distribution split: published dist ships WITHOUT `en-core-web-sm` (PyPI rejects direct-URL `Requires-Dist`); dev/CI keep it via `[dependency-groups].dev` + explicit ci.yml install; consumers post-install or opt into `PresidioDetector(auto_download_model=True)` (default OFF — no network on the default path). Amends the 2026-05-17 "spaCy bundled" onboarding decision.
+- 2026-06-11 — **BILTIQ-012 rulings:** caller-supplied `generated_at` + `prev_hash` on `anonymise()` (no clock read); PyPI publish in-task at Ship (not tag-only); regime opt-in; PR #11 reviewed+merged before 012 Build. Plan-reviewer 2 rounds → human escalation → approved.
+- 2026-06-11 — **Process changes proposed (BILTIQ-012 reflect, pending Friday review):** (a) stack.md accuracy gate — import-check every `biltiq_privacy.*` path in the Internal-modules table (RedactionFilter phantom sat ~4 weeks); (b) AGENT_RULES rule "tools used in CI/step gates must be declared in a dependency group" (ad-hoc pip installs died at first `uv sync`); (c) `_flip_ac_badges.py` needs a PENDING state for at/after-merge ACs (publish/deploy).
 
 ## Recently completed
 
-- 2026-06-11 — **BILTIQ-011 (PR #11 open):** Regime ABC + DPDP 2023 validator — `biltiq_privacy.regimes` (frozen-dataclass `ComplianceCheck`/`ComplianceReport`, `Regime` ABC, `DPDPRegime` with the 8 CDSCO checks). Side-by-side vs live CDSCO function: 8/8 statuses identical. 43 tests, mypy --strict clean, product-doc tiers published, ship gate ok. Awaiting human code review (high-risk).
+- 2026-06-11 — **BILTIQ-012 (PR #13 open):** `anonymise()` facade chaining all five shipped stages; frozen `AnonymiseResult`; 18-name top-level public surface with subprocess-pinned lazy-import; PyPI-publishable packaging (ADR-0006); wheel built + METADATA gate 0 direct-URL deps; 284 tests, mypy --strict clean. e2e: DPDP 8/8 compliant, two-call chain verifies, socket-guard offline run.
+- 2026-06-11 — **BILTIQ-011 merged to main** (`c114892`, PR #11, dev-approved after high-risk review): Regime ABC + DPDP 2023 validator — `biltiq_privacy.regimes` (frozen-dataclass `ComplianceCheck`/`ComplianceReport`, `Regime` ABC, `DPDPRegime` with the 8 CDSCO checks). Side-by-side vs live CDSCO function: 8/8 statuses identical. 43 tests.
 - 2026-06-11 — **BILTIQ-004 + BILTIQ-010 merged to main** (`c6a8729`): age streaming wrapper (PR #5) + pure audit hash-chain (PR #10, ADR-0005 golden vector). Main verified: 217 tests + perf gate + mypy strict clean at merge time.
 - 2026-06-01 — **BILTIQ-005, 007, 008, 009 shipped:** retention writer; doc_hasher + HMAC `Pseudonymiser`; rule-based generaliser (6 field rollups); `Detector` ABC + `PresidioDetector` (PRs #8/#9, 174+ tests).
 - 2026-05-18 — **BILTIQ-002:** 8 Indian PII recognisers — `biltiq_privacy.indian.patterns` (regex constants + pure-stdlib `redact()` honouring `_REDACT_ORDER` ABHA-before-AADHAAR) + `biltiq_privacy.indian.recognisers` (Presidio `PatternRecognizer`s + `build_engine()` factory pinned to `en_core_web_sm`). PR #4 merged 2026-05-18T11:57Z as `a2706d4` (11 commits, 95 tests, 9/9 CI green). AC3 invariant (no regex duplication) + AC5 lazy-import contract (subprocess-isolated, presidio/spaCy not loaded by patterns.py) both verified. CDSCO-RegAI source attribution in module docstrings.
@@ -117,6 +120,12 @@ _(no open questions)_
 ---
 
 ## Session log (last 5 sessions)
+
+### 2026-06-11 ~12:00–13:30 IST — PR #11 merge + BILTIQ-012 Attack Loop (Think → Reflect, single session)
+- Worked on: PR #11 dev-approved + merged (`c114892`, branch deleted); then BILTIQ-012 (`anonymise()` facade + public API) — all 7 steps; PR #13 open awaiting review.
+- Did: 4 dev rulings (PR #11 merge-first; caller-supplied `generated_at`/`prev_hash`; PyPI publish in-task; model-dep "options 1 and 3 both"); architect design; plan-reviewer 2 rounds (round 1 HIGH: direct-URL `en-core-web-sm` blocks PyPI upload) → human escalation → approved; 6 atomic Build steps (24 tests, ADR-0006); 2 parallel code reviewers — 1 finding (phantom `RedactionFilter` in docs, fixed + swept); full battery green (284 passed); wheel built, METADATA gate 0 direct-URL deps, scratch-venv import verified, README example executed verbatim (8/8 compliant); product docs 3 tiers (vLLM 524 → inline fallback, quality-warning stamped, ship gate ok:true); reflect.html + estimate actuals (M→S wall-clock) + closure event.
+- Discovered: (a) `stack.md` listed `RedactionFilter` since pre-implementation but `core/log_filter.py` never existed — phantom propagated into README the first time it was trusted; (b) `uv sync` prunes ad-hoc pip-installed tooling the moment deps change — root `[dependency-groups].dev` now declares everything; (c) `spacy.cli.download` function attribute shadows its defining submodule (patch via `importlib.import_module`); (d) on the sample blob the merge drops IN_PHONE (same-span tie with UK_NHS @1.0, stable sort keeps first emission) and IN_MEDICAL_REG (engulfed by PERSON @0.85) — values still replaced under the winning labels; (e) never `git commit --amend` after push (R06 blocks force-push; reset-to-remote + new commit instead).
+- Next session should: get PR #13 reviewed + merged → tag v0.1.0 → **PyPI publish (needs dev credentials — twine/uv publish or trusted publishing, decide then)** → delete branch → start BILTIQ-013 (sidecar). Still pending: biltiq-gates.yml ticket, RedactionFilter ticket, BILTIQ-006 resume-or-abandon.
 
 ### 2026-06-11 ~09:50–11:15 IST — BILTIQ-011 Attack Loop (Think → Reflect, single session)
 - Worked on: BILTIQ-011 (Regime ABC + DPDP validator). All 7 steps in ~75 min; PR #11 open awaiting mandatory human review.

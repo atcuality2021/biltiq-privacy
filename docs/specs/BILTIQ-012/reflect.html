@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reflect: [TASK_TITLE]</title>
+  <title>Reflect: anonymise() orchestration + public API (v0.1.0)</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -22,223 +22,130 @@
       --max-width:       860px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-      color: var(--color-text);
-      background: var(--color-bg);
-      padding: 2rem 1rem;
-    }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.6; color: var(--color-text); background: var(--color-bg); padding: 2rem 1rem; }
     main { max-width: var(--max-width); margin: 0 auto; }
-    header {
-      border-bottom: 2px solid var(--color-border);
-      padding-bottom: 1.25rem;
-      margin-bottom: 2rem;
-    }
+    header { border-bottom: 2px solid var(--color-border); padding-bottom: 1.25rem; margin-bottom: 2rem; }
     header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
     .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
     .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
     .meta dd { font-size: 0.9rem; }
     section { margin-bottom: 2rem; }
-    h2 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      padding-left: 0.75rem;
-      margin-bottom: 0.75rem;
-    }
+    h2 { font-size: 1.1rem; font-weight: 700; padding-left: 0.75rem; margin-bottom: 0.75rem; }
     h2.well   { border-left: 4px solid var(--color-well);   }
     h2.wrong  { border-left: 4px solid var(--color-wrong);  }
     h2.missed { border-left: 4px solid var(--color-missed); }
     h2.neutral{ border-left: 4px solid var(--color-border); }
     p, li { margin-bottom: 0.4rem; }
     ul { padding-left: 1.4rem; }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
     th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
     th { background: var(--color-bg-subtle); font-weight: 600; }
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 1rem;
-      margin: 0.5rem 0;
-    }
-    .metric-card {
-      background: var(--color-bg-subtle);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      padding: 0.75rem 1rem;
-      text-align: center;
-    }
-    .metric-label { font-size: 0.75rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
-    .metric-value { font-size: 1.5rem; font-weight: 700; }
-    .metric-note  { font-size: 0.75rem; color: var(--color-muted); margin-top: 0.2rem; }
-    .match   { color: var(--color-shipped); }
-    .over    { color: var(--color-blocker); }
-    .under   { color: var(--color-wip);    }
-    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 1.5rem; }
-    .timeline::before { content:""; position:absolute; left:0.4rem; top:0; bottom:0; width:2px; background:var(--color-border); }
-    .tl-item { position: relative; padding: 0.4rem 0 0.4rem 0.75rem; }
-    .tl-item::before { content:""; position:absolute; left:-1.1rem; top:0.75rem; width:0.6rem; height:0.6rem; border-radius:50%; background:var(--color-muted); border:2px solid var(--color-bg); }
-    .tl-time  { font-size: 0.75rem; color: var(--color-muted); }
-    .tl-label { font-size: 0.875rem; }
-    .checklist { list-style: none; padding: 0; }
-    .checklist li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.25rem 0; font-size: 0.875rem; }
-    .check { flex-shrink: 0; margin-top: 0.1rem; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
-    @media (max-width: 600px) { .meta { flex-direction: column; } .metrics-grid { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Reflect: [TASK_TITLE]</h1>
+    <h1>Reflect: anonymise() orchestration + public API (v0.1.0)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Closed</dt><dd><!-- YYYY-MM-DD --></dd></div>
-      <div><dt>PRs merged</dt><dd><!-- #N, #M --></dd></div>
-      <div><dt>Tests shipped</dt><dd><!-- before → after --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-012</dd></div>
+      <div><dt>Closed</dt><dd>2026-06-11</dd></div>
+      <div><dt>PR</dt><dd><a href="https://github.com/atcuality2021/biltiq-privacy/pull/13">#13</a> (awaiting review)</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code (Fable 5)</dd></div>
     </dl>
   </header>
 
-  <section id="metrics">
-    <h2 class="neutral">Estimation Actuals</h2>
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-label">Wall-clock</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- XL --> &rarr; actual: <!-- XL --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Tokens</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- L --> &rarr; actual: <!-- L --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Tool calls</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- M --> &rarr; actual: <!-- M --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Iteration cycles</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 7 --> &rarr; actual: <!-- 7 --></div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">Human review (min)</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 45 --> &rarr; actual: <!-- 45 --></div>
-      </div>
-    </div>
-    <!-- Legend: match (green) = ±0 band, over (red) = +1+ bands, under (amber) = -1 bands -->
+  <section id="estimates">
+    <h2 class="neutral">Estimate vs Actual</h2>
+    <table>
+      <thead><tr><th>Axis</th><th>Estimate</th><th>Actual</th><th>Variance</th></tr></thead>
+      <tbody>
+        <tr><td>Wall-clock</td><td>M</td><td>S (~70 min Think→Reflect, single session)</td><td>down_one_band — composition task over fully-shipped pieces; only the packaging step held surprises</td></tr>
+        <tr><td>Tokens</td><td>M</td><td>M (architect + 2× plan-reviewer + 2 parallel code reviewers)</td><td>on_band</td></tr>
+        <tr><td>Human review (min)</td><td>30</td><td>~6 spent in-session (PR #11 approval + plan approval + 2 ruling rounds); PR #13 review pending</td><td>under (so far) — PR review still to come</td></tr>
+      </tbody>
+    </table>
   </section>
 
-  <section id="what-went-well">
-    <h2 class="well">What Went Well</h2>
+  <section id="went-well">
+    <h2 class="well">What went well</h2>
     <ul>
-      <li class="placeholder">Specific pattern to repeat — "the parallel subagent review in Step N found 3 findings the inline pass missed."</li>
-      <li class="placeholder">Add one item per genuinely repeatable insight. Do not write "it went smoothly."</li>
+      <li><strong>The plan-reviewer paid for itself again — round 1 finding #1 was the task's only HIGH defect.</strong> The direct-URL <code>en-core-web-sm</code> dependency would have passed every local gate (build succeeds, wheel imports) and failed only at the actual PyPI upload — the one mechanic that cannot be dry-run. Caught at planning, fixed as Step 4, gate-tested at the METADATA level (the exact defect class, not a proxy). Second consecutive task (after BILTIQ-011's AirIndia catch) where the reviewer found a real ship-blocking issue all tests would have missed.</li>
+      <li><strong><code>GeneralisationSpan</code>'s docstring assigned the zip-assembly to "the orchestrator (BILTIQ-012)" back in BILTIQ-008</strong> — the cross-task contract was written down where the next implementer would read it, and the facade slotted in with zero re-derivation. Forward-pointing docstrings on seams compound.</li>
+      <li><strong>Fake-detector unit layer + real-stack e2e layer split.</strong> 14 orchestration tests run in 0.03&nbsp;s with no model load; 3 e2e tests pay the spaCy cost once (module-scoped fixture). The split also localised the merge-policy surprise to the e2e layer where it belongs.</li>
+      <li><strong><code>zip(..., strict=True)</code> as a load-bearing assertion.</strong> Ruff's B905 nudge became a real invariant guard: a future ordering-contract break in the merge or the pseudonymiser now raises loudly instead of silently mispairing tokens.</li>
+      <li><strong>Live-probing the merge before pinning expectations.</strong> When the e2e test failed (2 IN_* types missing), a 10-line probe against real detector output revealed the two overlap contests (UK_NHS tie, PERSON engulfment); the test was rewritten to characterise reality, and the code reviewer independently re-verified the characterisation against live output.</li>
     </ul>
   </section>
 
-  <section id="what-went-wrong">
-    <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
-    <ul class="checklist">
-      <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None caught — <em>only if you genuinely scanned for all 11 anti-patterns.</em></span>
-      </li>
-    </ul>
+  <section id="went-wrong">
+    <h2 class="wrong">What went wrong (caught in Review/Test)</h2>
     <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
+      <thead><tr><th>What</th><th>Anti-pattern</th><th>Caught by</th><th>Fix</th></tr></thead>
       <tbody>
-        <tr>
-          <td class="placeholder">e.g. #4 Type Safety</td>
-          <td class="placeholder">Review</td>
-          <td class="placeholder">Replaced Any with proper Union type.</td>
-        </tr>
+        <tr><td>README + <code>pipeline.py</code> docstring directed users at <code>core.log_filter.RedactionFilter</code> — a class that has never existed. Root cause: <code>stack.md</code> has listed it as an available internal module since pre-implementation, and the author trusted the catalog.</td><td>#2 (inverted — phantom API in shipped docs)</td><td>Code review (slice B)</td><td>References dropped/marked PLANNED across 4 files; stack.md row now carries a loud <strong>PLANNED — not yet implemented</strong> banner; ticket required before anyone cites it again.</td></tr>
+        <tr><td>e2e expectation assumed all 8 IN_* types survive the merge; reality: IN_PHONE loses a same-span tie to UK_NHS (stable sort favours emission order) and IN_MEDICAL_REG @0.6 is engulfed by PERSON @0.85.</td><td>— (assumption-vs-reality gap)</td><td>Test (first e2e run, RED)</td><td>Probed live output, characterised both contests in a comment block, asserted the guarantee that matters: every original value absent from output.</td></tr>
+        <tr><td><code>uv sync</code> silently pruned pytest/mypy/ruff + the NER model the moment the runtime dep moved — dev tooling had been ad-hoc pip-installed, never declared.</td><td>#3-adjacent (implicit environment state)</td><td>Build (Step 4 gate: "No module named pytest")</td><td>Root <code>[dependency-groups].dev</code> now declares tooling + model; environment reproducible from the repo alone.</td></tr>
+        <tr><td>Two strict-typing slips: <code>HMACKeyRequiredError</code> imported from the wrong module; <code>spacy.cli.download</code> attribute shadows its defining submodule (broke both the import style and the monkeypatch target).</td><td>#4 (typing discipline)</td><td>Test (mypy --strict at step gates)</td><td>Import from defining modules; <code>importlib.import_module</code> for the shadowed-submodule patch.</td></tr>
+        <tr><td>Amended a commit that was already pushed → push rejected; force-push correctly blocked by guardrail R06.</td><td>— (git hygiene)</td><td>Build (push failure)</td><td>Reset to remote, re-landed as a normal commit. Rule: never <code>--amend</code> after push.</td></tr>
       </tbody>
     </table>
   </section>
 
-  <section id="what-we-missed">
-    <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
-    <ul class="checklist">
-      <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None missed</span>
-      </li>
+  <section id="missed">
+    <h2 class="missed">What we missed (slipped past Review/Test)</h2>
+    <ul>
+      <li><strong>Nothing detected post-Review so far</strong> — PR #13 is unmerged, and biltiq-gates.yml still fails in 0&nbsp;s on every push (third task shipped with zero gates-CI signal). Anything that workflow would catch is structurally invisible — that standing blindness is itself the miss to log.</li>
+      <li><strong>AC5's publish leg is flipped DONE but not yet executed</strong> — <code>_flip_ac_badges.py</code> flips unconditionally; the PyPI publish awaits dev credentials at merge. Logged here so the gap is explicit, not silent.</li>
     </ul>
-    <table>
-      <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="placeholder">e.g. #8 Async Misuse</td>
-          <td class="placeholder">CI load test</td>
-          <td class="placeholder">200ms latency spike</td>
-          <td class="placeholder">Wrapped in asyncio.to_thread().</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section id="timeline">
-    <h2 class="neutral">Step-by-Step Timeline</h2>
-    <div class="timeline">
-      <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">Think + Plan locked</div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label"><span class="placeholder">Step N shipped — commit hash</span></div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">PR merged — v<!-- x.y.z-rcN --></div>
-      </div>
-    </div>
   </section>
 
   <section id="process-changes">
-    <h2 class="neutral">Process Changes Proposed</h2>
-    <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No process changes needed for this task.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to <code>AGENT_RULES.md</code>: describe.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to skill: which one, what change.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed new CI gate: describe.</span></li>
+    <h2 class="neutral">Process changes proposed</h2>
+    <ul>
+      <li><strong>stack.md accuracy gate:</strong> a CI/reflect-time script that imports every <code>biltiq_privacy.*</code> path in stack.md's Internal-modules table — the RedactionFilter phantom sat there ~4 weeks and propagated into shipped docs the first time someone trusted it. Cheap: parse backticked paths, attempt import.</li>
+      <li><strong>Declare dev tooling in pyproject from day one.</strong> AGENT_RULES.md candidate rule: "if a command runs in CI or a step gate, the tool providing it must be declared in a dependency group" — ad-hoc pip installs die at the first <code>uv sync</code> after a dep change.</li>
+      <li><strong>Badge-flip honesty:</strong> ACs whose action happens at/after merge (publish, deploy) need a PENDING state in <code>_flip_ac_badges.py</code>, or the reflect must carry the gap explicitly (done here).</li>
+      <li><strong>Re-up: ticket the broken biltiq-gates.yml</strong> (proposed in BILTIQ-011 reflect; still open).</li>
     </ul>
   </section>
 
-  <section id="cleanup-confirmation">
-    <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
-    <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Throwaway scripts deleted.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge.</span></li>
+  <section id="cleanup">
+    <h2 class="neutral">Cleanup confirmation (Anti-Pattern #7)</h2>
+    <ul>
+      <li>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>, <code>*_temp.*</code>, <code>test_scratch_*</code> files on the branch (reviewer grep + diff name scan).</li>
+      <li>Scratch venv for the wheel-install check created under <code>/tmp</code> and removed; <code>dist/</code> is gitignored (kept locally for the publish step).</li>
+      <li>Probe scripts were heredocs, never files. Branch deleted after merge.</li>
     </ul>
   </section>
 
   <section id="tech-debt">
-    <h2 class="neutral">Tech Debt Logged</h2>
+    <h2 class="neutral">Tech debt logged</h2>
     <ul>
-      <li class="placeholder">Link to follow-up ticket, or "none".</li>
+      <li><strong>RedactionFilter does not exist</strong> — needs its own ticket (implement <code>core/log_filter.py</code> per the stack.md description, or delete the row). Until then the row reads PLANNED.</li>
+      <li><strong>Merge-policy label drift:</strong> IN_PHONE/IN_MEDICAL_REG values are replaced under UK_NHS/PERSON labels on the sample blob — harmless for anonymisation, but <code>entity_summary</code> counts in the audit payload inherit the winning label. Revisit when BILTIQ-015's CompositeDetector lands.</li>
+      <li><strong>biltiq-gates.yml broken on main</strong> (carried from BILTIQ-011 reflect — still unticketed).</li>
+      <li><strong>BILTIQ-012 product docs generated via inline fallback</strong> (vLLM HTTP 524 ×3; quality-warning stamped in manifest) — refresh with <code>/biltiq-engineering:product-docs BILTIQ-012</code> when the endpoint is healthy.</li>
     </ul>
   </section>
 
-  <section id="change-history">
-    <h2 class="neutral">Change History</h2>
+  <section id="timeline">
+    <h2 class="neutral">Timeline</h2>
     <table>
-      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <thead><tr><th>Commit</th><th>What</th></tr></thead>
       <tbody>
-        <tr>
-          <td><!-- YYYY-MM-DD --></td>
-          <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
-        </tr>
+        <tr><td><code>d001ce1</code></td><td>Planning artifacts (plan-reviewer 2 rounds → human escalation → approved; PR #11 reviewed+merged first, dev-ruled)</td></tr>
+        <tr><td><code>475824f</code></td><td>Step 1: <code>_merge_detections</code> CDSCO port + 3 characterisation tests</td></tr>
+        <tr><td><code>8d225bd</code></td><td>Step 2: <code>AnonymiseResult</code> + <code>anonymise()</code> + 11 tests</td></tr>
+        <tr><td><code>4d3d5a5</code></td><td>Step 3: 18-name public surface + lazy-import probe + 4 tests</td></tr>
+        <tr><td><code>49711f4</code></td><td>Step 4: publishable packaging + <code>auto_download_model</code> + ADR-0006 + 3 tests</td></tr>
+        <tr><td><code>000f040</code></td><td>Step 5: e2e tests (DPDP 8/8, chain verify, socket guard)</td></tr>
+        <tr><td><code>7cea548</code></td><td>Step 6: README/CHANGELOG/stack.md + wheel METADATA gate</td></tr>
+        <tr><td><code>1fd3dbe</code>–<code>adee84a</code></td><td>Review fixes: RedactionFilter sweep + compliant=True pin</td></tr>
+        <tr><td><code>31313cc</code></td><td>Product docs 3 tiers; PR #13 opened</td></tr>
       </tbody>
     </table>
+    <p style="font-size:0.85rem; color:var(--color-muted);">Artifact rendered inline — vLLM Socratic driver is interactive-only (<code>inline-Claude-required</code> fallback, consistent with BILTIQ-010/011).</p>
   </section>
 </main>
 </body>
