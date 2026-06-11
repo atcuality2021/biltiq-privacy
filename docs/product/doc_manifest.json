@@ -43,6 +43,38 @@
         "vllm_quality_warning": false,
         "vllm_role": "reason+chat"
       }
+    },
+    "BILTIQ-011": {
+      "developer": {
+        "content_hash": "sha256:58c3e03d7ef912ec0beb25153204ca53ed546181be9aea1ac2a16a76886ac2d0",
+        "doc_version": "1.0.0",
+        "fallback": "inline-claude",
+        "last_updated": "2026-06-11",
+        "path": "docs/product/developer/biltiq-011.html",
+        "source_commit": "0eaf9b6",
+        "source_files": [],
+        "vllm_quality_warning": true
+      },
+      "operations": {
+        "content_hash": "sha256:8761987f7e5cd5478273c722f8f9470a4d20528b843f848940c233b4d1f9d37d",
+        "doc_version": "1.0.0",
+        "fallback": "inline-claude",
+        "last_updated": "2026-06-11",
+        "path": "docs/product/operations/biltiq-011.html",
+        "source_commit": "0eaf9b6",
+        "source_files": [],
+        "vllm_quality_warning": true
+      },
+      "user": {
+        "content_hash": "sha256:4bfc685a2c3326b1a336cf974f1d03aabe06f2d72df3bb95af9563933a8886fb",
+        "doc_version": "1.0.0",
+        "fallback": "inline-claude",
+        "last_updated": "2026-06-11",
+        "path": "docs/product/user/biltiq-011.html",
+        "source_commit": "0eaf9b6",
+        "source_files": [],
+        "vllm_quality_warning": true
+      }
     }
   },
   "generated_by": "product-docs-generator",

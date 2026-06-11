@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Spec: Regime ABC + DPDP validator</title>
   <style>
-    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--color-ac-done:#16a34a;--radius:6px;--max-width:860px;}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
     main{max-width:var(--max-width);margin:0 auto;}
@@ -23,6 +23,7 @@
     .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
     .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
     .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-done{background:#dcfce7;color:var(--color-ac-done);border:1px solid #86efac;}
     .ac-label{font-size:0.85rem;}
     table{width:100%;border-collapse:collapse;font-size:0.85rem;}
     th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
@@ -65,11 +66,11 @@
   <section id="acceptance-criteria">
     <h2>Acceptance Criteria</h2>
     <ul class="ac-list">
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — <code>regimes/base.py</code> defines a <code>Regime</code> ABC plus <code>ComplianceCheck</code> and <code>ComplianceReport</code> dataclasses (typed, no <code>Any</code>).</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>regimes/dpdp.py</code> implements all 8 CDSCO checks via <code>validate(original, anonymised, detections, audit_records) -> ComplianceReport</code>, behaviour-equivalent to the source.</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — Residual-PII scan reuses shared patterns; Indian patterns reuse BILTIQ-002 rather than redefining (port only what 002 lacks, e.g. EMAIL).</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Pure: no FastAPI/DB. CDSCO/NDHM/ICMR framework references are data/config, not hardcoded behaviour that blocks reuse.</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Tests: each of the 8 checks has a passing and a failing case (e.g. residual Aadhaar → fail; clean text → pass).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC1</strong> — <code>regimes/base.py</code> defines a <code>Regime</code> ABC plus <code>ComplianceCheck</code> and <code>ComplianceReport</code> dataclasses (typed, no <code>Any</code>).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC2</strong> — <code>regimes/dpdp.py</code> implements all 8 CDSCO checks via <code>validate(original, anonymised, detections, audit_records) -> ComplianceReport</code>, behaviour-equivalent to the source.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC3</strong> — Residual-PII scan reuses shared patterns; Indian patterns reuse BILTIQ-002 rather than redefining (port only what 002 lacks, e.g. EMAIL).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC4</strong> — Pure: no FastAPI/DB. CDSCO/NDHM/ICMR framework references are data/config, not hardcoded behaviour that blocks reuse.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC5</strong> — Tests: each of the 8 checks has a passing and a failing case <em>where the source defines one</em> (e.g. residual Aadhaar → fail; clean text → pass). DPDP-6 and ICMR-1 are hardcoded always-pass in the CDSCO source — they get always-pass + edge-case tests instead of invented fail paths (annotation ratified 2026-06-11 at plan review; inventing fail paths would break AC2 equivalence).</span></li>
     </ul>
   </section>
 
@@ -83,10 +84,15 @@
   </section>
 
   <section id="open-questions">
-    <h2>Open Questions</h2>
+    <h2>Open Questions — all resolved 2026-06-11 (Step 1 Think, dev rulings)</h2>
     <ul>
-      <li>Is this "high-risk" (compliance attestation) and therefore requiring human plan-review? Likely yes — flag to plan-reviewer.</li>
-      <li>How much of the NDHM/ICMR check is India-only vs general data-minimisation? Decide what stays in <code>dpdp</code> vs a shared base.</li>
+      <li><strong>High-risk?</strong> Yes — compliance attestation. Human plan-review is mandatory before Build (spec header already allocates 30 min).</li>
+      <li><strong>NDHM/ICMR placement:</strong> stay in <code>dpdp.py</code> as data-driven check definitions (both are India-specific frameworks); <code>base.py</code> stays regime-agnostic. Plan-reviewer may challenge.</li>
+      <li><strong>Report timestamp (ruling):</strong> caller-supplied, per the BILTIQ-010 determinism precedent — no clock read inside the library. Deliberate delta from the CDSCO source's <code>datetime.now(timezone.utc)</code>.</li>
+      <li><strong>AC2 vs AC3 precedence (ruling):</strong> AC3 wins. Residual scan reuses BILTIQ-002's 8 compiled patterns plus a newly ported EMAIL pattern. Two documented behaviour deltas vs source: (a) scan covers 4 extra Indian types (stricter), (b) BILTIQ-002's phone regex uses <code>\b</code> instead of the source's underscore-permitting lookbehind (laxer on <code>patient_98765…pdf</code> filenames). Both deltas must appear in design.html and be pinned by tests.</li>
+      <li><strong>DPDP-4 generalisation markers (ruling):</strong> configurable marker list parameter defaulting to the CDSCO trio (<code>"XXXX"</code>, <code>"Healthcare Facility"</code>, <code>"India"</code>) — behaviour-equivalent by default, reusable per AC4. <em>Extended at design review:</em> the same injected list also drives DPDP-1's residual mask filter (no separate fixed constant).</li>
+      <li><strong>PII values in report evidence (design-review ruling):</strong> configurable — <code>include_values: bool = False</code>; DPDP-1 evidence carries <code>"TYPE@position"</code> locators by default, matched values only on explicit opt-in. Documented behaviour delta (c) vs the source, which embedded values unconditionally. Evidence capped at 5 entries (source's <code>[:5]</code> ported).</li>
+      <li><strong>DPDP-1 marker filter width (plan-review re-ruling):</strong> the shared marker list filters DPDP-1 residuals on <em>all</em> configured markers, not only <code>"XXXX"</code> — documented behaviour delta (d) with a known false-negative surface in the default config (descriptive markers like <code>"India"</code> can mask a leaked value containing them), accepted for marker-semantics consistency, pinned by test; <code>generalisation_markers=("XXXX",)</code> is the source-strict escape hatch.</li>
     </ul>
   </section>
 
@@ -94,7 +100,11 @@
     <h2>Change History</h2>
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
-      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-011</td></tr></tbody>
+      <tbody>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-011</td></tr>
+        <tr><td>2026-06-11</td><td>open-questions</td><td>All 5 questions resolved via dev rulings (timestamp determinism, AC3 precedence, configurable DPDP-4 markers, NDHM/ICMR placement, high-risk confirmed). Spec locked. vLLM Socratic driver unavailable headlessly — inline-Claude-required fallback in effect for Step 2 artifacts.</td><td>BILTIQ-011 Step 1</td></tr>
+        <tr><td>2026-06-11</td><td>AC5, open-questions</td><td>Plan-review round: AC5 annotated "failing case where the source defines one" (DPDP-6/ICMR-1 are always-pass in source — ratified); delta (d) ruling recorded (DPDP-1 marker filter wider than source, known false-negative surface accepted + pinned); evidence cap [:5] noted under delta (c).</td><td>BILTIQ-011 plan-reviewer findings 1, 2, 5</td></tr>
+      </tbody>
     </table>
   </section>
 </main>
