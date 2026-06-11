@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reflect: [TASK_TITLE]</title>
+  <title>Reflect: Regime ABC + DPDP validator</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -91,13 +91,13 @@
 <body>
 <main>
   <header>
-    <h1>Reflect: [TASK_TITLE]</h1>
+    <h1>Reflect: Regime ABC + DPDP validator</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Closed</dt><dd><!-- YYYY-MM-DD --></dd></div>
-      <div><dt>PRs merged</dt><dd><!-- #N, #M --></dd></div>
-      <div><dt>Tests shipped</dt><dd><!-- before → after --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-011</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Closed</dt><dd>2026-06-11 (PR #11 open, awaiting mandatory human review)</dd></div>
+      <div><dt>PRs merged</dt><dd>#11 (pending review — high-risk, no auto-merge)</dd></div>
+      <div><dt>Tests shipped</dt><dd>217 → 260 passed (+43)</dd></div>
     </dl>
   </header>
 
@@ -106,28 +106,28 @@
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-label">Wall-clock</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- XL --> &rarr; actual: <!-- XL --></div>
+        <div class="metric-value under">S</div>
+        <div class="metric-note">spec: M &rarr; actual: S (~75 min Think→Reflect, single session)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tokens</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- L --> &rarr; actual: <!-- L --></div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (~340k subagent + main session)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Tool calls</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- M --> &rarr; actual: <!-- M --></div>
+        <div class="metric-value match">M</div>
+        <div class="metric-note">spec: M &rarr; actual: M (~60 main + 48 subagent)</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Iteration cycles</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 7 --> &rarr; actual: <!-- 7 --></div>
+        <div class="metric-value match">2</div>
+        <div class="metric-note">plan-review round 1 needs-revision; code review approved round 1</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Human review (min)</div>
-        <div class="metric-value placeholder">—</div>
-        <div class="metric-note">spec: <!-- 45 --> &rarr; actual: <!-- 45 --></div>
+        <div class="metric-value under">~12</div>
+        <div class="metric-note">spec: 30 &rarr; actual: ~12 so far (5 ruling rounds); PR review pending — dev may override</div>
       </div>
     </div>
     <!-- Legend: match (green) = ±0 band, over (red) = +1+ bands, under (amber) = -1 bands -->
@@ -136,8 +136,11 @@
   <section id="what-went-well">
     <h2 class="well">What Went Well</h2>
     <ul>
-      <li class="placeholder">Specific pattern to repeat — "the parallel subagent review in Step N found 3 findings the inline pass missed."</li>
-      <li class="placeholder">Add one item per genuinely repeatable insight. Do not write "it went smoothly."</li>
+      <li><strong>Adversarial plan review caught a real compliance bug before any code existed.</strong> The plan-reviewer's finding #1 — the default <code>"India"</code> marker silently filtering <code>contact@AirIndia.com</code> out of the DPDP-1 residual scan — was a genuine false-negative in the dev-ruled design, in exactly the direction the risk table feared (check passes where CDSCO fails). Cost to fix at plan stage: one re-ruling + three doc edits + one pin test. Cost if shipped: a regulatory-exposure edge discovered by a consumer.</li>
+      <li><strong>Front-loading dev rulings as AskUserQuestion rounds kept Build interruption-free.</strong> Seven of the nine rulings were locked before the architect ran; Build then proceeded through all 5 steps without a single mid-build question. The two design-stage overrides (configurable <code>include_values</code>, marker-tracking filter) show the recommended option is not always the chosen one — asking was correct.</li>
+      <li><strong>The side-by-side equivalence run against the live CDSCO function</strong> (same interpreter, same inputs, 8/8 statuses identical) is stronger evidence than any number of unit tests for a port whose contract is "behaviour-equivalent". Repeatable pattern for BILTIQ-012/013 and the Phase C regimes.</li>
+      <li><strong><code>approved-versions.md</code> pre-decided the data-model debate.</strong> The frozen-dataclass mandate row (written before this task started) named <code>ComplianceCheck</code>/<code>ComplianceReport</code> explicitly, collapsing what would have been a TypedDict-vs-dataclass design argument into a citation. Anti-Pattern #9 defense working as designed.</li>
+      <li><strong>A trivially-passing test was caught at Build, not Review:</strong> the first masked-value test used <code>XXXX-XXXX-9012</code>, which no residual pattern can match (4 digits), so the filter was never exercised. Rewriting around an email residual (the only type whose text can contain a marker substring) made both marker tests load-bearing.</li>
     </ul>
   </section>
 
@@ -145,17 +148,32 @@
     <h2 class="wrong">What Went Wrong (caught in Review or Test)</h2>
     <ul class="checklist">
       <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None caught — <em>only if you genuinely scanned for all 11 anti-patterns.</em></span>
+        <input class="check" type="checkbox" checked disabled>
+        <span>All 11 anti-patterns scanned; findings below were caught in-process.</span>
       </li>
     </ul>
     <table>
       <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Fix applied</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">e.g. #4 Type Safety</td>
-          <td class="placeholder">Review</td>
-          <td class="placeholder">Replaced Any with proper Union type.</td>
+          <td>#10 adjacent — overstated test docstring</td>
+          <td>Code review (subagent suggestion)</td>
+          <td>Delta (b) docstring claimed the source "flagged" underscore-glued phones; the source's own scan heuristic skipped them, so the delta is mechanism-level, not outcome-level there. Tightened in <code>0eaf9b6</code> so the pin is not read as a behaviour change it is not.</td>
+        </tr>
+        <tr>
+          <td>#10 — vacuous test (filter never exercised)</td>
+          <td>Build Step 2 (test failed for the wrong reason)</td>
+          <td><code>test_custom_markers_drive_dpdp1_filter</code> failed because the companion masked-value test's input matched no pattern at all. Both rewritten around an email residual; the marker filter is now genuinely exercised in both directions.</td>
+        </tr>
+        <tr>
+          <td>Design self-contradiction (stale references)</td>
+          <td>Plan review rounds 1–2</td>
+          <td>Stale <code>_MASK_MARKER</code> mention, <code>EMAIL_PATTERN</code> re-export inconsistency across three artifacts, and five stale "three deltas" counts after delta (d) landed — all swept before human sign-off.</td>
+        </tr>
+        <tr>
+          <td>Missed subclassing in first draft</td>
+          <td>Build Step 2 (self-caught immediately after Write)</td>
+          <td>First <code>dpdp.py</code> draft omitted <code>DPDPRegime(Regime)</code> inheritance; fixed in the same step before tests ran.</td>
         </tr>
       </tbody>
     </table>
@@ -165,18 +183,18 @@
     <h2 class="missed">What We Missed (caught at CI, peer review, or production)</h2>
     <ul class="checklist">
       <li>
-        <input class="check" type="checkbox" disabled>
-        <span>None missed</span>
+        <input class="check" type="checkbox" checked disabled>
+        <span>None missed to date — PR #11 human review is still pending and may add rows here; <code>biltiq-gates.yml</code> remains broken on main (pre-existing, fails in 0s on every push), so CI provides no independent signal for this branch.</span>
       </li>
     </ul>
     <table>
       <thead><tr><th>Anti-pattern</th><th>Caught at</th><th>Impact</th><th>Fix applied</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">e.g. #8 Async Misuse</td>
-          <td class="placeholder">CI load test</td>
-          <td class="placeholder">200ms latency spike</td>
-          <td class="placeholder">Wrapped in asyncio.to_thread().</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
         </tr>
       </tbody>
     </table>
@@ -186,16 +204,44 @@
     <h2 class="neutral">Step-by-Step Timeline</h2>
     <div class="timeline">
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">Think + Plan locked</div>
+        <div class="tl-time">2026-06-11 ~09:50–10:30</div>
+        <div class="tl-label">Think (5 AC spec verified, 3 ruling rounds) + Plan (architect design draft, 2 design rulings, plan-reviewer round 1 needs-revision → 5 findings fixed + 2 re-rulings → round 2 approved) + human plan approval</div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label"><span class="placeholder">Step N shipped — commit hash</span></div>
+        <div class="tl-time">2026-06-11 10:33</div>
+        <div class="tl-label">Planning artifacts committed — <code>dd73f1c</code></div>
       </div>
       <div class="tl-item">
-        <div class="tl-time"><!-- YYYY-MM-DD HH:MM --></div>
-        <div class="tl-label">PR merged — v<!-- x.y.z-rcN --></div>
+        <div class="tl-time">2026-06-11 10:35</div>
+        <div class="tl-label">Step 1: regimes/base.py + 7 tests — <code>fc9df43</code></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-11 10:38</div>
+        <div class="tl-label">Step 2: residual scan + DPDP-1, four delta pins — <code>8cc6760</code></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-11 10:41</div>
+        <div class="tl-label">Step 3: remaining 7 checks + validate() — <code>4a9b75d</code></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-11 10:43</div>
+        <div class="tl-label">Step 4: re-exports + purity probe + pipeline integration — <code>61271f5</code>; branch pushed</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-11 10:47</div>
+        <div class="tl-label">Step 5: stack.md rows + AC badges DONE — <code>6ca3b6f</code>; side-by-side CDSCO run 8/8 SAME</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-11 10:55</div>
+        <div class="tl-label">Review: subagent verdict approved, zero findings; docstring suggestion applied — <code>0eaf9b6</code></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">2026-06-11 11:06</div>
+        <div class="tl-label">Test battery green (260 passed + perf 10); Ship: CHANGELOG + 3 product-doc tiers (gate ok) — <code>b36c820</code>; PR #11 opened</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">pending</div>
+        <div class="tl-label">PR #11 merge — gated on mandatory human review (high-risk: compliance)</div>
       </div>
     </div>
   </section>
@@ -203,26 +249,26 @@
   <section id="process-changes">
     <h2 class="neutral">Process Changes Proposed</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No process changes needed for this task.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to <code>AGENT_RULES.md</code>: describe.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed change to skill: which one, what change.</span></li>
-      <li><input class="check" type="checkbox" disabled><span class="placeholder">Proposed new CI gate: describe.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span><strong>Marker/filter semantics rule for regime ports (AGENT_RULES.md or plan-reviewer skill):</strong> when a dev ruling generalises a source's filter/skip condition (here: "XXXX"-only → any configured marker), require an explicit false-negative analysis in the design before the ruling is recorded. The AirIndia trap was findable mechanically — descriptive default markers + a value-shaped pattern (EMAIL) — and the plan-reviewer caught it, but a checklist line would catch it at design time.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span><strong>test-generator skill: "can the input even match?" check.</strong> For any test of a filter/skip path, require an assertion (or paired test) proving the unfiltered input *would* match — the masked-value test passed trivially because its input matched no pattern. One sentence in the skill's quality rules prevents the whole class.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span><strong>Fix <code>biltiq-gates.yml</code> on main as its own ticket.</strong> Third task in a row shipped with zero CI signal (fails in 0s on every push). The "What We Missed" section of every reflect is structurally blind while CI is dark.</span></li>
     </ul>
   </section>
 
   <section id="cleanup-confirmation">
     <h2 class="neutral">Cleanup Confirmation (AP #7)</h2>
     <ul class="checklist">
-      <li><input class="check" type="checkbox" disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Throwaway scripts deleted.</span></li>
-      <li><input class="check" type="checkbox" disabled><span>Branch deleted after merge.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code> files left in repo (grep over branch diff: clean).</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>Throwaway scripts deleted — the side-by-side script ran from <code>/tmp</code> and was removed in the same command.</span></li>
+      <li><input class="check" type="checkbox" checked disabled><span>Branch <code>feature/biltiq-011-dpdp-regime</code> to be deleted after merge.</span></li>
     </ul>
   </section>
 
   <section id="tech-debt">
     <h2 class="neutral">Tech Debt Logged</h2>
     <ul>
-      <li class="placeholder">Link to follow-up ticket, or "none".</li>
+      <li><strong>Delta (d) revisit trigger:</strong> if BILTIQ-013 exposes <code>generalisation_markers</code> over HTTP, the false-negative surface becomes consumer-configurable — the sidecar review must decide whether to expose it and whether <code>include_values</code> is reachable over HTTP at all (risk rows in <code>plan.html</code>; carried into PR #11 reviewer notes).</li>
+      <li><strong>No new ticket otherwise</strong> — GDPR/HIPAA/CCPA (BILTIQ-017/018/019) and HTTP exposure (BILTIQ-013) were out of scope by spec, not cut for speed.</li>
     </ul>
   </section>
 
@@ -232,10 +278,10 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-11</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial reflect written before merge (Step 7 discipline). vLLM Socratic driver unavailable headlessly — inline-Claude-required fallback in effect for this artifact.</td>
+          <td>BILTIQ-011 Step 7</td>
         </tr>
       </tbody>
     </table>

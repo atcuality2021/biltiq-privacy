@@ -35,7 +35,7 @@
 
 biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package productised from CDSCO-RegAI. Python engine (framework-free) plus a FastAPI REST sidecar plus thin native SDKs (Node/PHP/Go, v0.1.1+) — one source of truth, polyglot consumption. Layers Indian/EU/US recognisers and DPDP/GDPR/HIPAA/CCPA regime adapters on top of Presidio (depended on, never forked). MIT, public PyPI from v0.1.0 alpha.
 
-**Status:** Engine-port phase in flight. Merged: BILTIQ-000 (bootstrap), BILTIQ-001 (skeleton), BILTIQ-002 (Indian PII recognisers, PR #4 merged 2026-05-18T11:57Z `a2706d4`), BILTIQ-003 (memory-spine tooling). Active: **BILTIQ-004** — `age` system-binary wrapper on `feature/biltiq-004-age-wrapper`; planning artifacts (spec/design/plan/reflect + ADR-0003) committed at `2e782d6`, plan-reviewer not yet run, Step 3 Build pending. Source to port: `/home/atc/Desktop/cdcso/CDSCO-RegAI` (branch `main`).
+**Status:** Engine-port phase nearly complete. Merged to main (`c6a8729`): BILTIQ-000–005, 007–010 — full pipeline substrate (detect → pseudonymise → generalise → audit) + age wrapper + tooling. In review: **BILTIQ-011** (Regime ABC + DPDP validator, PR #11, high-risk — mandatory human review before merge). Next up: BILTIQ-012 (`anonymise()` orchestration), BILTIQ-013 (FastAPI sidecar). Parked: BILTIQ-006 (spine vendoring, branch at step 3/8 — resume-or-abandon decision needed). Source to port: `/home/atc/Desktop/cdcso/CDSCO-RegAI` (branch `main`).
 **Deployment:** Library → public PyPI. Server → native install preferred (`pip install biltiq-privacy-server`), Docker offered (`biltiq/privacy-server:0.1.0`). Both REST endpoints identical.
 **Compliance mode:** `on_prem_preferred` — must match `AGENT_RULES.md` § Compliance.
 **Primary stakeholders:** @harish — owns CDSCO-RegAI (first consumer), ATC CommandCenter, ManthanQuant.
@@ -44,20 +44,21 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Current focus (this week)
 
-- **Active sprint:** Engine port — encryption substrate (BILTIQ-004 `age` wrapper) so v0.5.0 envelope-encryption work can begin.
+- **Active sprint:** Close v0.1.0 — BILTIQ-011 (DPDP regime) merge, then BILTIQ-012 (`anonymise()` facade) and the BILTIQ-013 sidecar.
 - **Top 3 tasks in flight:**
-  1. **BILTIQ-004** — `age` system-binary wrapper (Python `subprocess.Popen` + `scripts/install-age.sh` for Linux/macOS/Windows) — @harish — branch `feature/biltiq-004-age-wrapper`. spec/design/plan/reflect HTML + ADR-0003 (age streaming pattern) committed at `2e782d6`. Next: run plan-reviewer, then 9 atomic Build steps (one per AC).
-  2. **BILTIQ-005** — restore `scripts/_retention_writer.py` (or update plugin standup procedure). The `/biltiq-engineering:standup` body imports `from scripts._retention_writer import write_standup`, but the file does not exist; standups produce no committed HTML record. _Surfaced during 2026-05-28 standup; not yet ticketed._
-  3. **BILTIQ-006** — unify memory-spine `standup_post` event schema between the standup procedure (`yesterday_summary` / `today_task` / `branch` / `blockers`) and the curator's projector (`date` / `doing`). Today's first emit produced "Today (?)" / "standup for ?" in MEMORY.md until a second event was emitted with the curator-compatible schema. _Surfaced during 2026-05-28 standup; not yet ticketed._
+  1. **BILTIQ-011** — Regime ABC + DPDP validator. **PR #11 open, awaiting mandatory human review** (high-risk: compliance). 43 tests, all 5 ACs DONE, reflect.html written. Branch `feature/biltiq-011-dpdp-regime`.
+  2. **BILTIQ-012** — `anonymise()` orchestration + public API (spec scaffolded). The integrator over all four shipped stages.
+  3. **`biltiq-gates.yml` fix** — workflow fails in 0s on every push to main; three tasks in a row shipped with zero CI signal. Needs its own ticket (proposed in BILTIQ-011 reflect).
 - **Top 3 risks:**
   1. **Presidio default global recognisers leak through `build_engine()`** (BILTIQ-002 AC2 caveat — non-Indian entities like UK_NHS, PERSON also fire). Deferred via tech-debt #3 (`india_only=True` flag). Mitigation until then: callers strip non-`IN_*` results client-side.
   2. spaCy `en_core_web_sm` bundled adds ~15 MB to wheel. Acceptable v0.1.0; revisit at v0.2.0 if wheel size becomes a complaint.
-  3. **BILTIQ-004 Risk #1** — macOS Homebrew autodetect + Windows MSYS2 install-script branches are correct-by-inspection only on this Linux dev box. Step 5 (Test) needs a macOS device + an MSYS2 shell, or the gap goes into the PR's "known unvalidated paths" section.
+  3. **BILTIQ-011 delta (d)** — DPDP-1's marker filter is wider than CDSCO's; a default descriptive marker (`"India"`) can mask a leaked value (dev-accepted, test-pinned). Revisit if BILTIQ-013 exposes marker config over HTTP.
 
 ---
 
 ## Recent decisions (last 30 days)
 
+- 2026-06-11 — **BILTIQ-011: 9 dev rulings + 4 documented behaviour deltas vs the CDSCO source** (caller-supplied timestamp; AC3-over-AC2 pattern reuse; one `generalisation_markers` list driving DPDP-1 filtering AND DPDP-4 detection — delta (d) false-negative surface dev-accepted with `("XXXX",)` escape hatch; `include_values=False` keeps PII out of report evidence by default). 3 process changes proposed in reflect.html, pending Friday review: false-negative analysis rule for filter-generalising rulings; test-generator "can the input even match?" check; ticket the `biltiq-gates.yml` fix.
 - 2026-06-11 — **ADR-0005 accepted** (BILTIQ-010) — canonical-JSON commitment recipe for the audit hash-chain: `sort_keys=True`, compact separators, `ensure_ascii=False`, `prev_hash`-first pre-image, `"0"*64` genesis sentinel, plus a committed golden vector pinning the cross-language contract for the native SDKs (`docs/adr/0005-audit-chain-canonical-serialization.md`).
 - 2026-05-22 — **4 process changes from BILTIQ-002 reflect — all ratified at Friday architecture review:**
   - (a) `AGENT_RULES.md` Build-step rule: "sweep `design.html` for files-to-touch drift whenever a Build step touches a file not listed there" — closes the same root cause behind both BILTIQ-002 iteration_cycles overage and review_findings F1.
@@ -69,6 +70,9 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Recently completed
 
+- 2026-06-11 — **BILTIQ-011 (PR #11 open):** Regime ABC + DPDP 2023 validator — `biltiq_privacy.regimes` (frozen-dataclass `ComplianceCheck`/`ComplianceReport`, `Regime` ABC, `DPDPRegime` with the 8 CDSCO checks). Side-by-side vs live CDSCO function: 8/8 statuses identical. 43 tests, mypy --strict clean, product-doc tiers published, ship gate ok. Awaiting human code review (high-risk).
+- 2026-06-11 — **BILTIQ-004 + BILTIQ-010 merged to main** (`c6a8729`): age streaming wrapper (PR #5) + pure audit hash-chain (PR #10, ADR-0005 golden vector). Main verified: 217 tests + perf gate + mypy strict clean at merge time.
+- 2026-06-01 — **BILTIQ-005, 007, 008, 009 shipped:** retention writer; doc_hasher + HMAC `Pseudonymiser`; rule-based generaliser (6 field rollups); `Detector` ABC + `PresidioDetector` (PRs #8/#9, 174+ tests).
 - 2026-05-18 — **BILTIQ-002:** 8 Indian PII recognisers — `biltiq_privacy.indian.patterns` (regex constants + pure-stdlib `redact()` honouring `_REDACT_ORDER` ABHA-before-AADHAAR) + `biltiq_privacy.indian.recognisers` (Presidio `PatternRecognizer`s + `build_engine()` factory pinned to `en_core_web_sm`). PR #4 merged 2026-05-18T11:57Z as `a2706d4` (11 commits, 95 tests, 9/9 CI green). AC3 invariant (no regex duplication) + AC5 lazy-import contract (subprocess-isolated, presidio/spaCy not loaded by patterns.py) both verified. CDSCO-RegAI source attribution in module docstrings.
 - 2026-05-17 — **BILTIQ-003:** memory-spine tooling — `_memory_writer.py` (POSIX-atomic JSONL append) + `_memory_curator.py` (auto-section projection) + post-commit hook installer (PR #2, merged `8133b16`).
 - 2026-05-17 — **BILTIQ-001:** pyproject + monorepo `packages/` skeleton (PR #1, merged `f50fc12`). 8/8 install combos verified (pip × 4 Python versions + uv × 4 Python versions). Boundary rule enforced via `scripts/check-boundaries.sh`. ADR-0001 + ADR-0002 accepted.
@@ -121,6 +125,12 @@ _(no open questions)_
 ---
 
 ## Session log (last 5 sessions)
+
+### 2026-06-11 ~09:50–11:15 IST — BILTIQ-011 Attack Loop (Think → Reflect, single session)
+- Worked on: BILTIQ-011 (Regime ABC + DPDP validator). All 7 steps in ~75 min; PR #11 open awaiting mandatory human review.
+- Did: 9 dev rulings via 5 question rounds; architect-drafted design; plan-reviewer round 1 needs-revision (5 findings — incl. the `"India"`-marker false-negative trap) → round 2 approved; human plan approval; 5 atomic Build steps (43 tests); code review approved zero findings; full battery green (260 passed); product-doc tiers + ship gate ok; reflect.html + estimate actuals + closure event.
+- Discovered: (a) curator wiped MEMORY.md manual sections twice more (restored from HEAD both times); (b) pre-existing ruff F821 in `test-scaffolds/` since BILTIQ-000; (c) a filter test can pass vacuously if its input can't match any pattern — proposed as a test-generator skill rule.
+- Next session should: get PR #11 human-reviewed and merged → delete branch → start BILTIQ-012 (`anonymise()` facade). Decide BILTIQ-006 resume-or-abandon. Ticket the `biltiq-gates.yml` fix.
 
 ### 2026-05-18 06:26–17:00 IST — BILTIQ-002 Attack Loop (Think → Reflect)
 - Worked on: BILTIQ-002 (8 Indian PII recognisers — patterns.py + recognisers.py two-module split). All 7 Attack-Loop steps complete in a single session; PR #4 open, awaiting human review.
