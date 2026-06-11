@@ -75,6 +75,53 @@
         "source_files": [],
         "vllm_quality_warning": true
       }
+    },
+    "BILTIQ-012": {
+      "developer": {
+        "content_hash": "sha256:5a4215d75e95d9738ab5179f4abab6482d10d8ea1a47580892ee716bc702fcd5",
+        "doc_version": "1.0.0",
+        "fallback": "inline-claude",
+        "last_updated": "2026-06-11T08:06:38.994380+00:00",
+        "path": "docs/product/developer/biltiq-012.html",
+        "source_commit": "adee84a980d7eecfa8687b70e0e2551cc227a876",
+        "source_files": [
+          "docs/adr/0006-spacy-model-distribution.md",
+          "packages/python-core/biltiq_privacy/__init__.py",
+          "packages/python-core/biltiq_privacy/detectors/presidio_backend.py",
+          "packages/python-core/biltiq_privacy/pipeline.py"
+        ],
+        "vllm_quality_warning": true
+      },
+      "operations": {
+        "content_hash": "sha256:80a6d51757595c3a3c4227db1dc876346b22f35ffefda126a171ccdf12ba575e",
+        "doc_version": "1.0.0",
+        "fallback": "inline-claude",
+        "last_updated": "2026-06-11T08:08:44.629971+00:00",
+        "path": "docs/product/operations/biltiq-012.html",
+        "source_commit": "adee84a980d7eecfa8687b70e0e2551cc227a876",
+        "source_files": [
+          "docs/adr/0006-spacy-model-distribution.md",
+          "packages/python-core/biltiq_privacy/__init__.py",
+          "packages/python-core/biltiq_privacy/detectors/presidio_backend.py",
+          "packages/python-core/biltiq_privacy/pipeline.py"
+        ],
+        "vllm_quality_warning": true
+      },
+      "user": {
+        "content_hash": "sha256:70c71153c43cab2849fd9d40a626b0f7c6db8978dd87acc24b5809159312c8e0",
+        "doc_version": "1.0.0",
+        "fallback": "inline-claude",
+        "last_updated": "2026-06-11T08:10:50.345869+00:00",
+        "path": "docs/product/user/biltiq-012.html",
+        "source_commit": "adee84a980d7eecfa8687b70e0e2551cc227a876",
+        "source_files": [
+          "docs/adr/0006-spacy-model-distribution.md",
+          "packages/python-core/biltiq_privacy/__init__.py",
+          "packages/python-core/biltiq_privacy/detectors/presidio_backend.py",
+          "packages/python-core/biltiq_privacy/pipeline.py"
+        ],
+        "vllm_quality_warning": true
+      }
     }
   },
   "generated_by": "product-docs-generator",
