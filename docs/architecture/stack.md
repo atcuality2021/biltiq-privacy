@@ -83,7 +83,7 @@ Extension points used:
 |---|---|---|
 | UTC timestamp | `datetime.now(timezone.utc)` | Any timestamp. Do not `datetime.utcnow()` (deprecated). Consider a future `core.time` wrapper if usage proliferates. |
 | Path manipulation | `pathlib.Path` | All filesystem paths. No `os.path`. |
-| Logging | `logging.getLogger(__name__)` with `RedactionFilter` attached | All logging. No `print()` in library code. |
+| Logging | `logging.getLogger(__name__)` | All logging. No `print()` in library code. Attach `RedactionFilter` once it ships (PLANNED — see Internal modules row). |
 | Data classes | `@dataclass(slots=True, frozen=True)` for return types | Default for any return value in the library. |
 | Type hints | `from __future__ import annotations` at top of every module | Strict mypy in CI. |
 
