@@ -49,7 +49,7 @@ Extension points used:
 
 ## Encryption (v0.5.0+)
 
-- **age (system binary)** — wrapped via `subprocess.Popen` for streaming `pg_dump | age` pipelines. Pin: age ≥ 1.2.0. Install via `scripts/install-age.sh`.
+- **age (system binary)** — wrapped via `subprocess.Popen` for streaming `pg_dump | age` pipelines. Pin: age ≥ 1.2.0. Wrapper at `biltiq_privacy.backup.age_stream` (BILTIQ-004); install via `scripts/install-age.sh` (autodetect) or `docs/runbooks/install-age.md` (manual).
 
 ---
 
@@ -69,6 +69,7 @@ Extension points used:
 | Regime ABC | `biltiq_privacy.regimes.base.Regime` | Implement to add a new regulatory framework. |
 | Multi-region recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=[...])` (v0.2.0+) | Convenience factory wrapping per-region adapters; planned for when EU/US/UK packs land. For Indian-only use today, call `biltiq_privacy.indian.recognisers.build_engine()` directly. |
 | Memory-spine writer | `scripts._memory_writer.write_event(event_type, payload)` | POSIX-atomic append to `.biltiq/memory-stream.jsonl`; consumed by `scripts/_memory_curator.py` to project session signal into `MEMORY.md`. See `AGENT_RULES.md` § Memory. |
+| age streaming wrapper | `biltiq_privacy.backup.age_stream.open_age_writer(out_path, *, recipient)` / `open_age_reader(in_path, *, identity_path)` (BILTIQ-004, v0.5.0+) | `@contextmanager` generators wrapping the system `age` binary via `subprocess.Popen`; yield pipe handles so plaintext never lands on disk (AC2/AC3 invariant, statically enforced by `tests/backup/test_no_intermediate_files.py`). Exception hierarchy: `AgeNotInstalledError(FileNotFoundError)` at `__enter__`, `AgeProcessError(subprocess.CalledProcessError)` at `__exit__` — both stdlib-subclassed so callers need not import the wrapper to handle errors. See ADR-0003. |
 
 [PROJECT: add new internal modules here in the same PR they're created.]
 

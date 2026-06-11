@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: age system-binary wrapper + cross-OS install script</title>
+  <style>
+    :root {
+      --color-shipped:   #16a34a;
+      --color-wip:       #d97706;
+      --color-blocker:   #dc2626;
+      --color-ac-open:   #d97706;
+      --color-ac-done:   #16a34a;
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    p, li { color: var(--color-text); margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    .ac-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+    .ac-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius);
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+    }
+    .ac-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ac-open  { background: #fef3c7; color: var(--color-ac-open); border: 1px solid #fcd34d; }
+    .ac-done  { background: #dcfce7; color: var(--color-ac-done); border: 1px solid #86efac; }
+    .ac-label { font-size: 0.85rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--color-border);
+    }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    code { background: var(--color-bg-subtle); padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: age system-binary wrapper + cross-OS install script</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-004</dd></div>
+      <div><dt>Owner</dt><dd>@harish</dd></div>
+      <div><dt>Created</dt><dd>2026-05-18</dd></div>
+      <div><dt>Wall-clock</dt><dd>L</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Iteration cycles</dt><dd>9</dd></div>
+      <div><dt>Human review (min)</dt><dd>30</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.7 (1M context)</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p><code>docs/architecture/stack.md</code> line 52 advertises the <code>age</code> system binary (pinned <code>≥ 1.2.0</code>) "wrapped via <code>subprocess.Popen</code> for streaming <code>pg_dump | age</code> pipelines" with installation "via <code>scripts/install-age.sh</code>." Neither the Python wrapper module nor the install script exists today. The pre-reserved scaffold at <code>packages/python-core/biltiq_privacy/backup/__init__.py</code> documents the contract (<em>"Backup encryption helpers (age-binary subprocess wrappers, from v0.5.0). Empty marker for the BILTIQ-001 scaffold; modules land in BILTIQ-002+."</em>) but ships empty. Surfaced as tech-debt #1 in the BILTIQ-002 reflect when a user-driven question — "is age enabled on this repo?" — exposed the gap between what stack.md promised and what the codebase actually contained. Until this lands, any consumer code wanting on-prem streaming encryption (the v0.5.0 backup pipeline; future regime-adapter retention enforcement) has no module to import, and operators have no scripted install path.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>Operational. After this ships:</p>
+    <ul>
+      <li>Consumers can <code>from biltiq_privacy.backup.age_stream import open_age_writer, open_age_reader</code> and stream plaintext through age to/from <code>.age</code> files without materialising plaintext on disk — the architectural lever that makes "no plaintext PII on disk" verifiable by a directory-walk regex grep instead of heuristic content inspection.</li>
+      <li>Operators can run <code>bash scripts/install-age.sh</code> on Linux / macOS / Windows-via-package-manager to land <code>age ≥ 1.2.0</code> on <code>$PATH</code>, with idempotent re-run support and an explicit "needs human" exit code when the script's autodetection falls through.</li>
+      <li><code>docs/runbooks/install-age.md</code> documents the manual curl-tarball path per OS for users whose package-manager landscape the script doesn't cover.</li>
+      <li><code>stack.md</code> row at line 52 transitions from forward-looking to shipped — the row's claim now matches the repo state, closing the BILTIQ-002 reflect tech-debt entry that triggered this ticket.</li>
+    </ul>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC1</strong> — Module <code>biltiq_privacy.backup.age_stream</code> exists and exports two context managers: <code>open_age_writer(out_path: Path, *, recipient: str) -> Iterator[IO[bytes]]</code> and <code>open_age_reader(in_path: Path, *, identity_path: Path) -> Iterator[IO[bytes]]</code>. Both raise <code>AgeNotInstalledError</code> (subclass of <code>FileNotFoundError</code>) at <code>__enter__</code> if <code>shutil.which("age")</code> returns <code>None</code>.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC2</strong> — <code>open_age_writer</code> streams bytes through <code>subprocess.Popen(["age", "-r", recipient, "-o", str(out_path)], stdin=PIPE)</code>. The yielded handle is the subprocess <code>stdin</code>; plaintext is written to it; ciphertext lands at <code>out_path</code>. No <code>NamedTemporaryFile</code>, no buffer-to-disk; the plaintext exists only in pipe buffers and process memory.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC3</strong> — <code>open_age_reader</code> streams ciphertext through <code>subprocess.Popen(["age", "-d", "-i", str(identity_path), str(in_path)], stdout=PIPE)</code>. The yielded handle is the subprocess <code>stdout</code>; reading from it returns decrypted plaintext. Symmetric with AC2 — no plaintext on disk.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC4</strong> — Both context managers raise <code>AgeProcessError</code> (subclass of <code>subprocess.CalledProcessError</code>) on non-zero exit at <code>__exit__</code>. <code>stderr</code> is captured and surfaced in <code>exc.stderr</code> as <code>bytes</code>. No silent failures, no bare <code>except:</code> (Anti-Pattern #3 defence).</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC5</strong> — Round-trip test: a test generates an ephemeral keypair via <code>age-keygen</code> in <code>tmp_path</code>, writes a synthetic plaintext byte string through <code>open_age_writer</code>, reads it back through <code>open_age_reader</code>, asserts <code>plaintext_in == plaintext_out</code>. Keys never committed. Synthetic data only (no real PII).</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC6</strong> — Test suite gates on age presence via <code>pytest.mark.skipif(not shutil.which("age"), reason="age binary not on PATH")</code>, matching the CDSCO-RegAI <code>test_backup_pg_surface.py:27</code> pattern. A positive-control test asserts the skip mechanism itself runs (i.e. the suite is not silently empty when age is present).</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC7</strong> — <code>scripts/install-age.sh</code> (POSIX <code>sh</code>) installs age <code>≥ 1.2.0</code> with this autodetect order: (a) Linux — <code>apt-get</code> → <code>dnf</code> → <code>pacman</code> → snap → GitHub-release tarball + SHA256 verify; (b) macOS — Homebrew if present → GitHub-release tarball + SHA256 verify; (c) Windows under MSYS2/Cygwin/MinGW — print directive to install via <code>scoop install age</code> or <code>choco install age</code> and exit <code>2</code> (distinguishable from script-broken exit <code>1</code>). Idempotent — refuses to overwrite an existing <code>age ≥ 1.2.0</code> on <code>$PATH</code> unless <code>--force</code>. Flags: <code>--force</code>, <code>--uninstall</code> (removes only what the script installed; refuses to remove a system-package-managed binary), <code>-h</code>/<code>--help</code>. Style mirrors <code>scripts/install-curator-hook.sh</code>.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC8</strong> — <code>docs/runbooks/install-age.md</code> documents the manual curl-tarball install per OS (Linux x86_64, Linux arm64, macOS Intel + Apple Silicon, Windows scoop/choco). Includes the upstream GitHub release URL pattern, the SHA256 verification command, the <code>$PATH</code> placement step, and a verification command (<code>age --version</code>). For users whose package-manager landscape the autodetect script doesn't cover.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC9</strong> — Three architecture doc files updated in the same PR: (a) <code>docs/architecture/stack.md</code> line 52 row replaces forward-looking <em>"Install via <code>scripts/install-age.sh</code>"</em> phrasing with a shipped-row layout referencing the wrapper module path + the install script + the runbook + ADR-0003; § Internal modules adds a row for <code>biltiq_privacy.backup.age_stream</code>. (b) <code>docs/architecture/overview.md</code> line 43 replaces forward-looking <code>backup/{age_pipeline,manifest}.py</code> with the actual <code>backup/age_stream.py</code> + note that the orchestrator modules land in BILTIQ-005+; line 156 renames the anticipated <code>AgeBinaryNotFoundError</code> to the spec-locked <code>AgeNotInstalledError</code>. (c) <code>docs/architecture/approved-versions.md</code> § Currently approved adds a one-row entry "<code>age ≥ 1.2.0</code> (system binary; pinned in <code>stack.md</code> + <code>scripts/install-age.sh</code>)" so anti-pattern #9 (deprecated APIs) defence covers age alongside Python / Presidio / spaCy.</span>
+      </li>
+      <li class="ac-item">
+        <span class="ac-badge ac-open">OPEN</span>
+        <span class="ac-label"><strong>AC10</strong> — Static-grep meta-test <code>packages/python-core/tests/backup/test_no_intermediate_files.py</code> opens <code>age_stream.py</code> as text and asserts no occurrences of <code>NamedTemporaryFile</code>, <code>tempfile.mkstemp</code>, <code>tempfile.NamedTemporary</code>, <code>Path.write_bytes</code>, or <code>.write_text(</code> in the module source. Lifts the AC2/AC3 "no plaintext on disk" invariant from a code-review-only check (Risk #3) to an in-CI gate. Runs unconditionally — no <code>skipif(not shutil.which("age"))</code> needed since the test reads source text, not the binary.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li><strong>Backup orchestrator</strong> (Postgres <code>pg_dump</code> pipeline, Qdrant snapshots, uploads tar bundles, HMAC-signed <code>MANIFEST.json</code>) — deferred to BILTIQ-005+. The wrapper is the primitive; the orchestrator that calls it ships separately.</li>
+      <li><strong>Per-appliance keypair generation + storage convention</strong> (the CDSCO-RegAI <code>config/age-recipients/&lt;APPLIANCE_ID&gt;/</code> layout) — deferred. Callers of <code>open_age_writer</code> supply the recipient public key string; how they obtain or store it is not this ticket's concern.</li>
+      <li><strong>Key rotation policy + tooling</strong> — deferred to v0.5.0 when the orchestrator lands.</li>
+      <li><strong>Format compatibility with CDSCO-RegAI backup bundles</strong> — we handle bare <code>.age</code> files in both directions, but we do not promise to read CDSCO-RegAI's manifest-bundled archives. That's an orchestrator concern.</li>
+      <li><strong>Native PowerShell <code>.ps1</code> installer for Windows</strong> — Windows path is "run from MSYS2/Cygwin/MinGW shell" or follow the manual-install runbook. A native <code>.ps1</code> sibling is a follow-up ticket if Windows-native operator demand materialises.</li>
+      <li><strong>Async / <code>asyncio</code> variant of the context managers</strong> — sync <code>subprocess.Popen</code> only. The library convention from <code>approved-versions.md</code> allows async timeouts but the streaming pattern is naturally sync; async adapter is a follow-up if a consumer needs it.</li>
+      <li><strong>Vendoring or forking age</strong> — we depend on the system binary, never vendor or fork it. Same rule that applies to Presidio (Brief §2 rule 1).</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li class="placeholder">None remaining — the four major axes (scope / module location / OS targets / encrypt+decrypt symmetry) were locked in the Step 1 (Think) scope-lock dialogue with @harish on 2026-05-18. Any new questions surfaced during design get appended here.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Section</th>
+          <th>What Changed</th>
+          <th>Trigger</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-18</td>
+          <td>all</td>
+          <td>Initial draft — 9 ACs, 7 out-of-scope carve-outs, scope locked via Step 1 scope-lock dialogue.</td>
+          <td>BILTIQ-004</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>Acceptance Criteria</td>
+          <td>AC9 expanded from "stack.md only" to three doc files (stack.md + overview.md + approved-versions.md) covering the doc-drift the architect surfaced at design review. New AC10 added: static-grep meta-test enforcing the AC2/AC3 "no plaintext on disk" invariant as an in-CI gate rather than a code-review-only check. Spec now carries 10 ACs.</td>
+          <td>BILTIQ-004 Step 2 Plan, design-review Q1 + Q2 confirmations</td>
+        </tr>
+        <tr>
+          <td>2026-05-18</td>
+          <td>Estimate</td>
+          <td>Wall-clock band amended M → L. Iteration cycles 8 → 9 (now matches the 9-step plan). Human review 20 → 30 min (one extra AC + L-band install script add to review surface). Trigger: plan.html per-step compose at 6×S + 2×M + 1×L = 375 min ≈ L band; the plan-reviewer's compose-vs-spec heuristic ("per-step compose ≠ spec-level ±25%") would otherwise warn. Pre-empted at plan-draft time.</td>
+          <td>BILTIQ-004 Step 2 Plan, plan-draft estimate calibration</td>
+        </tr>
+        <!-- Agent appends a new row here on every edit. Never delete rows. -->
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
