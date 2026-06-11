@@ -104,8 +104,14 @@ These pins are deliberately tight because the library exposes specific Presidio 
 "presidio-analyzer >= 2.2, < 3"
 "presidio-anonymizer >= 2.2, < 3"
 "spacy >= 3.7, < 4"
-"en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz"
 "rapidfuzz >= 3.0, < 4"
+
+# en-core-web-sm is dev-path-only since BILTIQ-012 (ADR-0006): PyPI rejects
+# direct-URL Requires-Dist, so the published dist ships without the model.
+# The pin lives in the repo-root [dependency-groups].dev (and ci.yml);
+# consumers post-install (`python -m spacy download en_core_web_sm`) or opt
+# into PresidioDetector(auto_download_model=True). Version pin unchanged
+# from ADR-0002 (3.8.0).
 ```
 
 ```toml

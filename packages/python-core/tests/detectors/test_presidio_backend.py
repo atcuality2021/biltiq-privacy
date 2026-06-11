@@ -20,6 +20,8 @@ blob triggers Presidio's context-aware enhancer (e.g. "Voter" boosts
 """
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
 from biltiq_privacy.core.exceptions import MissingNERModelError
@@ -151,3 +153,81 @@ def test_non_oserror_build_fault_propagates(monkeypatch: pytest.MonkeyPatch) -> 
 def test_empty_text_returns_empty_list(detector: PresidioDetector) -> None:
     """detect('') returns [] — empty-input guard path."""
     assert detector.detect("") == []
+
+
+# --- BILTIQ-012 AC7: model-distribution behaviour (ADR-0006) -----------------
+# The published dist ships without en_core_web_sm (PyPI rejects direct-URL
+# deps), so the missing-model state is a real first-run path. The dev env HAS
+# the model installed, so the absent precondition is simulated by patching
+# build_engine; the download helper is patched alongside it (no network in
+# tests — the only mocks in this module).
+
+
+def test_missing_model_default_raises_with_both_remedies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC7 — default (no opt-in): typed error naming flag AND post-install."""
+    import biltiq_privacy.indian.recognisers as recognisers
+
+    def _raise_oserror() -> object:
+        raise OSError("Can't find model 'en_core_web_sm'")
+
+    monkeypatch.setattr(recognisers, "build_engine", _raise_oserror)
+    with pytest.raises(MissingNERModelError) as exc_info:
+        PresidioDetector().detect("ABCDE1234F")
+    message = str(exc_info.value)
+    assert "auto_download_model=True" in message
+    assert "spacy download en_core_web_sm" in message
+
+
+def test_auto_download_true_invokes_spacy_download_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC7 — opt-in: download helper called exactly once, then engine builds."""
+    # spacy.cli re-exports the download *function* under the same name as its
+    # defining submodule, so attribute traversal lands on the function;
+    # import_module reaches the module itself for patching.
+    download_module = importlib.import_module("spacy.cli.download")
+
+    import biltiq_privacy.indian.recognisers as recognisers
+
+    calls: list[str] = []
+
+    class _FakeEngine:
+        def analyze(self, text: str, language: str) -> list[object]:
+            return []
+
+    sentinel_engine = _FakeEngine()
+
+    def _fake_build_engine() -> object:
+        if not calls:  # model "absent" until the download has happened
+            raise OSError("Can't find model 'en_core_web_sm'")
+        return sentinel_engine
+
+    def _fake_download(model: str) -> None:
+        calls.append(model)
+
+    monkeypatch.setattr(recognisers, "build_engine", _fake_build_engine)
+    monkeypatch.setattr(download_module, "download", _fake_download)
+
+    detector = PresidioDetector(auto_download_model=True)
+    detector.detect("")  # empty text short-circuits analyze; engine still builds
+    assert calls == ["en_core_web_sm"]
+    # _engine is annotated AnalyzerEngine | None; the fake makes the identity
+    # check non-overlapping for mypy, so compare via object identity helper.
+    assert id(detector._engine) == id(sentinel_engine)
+
+
+def test_default_path_makes_no_network_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC7 — model present + defaults: the download helper is never touched
+    (on_prem_preferred guard)."""
+    download_module = importlib.import_module("spacy.cli.download")
+
+    def _explode(model: str) -> None:
+        raise AssertionError(f"network download attempted for {model!r}")
+
+    monkeypatch.setattr(download_module, "download", _explode)
+    detections = PresidioDetector().detect("ABCDE1234F")
+    assert any(d["entity_type"] == "IN_PAN" for d in detections)

@@ -88,7 +88,6 @@ name = "biltiq-privacy"
 version = "0.1.0"
 source = { editable = "packages/python-core" }
 dependencies = [
-    { name = "en-core-web-sm" },
     { name = "presidio-analyzer" },
     { name = "presidio-anonymizer" },
     { name = "rapidfuzz" },
@@ -97,6 +96,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "en-core-web-sm" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -105,7 +105,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz" },
     { name = "presidio-analyzer", specifier = ">=2.2,<3" },
     { name = "presidio-anonymizer", specifier = ">=2.2,<3" },
     { name = "rapidfuzz", specifier = ">=3.0,<4" },
@@ -114,6 +113,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz" },
     { name = "mypy", specifier = ">=1.10" },
     { name = "pytest", specifier = ">=7.4" },
     { name = "pytest-cov", specifier = ">=4.1" },
@@ -166,10 +166,28 @@ dependencies = [
     { name = "biltiq-privacy-server" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "en-core-web-sm" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "biltiq-privacy", editable = "packages/python-core" },
     { name = "biltiq-privacy-server", editable = "packages/python-server" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz" },
+    { name = "mypy", specifier = ">=1.10" },
+    { name = "pytest", specifier = ">=7.4" },
+    { name = "pytest-cov", specifier = ">=4.1" },
+    { name = "ruff", specifier = ">=0.5" },
 ]
 
 [[package]]

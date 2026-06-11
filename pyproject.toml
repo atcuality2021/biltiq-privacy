@@ -76,6 +76,18 @@ Issues = "https://github.com/atcuality2021/biltiq-privacy/issues"
 [tool.hatch.build.targets.wheel]
 bypass-selection = true
 
+# Dev/CI tooling + the NER model. en_core_web_sm is NOT a runtime dependency
+# of biltiq-privacy (PyPI rejects direct-URL Requires-Dist — ADR-0006); the
+# dev path keeps it bundled here so `uv sync` restores the contributor setup.
+[dependency-groups]
+dev = [
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz",
+]
+
 [tool.uv.workspace]
 members = ["packages/python-core", "packages/python-server"]
 

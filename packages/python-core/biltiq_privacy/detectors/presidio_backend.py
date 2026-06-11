@@ -50,10 +50,24 @@ class PresidioDetector(Detector):
         score_threshold: Minimum confidence a span must carry to be returned.
             Defaults to ``0.5``, matching the CDSCO-RegAI wrapper. Spans scoring
             below this (after Presidio's own context-boost scoring) are dropped.
+        auto_download_model: When ``True`` and ``en_core_web_sm`` is absent,
+            fetch it via spaCy's download helper on the first :meth:`detect`
+            call, then build the engine. **Defaults to ``False`` — the default
+            path performs no network call** (compliance mode
+            ``on_prem_preferred``; explicit per-instance opt-in, ADR-0006).
+            The published dist ships without the model (PyPI rejects
+            direct-URL dependencies), so a missing model is an expected
+            first-run state, not a packaging bug.
     """
 
-    def __init__(self, *, score_threshold: float = 0.5) -> None:
+    def __init__(
+        self,
+        *,
+        score_threshold: float = 0.5,
+        auto_download_model: bool = False,
+    ) -> None:
         self._score_threshold = score_threshold
+        self._auto_download_model = auto_download_model
         # Built on first detect() call (instance-level lazy singleton, AC3).
         self._engine: AnalyzerEngine | None = None
 
@@ -78,12 +92,24 @@ class PresidioDetector(Detector):
             try:
                 engine = build_engine()
             except OSError as err:
-                # spaCy raises OSError when the NER model is absent; surface a
-                # typed, actionable error and chain the cause (AP #3 — scoped
-                # catch, never bare; non-OSError faults propagate untouched).
-                raise MissingNERModelError(
-                    "Presidio could not load the spaCy NER model."
-                ) from err
+                # spaCy raises OSError when the NER model is absent (AP #3 —
+                # scoped catch; non-OSError faults propagate untouched).
+                if not self._auto_download_model:
+                    # MissingNERModelError appends the post-install hint; name
+                    # the opt-in flag here so both remedies reach the user.
+                    raise MissingNERModelError(
+                        "Presidio could not load the spaCy NER model. Either "
+                        "pass PresidioDetector(auto_download_model=True) or "
+                        "install it once with:"
+                    ) from err
+                # Explicit opt-in network call (ADR-0006): fetch the model
+                # once, then retry the build. A second failure propagates.
+                # spacy.cli re-exports download without listing it in __all__,
+                # so import from the defining module (mypy attr-defined).
+                from spacy.cli.download import download as spacy_download
+
+                spacy_download("en_core_web_sm")
+                engine = build_engine()
             self._engine = engine
 
         results = engine.analyze(text=text, language=language)

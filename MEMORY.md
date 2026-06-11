@@ -58,15 +58,7 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Recent decisions (last 30 days)
 
-- 2026-06-11 — **BILTIQ-011: 9 dev rulings + 4 documented behaviour deltas vs the CDSCO source** (caller-supplied timestamp; AC3-over-AC2 pattern reuse; one `generalisation_markers` list driving DPDP-1 filtering AND DPDP-4 detection — delta (d) false-negative surface dev-accepted with `("XXXX",)` escape hatch; `include_values=False` keeps PII out of report evidence by default). 3 process changes proposed in reflect.html, pending Friday review: false-negative analysis rule for filter-generalising rulings; test-generator "can the input even match?" check; ticket the `biltiq-gates.yml` fix.
-- 2026-06-11 — **ADR-0005 accepted** (BILTIQ-010) — canonical-JSON commitment recipe for the audit hash-chain: `sort_keys=True`, compact separators, `ensure_ascii=False`, `prev_hash`-first pre-image, `"0"*64` genesis sentinel, plus a committed golden vector pinning the cross-language contract for the native SDKs (`docs/adr/0005-audit-chain-canonical-serialization.md`).
-- 2026-05-22 — **4 process changes from BILTIQ-002 reflect — all ratified at Friday architecture review:**
-  - (a) `AGENT_RULES.md` Build-step rule: "sweep `design.html` for files-to-touch drift whenever a Build step touches a file not listed there" — closes the same root cause behind both BILTIQ-002 iteration_cycles overage and review_findings F1.
-  - (b) `stack.md` row schema: split "shipped" vs "planned" so forward-looking rows (e.g. `age` + `scripts/install-age.sh`) don't read as already-implemented — surfaced by user's mid-session "is age enabled?" question.
-  - (c) `code-reviewer` skill bake-in: forbidden-values grep (real PII the user pasted as examples) becomes a standing pre-flight check, not a per-task brief instruction.
-  - (d) New `pytest-import-mode-debug` skill: codifies the `consider_namespace_packages = true` rabbit hole hit at BILTIQ-002 Step 9 (4 attempts) so the next pytest-importlib drift is one skill-invocation, not a research session.
-- 2026-05-18 — **BILTIQ-004 opened (`age` wrapper deferred from BILTIQ-002)** — Python wrapper + cross-OS install script. Tracked in reflect.html tech-debt #1.
-- 2026-05-17 — **ADR-0001 + ADR-0002 accepted** (BILTIQ-001) — dual install paths (pip + uv); `en-core-web-sm` 3.8.0 pin.
+_(no decisions recorded)_
 
 ## Recently completed
 
@@ -154,11 +146,11 @@ _(no open questions)_
 
 ## Active task
 
-- **BILTIQ-004** — `age` system-binary wrapper. Branch: `feature/biltiq-004-age-wrapper`. Attack Loop state: Step 2 (Plan) complete, planning artifacts committed at `2e782d6`, plan-reviewer not yet run. Build will be 9 atomic steps mapped 1:1 to ACs (per `plan.html`).
+_(no task state recorded yet)_
 
 ## Today's activity
 
-- 2026-05-28 — `/biltiq-engineering:standup` run after 10-day gap. Discovered PR #4 (BILTIQ-002) actually merged 2026-05-18; MEMORY.md `Status` + `Current focus` were stale. Emitted two `standup_post` events (procedure schema + curator-compatible schema) to spine, ran curator, hand-edited the `manual` block (this commit) to reflect true state. Two procedure↔implementation gaps logged as BILTIQ-005 + BILTIQ-006 in `Known issues`.
+_(no activity recorded today)_
 
 ## Open blockers
 
@@ -170,7 +162,11 @@ _(no doctor installs recorded yet)_
 
 ## Documentation updates
 
-_(no documentation updates recorded yet)_
+- `2026-06-11 01:56` BILTIQ-010 user doc update -> v1.0.1 (vLLM)
+- `2026-06-11 01:53` BILTIQ-010 user doc create -> v1.0.0 (vLLM)
+- `2026-06-11 01:53` BILTIQ-010 operations doc update -> v1.0.1 (vLLM)
+- `2026-06-11 01:50` BILTIQ-010 operations doc create -> v1.0.0 (vLLM)
+- `2026-06-11 01:46` BILTIQ-010 developer doc create -> v1.0.0 (vLLM)
 
 ## Archive
 

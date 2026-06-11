@@ -60,6 +60,10 @@ jobs:
         run: |
           pip install -e packages/python-core -e packages/python-server
           pip install pytest pytest-cov mypy ruff
+          # en_core_web_sm is dev-path-only since BILTIQ-012 (ADR-0006):
+          # PyPI rejects direct-URL deps, so it is no longer pulled in by
+          # the package install above and CI fetches it explicitly.
+          pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz
 
       - name: Show installed biltiq packages
         run: pip list | grep -i biltiq || true
