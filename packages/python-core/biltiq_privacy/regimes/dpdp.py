@@ -53,6 +53,22 @@ _DEFAULT_MARKERS: Final[tuple[str, ...]] = ("XXXX", "Healthcare Facility", "Indi
 _EVIDENCE_CAP: Final[int] = 5
 """The source's ``real_residual[:5]`` evidence truncation, ported."""
 
+_INDIAN_ENTITY_TYPES: Final[frozenset[str]] = frozenset({
+    "IN_AADHAAR",
+    "IN_PAN",
+    "IN_ABHA",
+    "IN_GSTIN",
+    "IN_VOTER_ID",
+    "IN_IFSC",
+    "IN_PHONE",
+    "IN_MEDICAL_REG",
+})
+"""The eight entity names exactly as ``indian/recognisers.py`` declares them.
+
+Listed verbatim (not derived from ``PATTERNS`` keys — ``PHONE_IN`` maps to the
+``IN_PHONE`` entity); ``test_indian_entity_types_match_recognisers`` guards
+against drift when a recogniser is added or renamed."""
+
 
 def _scan_residual_pii(text: str) -> list[tuple[str, int, str]]:
     """Scan for PII that may have leaked through anonymisation.
@@ -114,10 +130,30 @@ class DPDPRegime(Regime):
     ) -> ComplianceReport:
         """Run the 8 CDSCO checks (DPDP-1..6, NDHM-1, ICMR-1) in source order.
 
-        Assembled in plan Step 3; DPDP-1 lands first (Step 2) because it
-        carries all four behaviour deltas.
+        Pure: no clock, no env, no I/O, no logging of inputs. ``compliant``
+        is ``True`` only when all 8 checks are ``"pass"`` (``warning`` and
+        ``info`` count against, exactly as the source's ``passed == total``).
         """
-        raise NotImplementedError("assembled in BILTIQ-011 plan Step 3")
+        checks = (
+            self._check_pii_removal(anonymised),
+            self._check_audit_trail(detections, audit_records),
+            self._check_reversibility(audit_records),
+            self._check_generalisation(anonymised),
+            self._check_indian_coverage(detections),
+            self._check_minimisation(original, anonymised),
+            self._check_ndhm(audit_records),
+            self._check_icmr(),
+        )
+        passed = sum(1 for check in checks if check.status == "pass")
+        return ComplianceReport(
+            regime_id=self.regime_id,
+            compliant=passed == len(checks),
+            passed=passed,
+            total=len(checks),
+            checks=checks,
+            generated_at=generated_at,
+            frameworks=self.frameworks,
+        )
 
     def _check_pii_removal(self, anonymised: str) -> ComplianceCheck:
         """DPDP-1 — no detected-PII shape may survive in the output."""
@@ -138,4 +174,110 @@ class DPDPRegime(Regime):
             details=f"{len(residual)} residual PII found" if residual else "No PII leaked",
             section="Section 8(1) — Data Minimisation",
             evidence=evidence,
+        )
+
+    @staticmethod
+    def _check_audit_trail(
+        detections: Sequence[Detection], audit_records: Sequence[AuditRecord]
+    ) -> ComplianceCheck:
+        """DPDP-2 — every anonymisation operation must be logged."""
+        return ComplianceCheck(
+            check_id="DPDP-2",
+            name="Audit Trail Completeness",
+            description="Every anonymisation operation must be logged",
+            status="pass" if len(audit_records) >= len(detections) else "warning",
+            details=f"{len(audit_records)} audit records for {len(detections)} detections",
+            section="Section 8(4) — Accountability",
+        )
+
+    @staticmethod
+    def _check_reversibility(audit_records: Sequence[AuditRecord]) -> ComplianceCheck:
+        """DPDP-3 — HMAC tokens allow authorised re-identification."""
+        has_tokens = any("[" in record["pseudonym_token"] for record in audit_records)
+        return ComplianceCheck(
+            check_id="DPDP-3",
+            name="Pseudonymisation Reversibility",
+            description="HMAC-based pseudonymisation allows authorised re-identification",
+            status="pass" if has_tokens else "warning",
+            details=(
+                "Deterministic HMAC tokens enable controlled re-identification"
+                if has_tokens
+                else "No pseudonym tokens found"
+            ),
+            section="Section 2(1)(t) — De-identification",
+        )
+
+    def _check_generalisation(self, anonymised: str) -> ComplianceCheck:
+        """DPDP-4 — generalised values cannot be reversed to original PII.
+
+        Marker detection over the injected ``generalisation_markers`` (the
+        source hardcoded the default trio; configurability is the AC4 ruling).
+        """
+        has_generalised = any(marker in anonymised for marker in self._markers)
+        return ComplianceCheck(
+            check_id="DPDP-4",
+            name="Generalisation Irreversibility",
+            description="Generalised values cannot be reversed to original PII",
+            status="pass" if has_generalised else "info",
+            details=(
+                "Age ranges, masked IDs, and regional labels applied"
+                if has_generalised
+                else "No generalisation detected (may be pseudonymise-only mode)"
+            ),
+            section="Section 8(7) — Right to Erasure",
+        )
+
+    @staticmethod
+    def _check_indian_coverage(detections: Sequence[Detection]) -> ComplianceCheck:
+        """DPDP-5 — Indian-specific identifiers must be detectable."""
+        detected_types = {detection["entity_type"] for detection in detections}
+        covered = _INDIAN_ENTITY_TYPES & detected_types
+        return ComplianceCheck(
+            check_id="DPDP-5",
+            name="Indian PII Type Coverage",
+            description="System must detect Indian-specific identifiers (Aadhaar, PAN, ABHA, etc.)",
+            status="pass" if covered else "warning",
+            details=(
+                f"Detected: {sorted(covered)}"
+                if covered
+                else "No Indian-specific PII detected in this document"
+            ),
+            section="DPDP Act — Indian Context",
+        )
+
+    @staticmethod
+    def _check_minimisation(original: str, anonymised: str) -> ComplianceCheck:
+        """DPDP-6 — informational size-change metric; always-pass in the source."""
+        reduction = 1.0 - (len(anonymised) / max(len(original), 1))
+        return ComplianceCheck(
+            check_id="DPDP-6",
+            name="Data Minimisation",
+            description="Only necessary non-PII data retained in output",
+            status="pass",
+            details=f"Text size change: {reduction:+.1%} (negative means tokens added)",
+            section="Section 4(2) — Purpose Limitation",
+        )
+
+    @staticmethod
+    def _check_ndhm(audit_records: Sequence[AuditRecord]) -> ComplianceCheck:
+        """NDHM-1 — PII separated from clinical data per NDHM policy."""
+        return ComplianceCheck(
+            check_id="NDHM-1",
+            name="Health Data Segregation",
+            description="PII separated from clinical data per NDHM policy",
+            status="pass" if audit_records else "warning",
+            details="PII stored in encrypted audit table, clinical data in anonymised output",
+            section="NDHM Health Data Management Policy",
+        )
+
+    @staticmethod
+    def _check_icmr() -> ComplianceCheck:
+        """ICMR-1 — ethical-use attestation; always-pass in the source."""
+        return ComplianceCheck(
+            check_id="ICMR-1",
+            name="Ethical Data Use",
+            description="Data processed only for regulatory review purposes",
+            status="pass",
+            details="All processing logged with timestamps and purpose",
+            section="ICMR Ethical Guidelines — Chapter 12",
         )

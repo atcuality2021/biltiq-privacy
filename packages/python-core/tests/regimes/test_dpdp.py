@@ -9,6 +9,8 @@ BILTIQ-002 ``*_VALID`` fixture tuples — no real identifiers.
 """
 from __future__ import annotations
 
+from biltiq_privacy.core.pseudonymiser import AuditRecord, Detection
+from biltiq_privacy.regimes.base import ComplianceReport
 from biltiq_privacy.regimes.dpdp import DPDPRegime, _scan_residual_pii
 from tests.fixtures.india import (
     AADHAAR_VALID,
@@ -117,3 +119,162 @@ def test_evidence_capped_at_five() -> None:
     text = " | ".join(f"mail{i}@example{i}.org" for i in range(6))
     check = DPDPRegime()._check_pii_removal(text)
     assert (len(check.evidence), check.details) == (5, "6 residual PII found")
+
+
+# --- Step 3: the remaining seven checks + validate() assembly ---------------
+
+
+def _detection(entity_type: str = "IN_AADHAAR") -> Detection:
+    return Detection(
+        entity_type=entity_type,
+        text="<synthetic>",
+        start=0,
+        end=11,
+        score=0.9,
+    )
+
+
+def _audit_record(token: str = "[IN_AADHAAR_1a2b3c4d]") -> AuditRecord:
+    return AuditRecord(
+        entity_type="IN_AADHAAR",
+        pseudonym_token=token,
+        position_start=0,
+        position_end=11,
+        confidence=0.9,
+    )
+
+
+def _statuses(report: object) -> dict[str, str]:
+    assert isinstance(report, ComplianceReport)
+    return {check.check_id: check.status for check in report.checks}
+
+
+def _validate(
+    *,
+    original: str = "Patient Aadhaar 1234.",
+    anonymised: str = "Patient Aadhaar [IN_AADHAAR_1a2b3c4d], age XXXX.",
+    detections: list[Detection] | None = None,
+    audit_records: list[AuditRecord] | None = None,
+    regime: DPDPRegime | None = None,
+) -> ComplianceReport:
+    return (regime or DPDPRegime()).validate(
+        original,
+        anonymised,
+        [_detection()] if detections is None else detections,
+        [_audit_record()] if audit_records is None else audit_records,
+        generated_at="2026-06-11T00:00:00+00:00",
+    )
+
+
+def test_dpdp2_enough_audit_records_passes() -> None:
+    """AC5 (DPDP-2 pass): records ≥ detections attests complete."""
+    assert _statuses(_validate())["DPDP-2"] == "pass"
+
+
+def test_dpdp2_fewer_records_than_detections_warns() -> None:
+    """AC5 (DPDP-2 non-pass): fewer records than detections → warning."""
+    report = _validate(detections=[_detection(), _detection()], audit_records=[_audit_record()])
+    assert _statuses(report)["DPDP-2"] == "warning"
+
+
+def test_dpdp3_bracketed_token_passes() -> None:
+    """AC5 (DPDP-3 pass): a ``[TYPE_hex]`` pseudonym token proves reversibility."""
+    assert _statuses(_validate())["DPDP-3"] == "pass"
+
+
+def test_dpdp3_no_tokens_warns() -> None:
+    """AC5 (DPDP-3 non-pass): no bracketed token anywhere → warning."""
+    report = _validate(audit_records=[_audit_record(token="redacted")])
+    assert _statuses(report)["DPDP-3"] == "warning"
+
+
+def test_dpdp4_default_marker_present_passes() -> None:
+    """AC5 (DPDP-4 pass): a default marker in the output proves generalisation."""
+    assert _statuses(_validate(anonymised="Age bracket XXXX recorded."))["DPDP-4"] == "pass"
+
+
+def test_dpdp4_no_marker_is_info() -> None:
+    """AC5 (DPDP-4 non-pass): no marker → info (pseudonymise-only mode)."""
+    assert _statuses(_validate(anonymised="token [IN_PAN_9f8e7d6c] only."))["DPDP-4"] == "info"
+
+
+def test_dpdp4_custom_markers_drive_detection() -> None:
+    """AC4 ruling: the injected marker list drives DPDP-4 detection."""
+    regime = DPDPRegime(generalisation_markers=("<BRACKET>",))
+    report = _validate(anonymised="Generalised to <BRACKET> here.", regime=regime)
+    assert _statuses(report)["DPDP-4"] == "pass"
+
+
+def test_dpdp5_indian_type_detected_passes() -> None:
+    """AC5 (DPDP-5 pass): ≥1 ``IN_*`` detection covers the Indian context."""
+    assert _statuses(_validate())["DPDP-5"] == "pass"
+
+
+def test_dpdp5_no_indian_types_warns() -> None:
+    """AC5 (DPDP-5 non-pass): only non-Indian entities → warning."""
+    report = _validate(detections=[_detection(entity_type="PERSON")])
+    assert _statuses(report)["DPDP-5"] == "warning"
+
+
+def test_dpdp6_always_passes_with_size_metric() -> None:
+    """AC5 (DPDP-6, annotated): always-pass in source; details carry the metric."""
+    report = _validate(original="aaaaaaaaaa", anonymised="aaaaa")
+    check = next(c for c in report.checks if c.check_id == "DPDP-6")
+    expected_details = "Text size change: +50.0% (negative means tokens added)"
+    assert (check.status, check.details) == ("pass", expected_details)
+
+
+def test_dpdp6_empty_original_division_guard() -> None:
+    """AC5 (DPDP-6 edge): empty original must not divide by zero (source's max())."""
+    assert _statuses(_validate(original="", anonymised="x"))["DPDP-6"] == "pass"
+
+
+def test_ndhm1_with_records_passes_and_empty_warns() -> None:
+    """AC5 (NDHM-1 pair): records present → pass; none → warning."""
+    assert _statuses(_validate())["NDHM-1"] == "pass"
+    assert _statuses(_validate(audit_records=[]))["NDHM-1"] == "warning"
+
+
+def test_icmr1_always_passes_with_section_metadata() -> None:
+    """AC5 (ICMR-1, annotated): always-pass in source; legal section preserved."""
+    report = _validate()
+    check = next(c for c in report.checks if c.check_id == "ICMR-1")
+    assert (check.status, check.section) == ("pass", "ICMR Ethical Guidelines — Chapter 12")
+
+
+def test_compliant_requires_all_pass() -> None:
+    """AC2: one ``warning`` flips ``compliant`` to False (source's passed == total)."""
+    report = _validate(audit_records=[])  # DPDP-2/3, NDHM-1 degrade
+    assert report.compliant is False and report.passed < report.total
+
+
+def test_fully_clean_run_is_compliant() -> None:
+    """AC2: all eight checks pass → ``compliant`` True, score 8/8."""
+    report = _validate()
+    assert (report.compliant, report.score) == (True, "8/8")
+
+
+def test_checks_emitted_in_source_order() -> None:
+    """AC2: check order preserved verbatim from the source."""
+    expected = ("DPDP-1", "DPDP-2", "DPDP-3", "DPDP-4", "DPDP-5", "DPDP-6", "NDHM-1", "ICMR-1")
+    assert tuple(check.check_id for check in _validate().checks) == expected
+
+
+def test_generated_at_echoed_verbatim() -> None:
+    """Dev ruling pin: caller-supplied timestamp is echoed, never replaced."""
+    assert _validate().generated_at == "2026-06-11T00:00:00+00:00"
+
+
+def test_identical_inputs_identical_report() -> None:
+    """AC2 determinism: same inputs → equal reports (no clock, no randomness)."""
+    assert _validate() == _validate()
+
+
+def test_indian_entity_types_match_recognisers() -> None:
+    """Drift guard: the DPDP-5 coverage set equals the recognisers' entities."""
+    from biltiq_privacy.indian.recognisers import INDIAN_RECOGNISERS
+    from biltiq_privacy.regimes.dpdp import _INDIAN_ENTITY_TYPES
+
+    assert _INDIAN_ENTITY_TYPES == frozenset(
+        recogniser.supported_entities[0] for recogniser in INDIAN_RECOGNISERS
+    )
