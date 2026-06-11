@@ -66,7 +66,7 @@
 | `asyncio.coroutine` decorator | `async def` | Removed in 3.11. |
 | `requests` (sync) | `httpx` (async) in the SDK helpers | Async-first stack. |
 | Bare `except:` | Specific exception, or `except Exception:` with explicit propagation | Anti-Pattern #3. |
-| `print()` in production code | `logging.getLogger(__name__).info()` with `RedactionFilter` attached | No structured output, no PII redaction otherwise. |
+| `print()` in production code | `logging.getLogger(__name__).info()` (attach `RedactionFilter` once it ships — PLANNED, see stack.md) | No structured output, no PII redaction otherwise. |
 | `python-Levenshtein` | `rapidfuzz` | GPL-2.0 contamination risk (Brief §2 rule 4). |
 | `pymupdf` | (extract PDF in *consuming* projects, not in this lib) | AGPL-3.0 contamination risk (Brief §2 rule 4). |
 
