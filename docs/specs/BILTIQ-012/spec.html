@@ -66,12 +66,13 @@
   <section id="acceptance-criteria">
     <h2>Acceptance Criteria</h2>
     <ul class="ac-list">
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — A top-level <code>anonymise(text, *, detector, key, regime=None, generalise=True) -> AnonymiseResult</code> chains Detector→Pseudonymiser→Generaliser→(Regime)→AuditChain; result carries <code>anonymised_text</code>, <code>detections</code>, <code>audit_row</code>, and <code>compliance</code> (when a regime is given).</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — A top-level <code>anonymise(text, *, detector, key, generated_at, regime=None, generalise=True, prev_hash=GENESIS_PREV_HASH) -> AnonymiseResult</code> chains Detector→Pseudonymiser→Generaliser→(Regime)→AuditChain; result carries <code>anonymised_text</code>, <code>detections</code>, <code>audit_row</code>, and <code>compliance</code> (when a regime is given). <code>generated_at</code> and <code>prev_hash</code> are caller-supplied — the library reads no clock (BILTIQ-010/011 determinism precedent, dev-ruled 2026-06-11).</span></li>
       <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>biltiq_privacy/__init__.py</code> exports the public surface (<code>anonymise</code>, <code>PresidioDetector</code>, <code>Detector</code>, <code>Regime</code>, <code>DPDPRegime</code>, error types) with a stable, documented API.</span></li>
       <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — End-to-end integration test: raw text containing Indian PII → detected → pseudonymised → generalised → DPDP report passes → audit row verifies.</span></li>
       <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — Default path imports no PDF/LLM/DB/FastAPI; LLM detection is opt-in only via an injected detector (Phase D). Compliance: <code>on_prem_preferred</code> respected.</span></li>
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Package version set to <code>0.1.0</code>; <code>CHANGELOG.md</code> entry added; <code>README</code> has a runnable usage example.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Package version set to <code>0.1.0</code>; <code>CHANGELOG.md</code> entry added; <code>README</code> has a runnable usage example; sdist + wheel build cleanly and <strong>v0.1.0 is published to PyPI at Ship</strong> (dev-ruled 2026-06-11 — publish in-task, not tag-only; publish itself is a dev-confirmed action with dev-supplied credentials).</span></li>
       <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC6</strong> — <code>python-core</code> builds and imports cleanly; full test suite green; passes <code>--strict</code> type check + banned-vocab/residue gates.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC7</strong> — Publishable packaging (dev-ruled 2026-06-11, plan-review finding #1): <code>en-core-web-sm</code> is removed from <code>[project].dependencies</code> (PyPI rejects direct-URL deps) and kept on the dev/CI install path; the built wheel's metadata contains no direct-URL <code>Requires-Dist</code> (gate-tested); <code>PresidioDetector</code> gains opt-in <code>auto_download_model=False</code> — when True and the model is missing, it downloads on first <code>detect()</code>; <strong>default path makes no network call</strong> (guard-tested); <code>MissingNERModelError</code>'s message names both remedies; README documents the post-install line; ADR records the amendment to the 2026-05-17 "spaCy bundled" decision.</span></li>
     </ul>
   </section>
 
@@ -87,9 +88,11 @@
   <section id="open-questions">
     <h2>Open Questions</h2>
     <ul>
-      <li>Result type — dataclass vs TypedDict? Lean dataclass for the public API.</li>
-      <li>Should <code>anonymise()</code> require a regime, or make compliance opt-in? Lean opt-in (detection+pseudonymise+generalise is useful alone).</li>
-      <li>Publish to PyPI as part of this task, or tag-only and publish in a separate release task? Confirm.</li>
+      <li><strong>RESOLVED 2026-06-11</strong> — Result type: <code>@dataclass(slots=True, frozen=True)</code> <code>AnonymiseResult</code>, per the approved-versions mandate for library return types.</li>
+      <li><strong>RESOLVED 2026-06-11</strong> — Regime is opt-in (<code>regime=None</code> default); detection+pseudonymise+generalise is useful alone.</li>
+      <li><strong>RESOLVED 2026-06-11 (dev-ruled)</strong> — Publish v0.1.0 to PyPI as part of this task's Ship step (not tag-only). The publish action runs only with explicit dev confirmation and dev-supplied credentials; if credentials are unavailable at Ship, the tag lands and publish becomes an immediate follow-up, recorded in reflect.</li>
+      <li><strong>RESOLVED 2026-06-11 (dev-ruled)</strong> — Determinism: <code>generated_at</code> (required kwarg) + <code>prev_hash=GENESIS_PREV_HASH</code> are caller-supplied; no clock read inside the library.</li>
+      <li><strong>RESOLVED 2026-06-11 (dev-ruled)</strong> — Sequencing: PR #11 reviewed + merged to main (<code>c114892</code>) before this task's Build; BILTIQ-012 branches off main.</li>
     </ul>
   </section>
 
@@ -97,7 +100,9 @@
     <h2>Change History</h2>
     <table>
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
-      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-012</td></tr></tbody>
+      <tbody><tr><td>2026-06-01</td><td>all</td><td>Initial draft from port brainstorm</td><td>BILTIQ-012</td></tr>
+      <tr><td>2026-06-11</td><td>AC1, AC5, open-questions</td><td>Think-step rulings folded in: caller-supplied <code>generated_at</code>/<code>prev_hash</code> on the facade signature; PyPI publish in-task at Ship; result dataclass; regime opt-in; PR #11 merged before Build. Artifact updates rendered inline (vLLM Socratic driver is interactive-only — <code>inline-Claude-required</code> fallback, consistent with BILTIQ-010/011).</td><td>BILTIQ-012 Think</td></tr>
+      <tr><td>2026-06-11</td><td>AC7 (new)</td><td>Plan-reviewer round 1 found the direct-URL <code>en-core-web-sm</code> dependency blocks any PyPI upload (Warehouse rejects direct-URL <code>Requires-Dist</code>). Dev ruled "1 and 3 both": drop from published dist + documented post-install, AND opt-in <code>auto_download_model</code> (default OFF — no network on the default path, preserving <code>on_prem_preferred</code>). Amends the 2026-05-17 "spaCy bundled" onboarding decision; ADR required.</td><td>plan-reviewer finding #1</td></tr></tbody>
     </table>
   </section>
 </main>

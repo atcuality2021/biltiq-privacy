@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Design: [TASK_TITLE]</title>
+  <title>Design: anonymise() orchestration + public API (v0.1.0)</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -88,20 +88,52 @@
 <body>
 <main>
   <header>
-    <h1>Design: [TASK_TITLE]</h1>
+    <h1>Design: anonymise() orchestration + public API (v0.1.0)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-012</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021 (drafted by biltiq-code-architect)</dd></div>
+      <div><dt>Created</dt><dd>2026-06-11</dd></div>
     </dl>
   </header>
 
   <section id="approach">
     <h2>Approach</h2>
     <h3>Name</h3>
-    <p class="placeholder">One-line name for the chosen approach.</p>
+    <p><strong>Thin facade module (<code>pipeline.py</code>) over existing wrappers, eagerly re-exported from <code>__init__.py</code></strong> — composition only, one ported helper.</p>
     <h3>Description</h3>
-    <p class="placeholder">Chosen approach narrative — why this option, what it trades off, what it preserves. 3–6 sentences.</p>
+    <p>A new module <code>biltiq_privacy/pipeline.py</code> holds the frozen <code>AnonymiseResult</code>
+    dataclass, the private <code>_merge_detections</code> helper (the <em>only</em> logic ported from CDSCO
+    <code>pipeline.py</code> — sort by <code>(start, -score)</code>, overlapping span keeps the higher score),
+    and the public <code>anonymise()</code> function that chains the five already-shipped pieces:
+    <code>Detector.detect</code> → <code>_merge_detections</code> → <code>Pseudonymiser.pseudonymise_text</code> →
+    <code>generalise_text</code> (opt-out) → <code>Regime.validate</code> (opt-in) → <code>audit_chain.append_row</code>.
+    The facade contributes no new algorithms beyond merge-dedup, the <code>GeneralisationSpan</code> zip
+    assembly that <code>core/generaliser.py:157</code> explicitly assigns to this task, and the audit-payload
+    dict (counts and hashes only — no PII). <code>__init__.py</code> re-exports the public surface with
+    plain eager imports: this is verified safe because every heavy import in the chain is already
+    method-level (<code>presidio_backend.detect()</code> defers Presidio/spaCy; <code>regimes</code> and
+    <code>core</code> are stdlib-light), so <code>import biltiq_privacy</code> stays lazy without any
+    <code>__getattr__</code> machinery — pinned by a new subprocess probe mirroring
+    <code>tests/detectors/test_lazy_import.py</code>. The library reads no clock and no environment:
+    <code>generated_at</code> is a required caller-supplied kwarg and <code>prev_hash</code> defaults to
+    <code>GENESIS_PREV_HASH</code> (dev-ruled 2026-06-11; BILTIQ-010/011 determinism precedent), so identical
+    inputs always produce an <code>==</code>-comparable result.</p>
+    <h3>Pipeline ordering invariant (load-bearing, test-pinned)</h3>
+    <p><code>_merge_detections</code> emits detections in start order and non-overlapping;
+    <code>pseudonymise_text</code> replaces end-of-string-backwards and then <em>reverses</em> its audit list
+    back to document order — therefore <code>zip(detections, audit_records)</code> aligns one-to-one, and
+    that zip builds the <code>GeneralisationSpan</code> list (<code>entity_type</code> + <code>text</code> from the
+    detection, <code>pseudonym_token</code> from the audit record). A dedicated test feeds deliberately
+    out-of-order detector output to pin this alignment.</p>
+    <h3>Empty-text / zero-detection behaviour (decided)</h3>
+    <p>CDSCO early-returns an empty dict before detection. The facade instead keeps <em>one uniform path</em>:
+    only the <code>detector.detect()</code> call is skipped when <code>text.strip()</code> is empty (avoids a
+    pointless spaCy model load); pseudonymise/generalise are no-ops over an empty detection list; the regime
+    (if given) still validates; and the audit row is <strong>always appended</strong>, recording a zero-entity
+    run. Rationale: "nothing found" is itself a compliance-relevant attestation — an auditor must be able to
+    distinguish "document processed, no PII detected" from "document never processed". Key validation still
+    fails fast (the <code>Pseudonymiser</code> is constructed first), so an empty key raises
+    <code>HMACKeyRequiredError</code> even for empty text.</p>
   </section>
 
   <section id="alternatives">
@@ -111,8 +143,11 @@
         <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
       </thead>
       <tbody>
-        <tr><td>1</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
-        <tr><td>2</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
+        <tr><td>1</td><td>Implement <code>anonymise()</code> directly in <code>__init__.py</code></td><td>Bloats the package root, mixes export surface with logic, harder to unit-test in isolation; a dedicated module mirrors the existing <code>detectors/</code> + <code>regimes/</code> layout and keeps <code>__init__.py</code> a pure re-export shim.</td></tr>
+        <tr><td>2</td><td>An <code>Anonymiser</code> class holding detector + key + regime (engine object)</td><td>The spec locks a function signature (AC1); every dependency is already injected per call, so a class adds mutable state and a second construction step for zero benefit. A convenience class can be layered additively later without breaking the function.</td></tr>
+        <tr><td>3</td><td>PEP 562 module-level <code>__getattr__</code> lazy re-exports in <code>__init__.py</code></td><td>Unnecessary — verified that <code>detectors/__init__.py</code> already imports <code>presidio_backend</code> eagerly and stays light because the backend defers all Presidio/spaCy imports to <code>detect()</code> (TYPE_CHECKING-guarded annotation). <code>__getattr__</code> would degrade autocomplete and <code>mypy --strict</code> ergonomics for no AC4 gain; the invariant is pinned by a subprocess probe instead.</td></tr>
+        <tr><td>4</td><td>Default <code>generated_at</code> to <code>datetime.now(timezone.utc)</code> when omitted</td><td>Dev-ruled out 2026-06-11: the library reads no clock (BILTIQ-010/011 determinism precedent). A clock default would make identical inputs produce different audit rows and break offline chain reproduction.</td></tr>
+        <tr><td>5</td><td>Return CDSCO's result <code>dict</code> shape verbatim</td><td><code>approved-versions.md</code> mandates <code>@dataclass(slots=True, frozen=True)</code> for library return types; a dict has no type surface and is mutable. CDSCO's <code>original_text</code> echo is also dropped — the caller already holds the input, and echoing it widens the PII surface of the result object.</td></tr>
       </tbody>
     </table>
   </section>
@@ -123,53 +158,171 @@
     <table>
       <thead><tr><th>File</th><th>Purpose</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What it does.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/pipeline.py</code></td><td><code>AnonymiseResult</code> frozen dataclass, private <code>_merge_detections</code> (CDSCO port, verbatim algorithm over a single pre-concatenated list), <code>_build_audit_payload</code>, and public <code>anonymise()</code>. Imports only light modules (<code>core.*</code>, <code>detectors.base</code>, <code>regimes.base</code>) — no Presidio/spaCy/FastAPI at module level. CDSCO source attribution in the module docstring (text-pipeline orchestration only; no PDF extraction, no LLM contextual branch, no CSV helper).</td></tr>
+        <tr><td><code>packages/python-core/tests/test_pipeline.py</code></td><td>Unit tests with a fake in-memory <code>Detector</code> (no model load): merge-dedup characterisation pinned against the CDSCO algorithm (overlap keeps higher score; sort key <code>(start, -score)</code>; intentionally different from BILTIQ-015's future longest-span-wins), zip-alignment with out-of-order detector output, <code>generalise=False</code> path, <code>regime=None</code> ⇒ <code>compliance is None</code>, empty-text zero-entity audit row, empty-key <code>HMACKeyRequiredError</code> propagation, audit-payload shape + PII-absence assertion, determinism (two identical calls ⇒ equal results + equal row hashes), chain continuation via <code>prev_hash=result.audit_row["hash"]</code>, frozen/slots contract.</td></tr>
+        <tr><td><code>packages/python-core/tests/test_e2e_anonymise.py</code></td><td>AC3 integration test: synthetic Indian PII text (reuses <code>tests/fixtures/india.py</code> <code>sample_indian_pii</code>) → <code>PresidioDetector</code> → pseudonymised → generalised → <code>DPDPRegime().validate</code> compliant → <code>verify_chain([result.audit_row])</code> valid. Plus the AC4 subprocess probe: <code>import biltiq_privacy</code> loads neither <code>presidio_analyzer</code>, <code>spacy</code>, nor <code>fastapi</code> (mirrors <code>tests/detectors/test_lazy_import.py</code>).</td></tr>
       </tbody>
     </table>
     <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
     <table>
       <thead><tr><th>File</th><th>Change</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What changes.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/__init__.py</code></td><td>Replace the scaffold-era stub: eager re-exports of the public surface (see API Contract § <code>__all__</code>), keep <code>__version__</code> via <code>importlib.metadata</code>, update module docstring with a 5-line usage sketch.</td></tr>
+        <tr><td><code>packages/python-core/tests/test_import.py</code></td><td>Extend the smoke tests: assert every name in the new <code>__all__</code> resolves via <code>getattr</code>, and that <code>__all__</code> is sorted/duplicate-free.</td></tr>
+        <tr><td><code>README.md</code></td><td>AC5: runnable end-to-end usage example (install → <code>anonymise()</code> with <code>PresidioDetector</code>, <code>DPDPRegime</code>, caller-supplied <code>generated_at</code>, chain continuation via <code>prev_hash</code>, <code>verify_chain</code>); retire the "Pre-implementation" status line. AC7: document the <code>en_core_web_sm</code> post-install line (and the <code>auto_download_model=True</code> alternative) right after the <code>pip install</code> step.</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td>AC5: <code>feat:</code> entry for the facade + public API under Unreleased; at Ship the Unreleased block rolls into <code>[0.1.0] - 2026-06-XX</code> (the existing dated placeholder).</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td>Same-PR rule: new Internal-modules row for <code>biltiq_privacy.pipeline.anonymise</code> / <code>AnonymiseResult</code> (facade — use it instead of hand-chaining the five wrappers).</td></tr>
+      </tbody>
+    </table>
+    <h3>Added 2026-06-11 (plan-review finding #1 + dev ruling "1 and 3 both") <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/python-core/pyproject.toml</code></td><td><code>version = "0.1.0"</code> already set — no bump. <strong>Remove the direct-URL <code>en-core-web-sm @ https://…</code> entry from <code>[project].dependencies</code></strong> (PyPI/Warehouse rejects direct-URL <code>Requires-Dist</code>; the build succeeds but the upload 400s). Keep the model on the dev/CI path via a dependency group (e.g. <code>[dependency-groups].dev</code> or root <code>[tool.uv]</code> sources) so the bundled workflow is unchanged for contributors. Mirror in <code>approved-versions.md</code> (its pinned-deps block quotes the old shape) in the same commit, per that file's header rule.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/detectors/presidio_backend.py</code></td><td><code>PresidioDetector</code> gains keyword-only <code>auto_download_model: bool = False</code>. On first <code>detect()</code>, if <code>en_core_web_sm</code> is absent: flag False → raise <code>MissingNERModelError</code> whose message names both remedies (post-install command + the flag); flag True → download via spaCy's CLI helper (import stays method-level), then build the engine. <strong>Default path performs no network call</strong> — guard-tested.</td></tr>
+        <tr><td><code>docs/adr/0006-spacy-model-distribution.md</code> (NEW)</td><td>ADR: amends the 2026-05-17 "spaCy model bundled" onboarding decision — bundled for dev/CI; published dist ships without the model; consumers post-install or opt into <code>auto_download_model=True</code>. Records the PyPI direct-URL constraint as the forcing fact and the <code>on_prem_preferred</code> gating (download is explicit opt-in, never default).</td></tr>
+        <tr><td><code>docs/architecture/approved-versions.md</code></td><td>Update the hard-pins block: <code>en-core-web-sm</code> moves from <code>[project.dependencies]</code> to the dev-path note, referencing ADR-0006.</td></tr>
+        <tr><td><code>packages/python-core/tests/detectors/test_presidio_backend.py</code></td><td>Three new tests for the model-distribution behaviour: missing-model error names both remedies; opt-in download invoked exactly once (download fn + availability check patched); default path makes no network call.</td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="data-model">
     <h2>Data Model Changes</h2>
-    <p class="placeholder">Schema deltas, new JSONL fields, new SQLite tables. Write "None" if no model changes.</p>
+    <p>No persistence schema (the library is stateless). Two new in-memory shapes:</p>
+    <h3>1. <code>AnonymiseResult</code> — <code>@dataclass(slots=True, frozen=True)</code> (approved-versions mandate)</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>anonymised_text</code></td><td><code>str</code></td><td>Final output: pseudonymised, then generalised when <code>generalise=True</code>.</td></tr>
+        <tr><td><code>detections</code></td><td><code>tuple[DetectedEntity, ...]</code></td><td>Merged, start-ordered, non-overlapping spans. Tuple (not list) so the frozen result is not mutable through its fields.</td></tr>
+        <tr><td><code>audit_records</code></td><td><code>tuple[AuditRecord, ...]</code></td><td>One per replaced span, document order; aligned 1:1 with <code>detections</code>. Carried because the regime report references them and consumers persist them beside the chain row. (Additive over AC1's minimum surface.)</td></tr>
+        <tr><td><code>audit_row</code></td><td><code>ChainedRow</code></td><td>The appended hash-chain link; <code>result.audit_row["hash"]</code> feeds the next call's <code>prev_hash</code>.</td></tr>
+        <tr><td><code>compliance</code></td><td><code>ComplianceReport | None</code></td><td><code>None</code> unless a <code>regime</code> was passed.</td></tr>
+      </tbody>
+    </table>
+    <h3>2. Audit-chain payload (the <code>dict[str, JsonValue]</code> given to <code>append_row</code>)</h3>
+    <pre><code>{
+  "generated_at":      &lt;caller-supplied str, echoed verbatim&gt;,
+  "doc_hash":          hash_text(original_text),      # SHA-256 commitment to the input
+  "anonymised_hash":   hash_text(anonymised_text),    # SHA-256 commitment to the output
+  "entities_detected": len(detections),               # int
+  "entity_summary":    {"IN_AADHAAR": 1, ...},        # Counter dict of entity_type -&gt; count
+  "generalised":       true | false,                  # which mode produced the output
+  "regime_id":         "DPDP-2023" | null,            # Regime.regime_id when given
+  "compliant":         true | false | null            # report.compliant when a regime ran
+}</code></pre>
+    <p><strong>PII rule:</strong> the payload carries counts, flags, and SHA-256 commitments only — never
+    original values, never pseudonym tokens, never span positions. The two hashes bind the row to a specific
+    input/output pair (an auditor holding the documents can re-derive and verify; an attacker holding only
+    the chain learns nothing — SHA-256 preimage resistance, reusing <code>core.doc_hasher.hash_text</code>,
+    the same primitive the chain itself uses). Canonical-JSON key sorting in <code>append_row</code> makes
+    <code>entity_summary</code> insertion order irrelevant, so the row hash is fully deterministic.</p>
   </section>
 
   <section id="api-contract">
     <h2>API Contract Changes</h2>
-    <p class="placeholder">New or changed function signatures, CLI interfaces, env vars. Write "None" if no API changes.</p>
-    <pre><code class="placeholder"># Example:
-# function_name(param: type) -> return_type
-</code></pre>
+    <p>Additive only — no existing signature changes. New public function + the first stable top-level export surface:</p>
+    <pre><code># packages/python-core/biltiq_privacy/pipeline.py
+def anonymise(
+    text: str,
+    *,
+    detector: Detector,                 # injected backend (PresidioDetector or custom)
+    key: bytes | str,                   # HMAC key; empty -&gt; HMACKeyRequiredError (fail-fast)
+    generated_at: str,                  # REQUIRED, caller-supplied; library reads no clock
+    regime: Regime | None = None,       # opt-in compliance attestation
+    generalise: bool = True,            # False == CDSCO "pseudonymise_only" mode
+    prev_hash: str = GENESIS_PREV_HASH, # chain continuation; default starts a new chain
+) -&gt; AnonymiseResult: ...
+
+# packages/python-core/biltiq_privacy/__init__.py  — __all__ (the v0.1.0 semver promise)
+__all__ = [  # sorted() — pinned by test_public_all_matches_documented_surface
+    "AnonymiseResult",
+    "AuditRecord",
+    "ChainedRow",
+    "CheckStatus",
+    "ComplianceCheck",
+    "ComplianceReport",
+    "DPDPRegime",
+    "DetectedEntity",
+    "Detector",
+    "GENESIS_PREV_HASH",
+    "HMACKeyRequiredError",
+    "MissingNERModelError",
+    "PresidioDetector",
+    "Regime",
+    "VerifyReport",
+    "__version__",
+    "anonymise",
+    "verify_chain",
+]</code></pre>
+    <p style="font-size:0.85rem">Rationale by group: facade (<code>anonymise</code>, <code>AnonymiseResult</code>); detection seam (<code>Detector</code>, <code>DetectedEntity</code>, <code>PresidioDetector</code>); regimes (<code>Regime</code>, <code>DPDPRegime</code>, <code>ComplianceReport</code>, <code>ComplianceCheck</code>, <code>CheckStatus</code>); errors (<code>HMACKeyRequiredError</code>, <code>MissingNERModelError</code>); audit chain (<code>GENESIS_PREV_HASH</code>, <code>ChainedRow</code>, <code>VerifyReport</code>, <code>verify_chain</code>); <code>AuditRecord</code> (element type of <code>result.audit_records</code>); <code>__version__</code>.</p>
+    <p><strong>Deliberate exclusions</strong> (importable from their subpackages, not part of the top-level
+    promise): <code>Pseudonymiser</code>, <code>append_row</code>, <code>Detection</code> (superseded by
+    <code>DetectedEntity</code> at the facade), <code>GeneralisationSpan</code>, the six
+    <code>generalise_*</code> field functions, <code>hash_text</code>/<code>hash_document</code>/<code>hmac_pseudonymise</code>,
+    and everything under <code>biltiq_privacy.indian</code>. Keeping the top level to 18 names keeps the
+    v0.1.0 compatibility surface small; power users keep the canonical <code>biltiq_privacy.core</code> /
+    <code>.indian</code> imports, which remain public-but-namespaced.</p>
+    <p>No CLI changes, no env vars (the library reads no environment — key is injected, per the
+    BILTIQ-007 contract).</p>
   </section>
 
   <section id="security-compliance">
     <h2>Security &amp; Compliance</h2>
     <ul>
-      <li class="placeholder">Compliance mode: <code>on_prem_preferred</code> — note any external call gating.</li>
-      <li class="placeholder">Secret handling: env vars only, never hardcoded.</li>
-      <li class="placeholder">Input escaping: note any user-controlled data embedded in output.</li>
+      <li><strong>Compliance mode: <code>on_prem_preferred</code></strong> — the default path introduces zero network calls and zero AI dependencies beyond the already-ADR'd local Presidio/spaCy stack. The LLM contextual branch of CDSCO's pipeline is explicitly <em>not</em> ported (Phase D, injected-detector only). One gated exception (added 2026-06-11): <code>PresidioDetector(auto_download_model=True)</code> may download <code>en_core_web_sm</code> on first <code>detect()</code> — explicit per-instance opt-in, default False, guard-tested, recorded in ADR-0006.</li>
+      <li><strong>No clock, no environment, no I/O</strong> in the facade: <code>generated_at</code> and <code>prev_hash</code> are caller-supplied; the key is an injected kwarg, never read from env inside <code>python-core</code> (BILTIQ-007 rule). The function is pure given its inputs.</li>
+      <li><strong>Key handling:</strong> the key is passed straight to <code>Pseudonymiser(key=key)</code>, validated before any text is touched (<code>HMACKeyRequiredError</code> on empty), never stored on the result, never logged, never embedded in the audit payload.</li>
+      <li><strong>No PII in the audit payload:</strong> counts, booleans, <code>regime_id</code>, and SHA-256 commitments only (see Data Model). Pseudonym tokens and span positions are deliberately excluded from the chain row; they live in <code>result.audit_records</code>, which the consumer routes to access-controlled storage.</li>
+      <li><strong>Result object PII surface:</strong> <code>detections</code> necessarily carry original span text (the detector contract); the result does <em>not</em> echo <code>original_text</code> (CDSCO did). README documents that <code>detections</code> are sensitive and must not be logged raw — pair with <code>RedactionFilter</code>.</li>
+      <li><strong>Lazy-import gate (AC4):</strong> subprocess probe pins that <code>import biltiq_privacy</code> loads no <code>presidio_analyzer</code>, <code>spacy</code>, <code>fastapi</code>, or PDF/LLM/DB module.</li>
+      <li><strong>Input escaping:</strong> not applicable — pure text-to-text library, no markup/SQL/shell sinks.</li>
     </ul>
   </section>
 
   <section id="performance">
     <h2>Performance Considerations</h2>
-    <p class="placeholder">Latency budget, data volume, hot paths. Write "None" if not applicable.</p>
+    <p>The hot path is detection (spaCy NER inside <code>engine.analyze</code>), unchanged by this task; the
+    Presidio engine remains an instance-level lazy singleton (first <code>detect()</code> pays the ~1–2&nbsp;s
+    model load, subsequent calls do not). The facade adds: one <code>sort</code> + single pass for merge
+    (O(k&nbsp;log&nbsp;k) in detection count k), the existing end-to-start string rebuild in
+    <code>pseudonymise_text</code> (O(n·k) worst case on document length n), and
+    <code>generalise_text</code>'s per-span <code>in</code> + <code>str.replace(token, …, 1)</code> (O(n·k)).
+    At document scale (the CDSCO production workload this ports) these string costs are negligible against
+    NER; no optimisation warranted at v0.1.0. <code>append_row</code> is one SHA-256 over
+    <code>prev_hash + canonical_json(payload)</code> — the payload is bounded (counts + two hashes), not
+    document-sized. Empty-text short-circuit avoids the model load entirely for blank inputs.</p>
   </section>
 
   <section id="rollout">
     <h2>Rollout Plan</h2>
     <ol style="padding-left: 1.4rem;">
-      <li class="placeholder">Step 1 — first safe change to land.</li>
-      <li class="placeholder">Step 2 — next change, depends on step 1.</li>
+      <li><code>pipeline.py</code> with <code>AnonymiseResult</code>, <code>_merge_detections</code>, <code>anonymise()</code> + <code>tests/test_pipeline.py</code> (fake detector — fast, no model). Merge-dedup behaviour characterised against the CDSCO source.</li>
+      <li><code>__init__.py</code> public surface + extended <code>test_import.py</code> + AC4 lazy-import subprocess probe.</li>
+      <li><code>tests/test_e2e_anonymise.py</code> — AC3 full-stack round trip (PresidioDetector + DPDPRegime + verify_chain).</li>
+      <li>Docs: README usage example, CHANGELOG feat entry, stack.md facade row.</li>
+      <li>Ship gate: full suite + <code>mypy --strict</code> + banned-vocab/residue gates green; <code>python -m build</code> sdist + wheel verified; tag <code>v0.1.0</code>; <strong>PyPI publish only on explicit dev confirmation with dev-supplied credentials</strong> (if unavailable, tag lands and publish becomes an immediate follow-up, recorded in reflect — per the locked spec ruling).</li>
     </ol>
     <h3>Rollback</h3>
-    <p class="placeholder">How to undo if something goes wrong after merge.</p>
+    <p><strong>Pre-publish:</strong> the change is purely additive — revert the facade module and the
+    <code>__init__.py</code> exports; no existing consumer or module is touched, no data migration exists.
+    <strong>Post-publish:</strong> a PyPI version is immutable — <code>yank</code> 0.1.0 (pip stops resolving
+    it for new installs) and release a fixed 0.1.1; never delete-and-reupload.</p>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>Risk</th><th>Level</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td>zip alignment between <code>detections</code> and <code>audit_records</code> silently breaks if either ordering contract drifts</td><td><span class="tag tag-risk-m">MED</span></td><td>Dedicated test feeds out-of-order detector input and asserts token-to-span pairing end-to-end; the invariant is documented at the zip site.</td></tr>
+        <tr><td><code>_merge_detections</code> semantics (higher-score-wins) diverge from BILTIQ-015's planned CompositeDetector (longest-span-wins), inviting a future "fix" that changes facade behaviour</td><td><span class="tag tag-risk-m">MED</span></td><td>Intentional-difference note in the helper docstring + characterisation tests pinning the CDSCO behaviour; the two live at different layers (intra-result dedup vs cross-backend composition).</td></tr>
+        <tr><td><code>DPDPRegime</code> on <code>generalise=False</code> output may report non-compliant (DPDP-4 generalisation check)</td><td><span class="tag tag-risk-low" style="background:#dcfce7;color:var(--color-risk-low);border:1px solid #86efac;">LOW</span></td><td>Correct behaviour, not a bug — the regime attests whatever the pipeline produced; documented in the <code>anonymise()</code> docstring and covered by a test.</td></tr>
+        <tr><td>PyPI publish at Ship is irreversible per version</td><td><span class="tag tag-risk-m">MED</span></td><td>Dev-confirmed action, dev-supplied credentials, build verified locally first; rollback is yank + 0.1.1 (see Rollout). Wheel-metadata gate (no direct-URL <code>Requires-Dist</code>) runs at Build, not just Ship, so the publishability defect class is caught before the index is involved.</td></tr>
+        <tr><td><code>auto_download_model=True</code> performs a network download from library code — tension with <code>on_prem_preferred</code> and the no-network test default</td><td><span class="tag tag-risk-m">MED</span></td><td>Default is False; the download requires an explicit per-instance opt-in and never triggers when the model is present. Guard test pins "default path makes no network call"; ADR-0006 records the gating. Airgapped consumers use the dev/post-install path.</td></tr>
+      </tbody>
+    </table>
   </section>
 
   <section id="change-history">
@@ -180,10 +333,22 @@
       </thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-11</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial architect draft</td>
+          <td>BILTIQ-012</td>
+        </tr>
+        <tr>
+          <td>2026-06-11</td>
+          <td>files-to-touch, api-contract, risks</td>
+          <td>Plan-reviewer round 1: (#1) direct-URL <code>en-core-web-sm</code> blocks PyPI upload — dev ruled "1 and 3 both": drop from published dist (keep dev path) + opt-in <code>auto_download_model=False</code> on <code>PresidioDetector</code>; ADR-0006 added to scope. (#4) <code>__all__</code> block re-rendered sorted to match its own test.</td>
+          <td>plan-reviewer round 1</td>
+        </tr>
+        <tr>
+          <td>2026-06-11</td>
+          <td>files-to-touch</td>
+          <td>Plan-reviewer round 2 (#3): README row extended with the AC7 post-install documentation; <code>tests/detectors/test_presidio_backend.py</code> added to the AC7 table (plan Step 4 edits it).</td>
+          <td>plan-reviewer round 2</td>
         </tr>
       </tbody>
     </table>

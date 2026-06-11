@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan: [TASK_TITLE]</title>
+  <title>Plan: anonymise() orchestration + public API (v0.1.0)</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -85,12 +85,12 @@
 <body>
 <main>
   <header>
-    <h1>Plan: [TASK_TITLE]</h1>
+    <h1>Plan: anonymise() orchestration + public API (v0.1.0)</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Branch</dt><dd><!-- feature/xxx --></dd></div>
-      <div><dt>Base</dt><dd><!-- main --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-012</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-012-anonymise-facade</dd></div>
+      <div><dt>Base</dt><dd>main (at <code>c114892</code>, post PR #11 merge)</dd></div>
+      <div><dt>Created</dt><dd>2026-06-11</dd></div>
     </dl>
   </header>
 
@@ -102,32 +102,115 @@
 
     <div class="step">
       <div class="step-header">
-        <span class="step-title">Step 1 — [Step title]</span>
-        <span class="band">M</span>
+        <span class="step-title">Step 1 — <code>pipeline.py</code> skeleton: <code>_merge_detections</code> port + characterisation tests</span>
+        <span class="band">S</span>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step comes first.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files created / modified</span></p>
+      <p class="step-meta"><strong>Rationale:</strong> <code>_merge_detections</code> is the only ported logic (CDSCO <code>pipeline.py:17-33</code> verbatim: sort <code>(start, -score)</code>, overlap keeps higher score) — pin it as its own commit before composing on top of it, so a behaviour question later bisects to a 30-line diff. Docstring carries the intentional-difference note vs BILTIQ-015's future longest-span-wins CompositeDetector (different layer).</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/biltiq_privacy/pipeline.py</code> (NEW — module docstring + helper only), <code>packages/python-core/tests/test_pipeline.py</code> (NEW)</p>
       <div class="step-tests">
-        <strong>Tests:</strong>
+        <strong>Tests (3):</strong>
         <ul>
-          <li class="placeholder">test_function_name — asserts X (AC1)</li>
+          <li><code>test_merge_overlap_keeps_higher_score</code> — CDSCO policy pinned (AC1)</li>
+          <li><code>test_merge_sorts_by_start_then_score_desc</code> — ordering contract that the zip-alignment depends on (AC1)</li>
+          <li><code>test_merge_non_overlapping_pass_through</code> — no-op on disjoint spans (AC1)</li>
         </ul>
       </div>
-      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code class="placeholder">pytest tests/path/to/test.py</code> — GREEN</p>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/test_pipeline.py -q</code> GREEN; <code>mypy --strict</code> on touched files clean; full suite GREEN</p>
     </div>
 
     <div class="step">
       <div class="step-header">
-        <span class="step-title">Step 2 — [Step title]</span>
+        <span class="step-title">Step 2 — <code>AnonymiseResult</code> + <code>anonymise()</code> orchestration</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> The facade itself. Built against a <em>fake in-test detector</em> so unit tests exercise orchestration without loading Presidio/spaCy (fast, deterministic, AC4-aligned).</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/biltiq_privacy/pipeline.py</code> (EDIT), <code>packages/python-core/tests/test_pipeline.py</code> (EDIT)</p>
+      <div class="step-tests">
+        <strong>Tests (11):</strong>
+        <ul>
+          <li><code>test_anonymise_returns_frozen_slots_dataclass</code> — result shape per approved-versions mandate (AC1)</li>
+          <li><code>test_anonymise_chains_detect_pseudonymise_generalise</code> — happy path with fake detector: tokens replaced, generaliser applied (AC1)</li>
+          <li><code>test_generalise_false_skips_generaliser</code> — pseudonymise-only mode == CDSCO <code>mode="pseudonymise_only"</code> (AC1)</li>
+          <li><code>test_regime_none_compliance_is_none</code> — opt-in regime ruling pinned (AC1)</li>
+          <li><code>test_regime_given_returns_compliance_report</code> — fake/DPDP regime path returns <code>ComplianceReport</code> wired with <code>generated_at</code> (AC1)</li>
+          <li><code>test_empty_text_returns_zero_entity_result_with_audit_row</code> — empty input still appends an attestation row (design ruling) (AC1)</li>
+          <li><code>test_empty_key_raises_hmac_key_required</code> — failure path propagates <code>HMACKeyRequiredError</code>, no partial result (AC1)</li>
+          <li><code>test_audit_row_chains_from_prev_hash_and_verifies</code> — <code>append_row</code> wiring; <code>verify_chain</code> over two successive calls (AC1)</li>
+          <li><code>test_audit_payload_contains_no_pii</code> — payload has counts/hashes only; asserts no detected value or token substring appears (AC1, security)</li>
+          <li><code>test_anonymise_is_deterministic</code> — same inputs (incl. <code>generated_at</code>, <code>prev_hash</code>) → byte-identical <code>audit_row["hash"]</code> (TypedDict — subscript access); no clock read (AC1)</li>
+          <li><code>test_zip_alignment_with_unordered_detector_output</code> — detector emitting out-of-start-order spans still aligns <code>pseudonym_token</code> to the right detection in <code>GeneralisationSpan</code>s (risk R1)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/test_pipeline.py -q</code> GREEN; <code>mypy --strict</code> clean; full suite GREEN</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 3 — Public surface: <code>__init__.py</code> exports + lazy-import probe</span>
         <span class="band">S</span>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step follows step 1.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files</span></p>
+      <p class="step-meta"><strong>Rationale:</strong> AC2's export list is mechanical once the facade exists. The load-bearing assertion is AC4: <code>import biltiq_privacy</code> must not pull Presidio/spaCy/FastAPI — eager re-export is safe only because <code>presidio_backend</code> defers its imports to <code>detect()</code> (design-verified); a subprocess probe pins that so a future refactor can't silently regress it.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/biltiq_privacy/__init__.py</code> (EDIT), <code>packages/python-core/tests/test_import.py</code> (EDIT — extend existing import tests)</p>
       <div class="step-tests">
-        <strong>Tests:</strong> <span class="placeholder">none (static files — structural correctness verified by step N)</span>
+        <strong>Tests (≈4):</strong>
+        <ul>
+          <li><code>test_public_all_matches_documented_surface</code> — <code>__all__</code> equals the design's 18-name list, sorted (AC2)</li>
+          <li><code>test_every_all_name_importable</code> — <code>getattr(biltiq_privacy, name)</code> for each (AC2)</li>
+          <li><code>test_top_level_import_loads_no_heavy_deps</code> — subprocess probe: <code>import biltiq_privacy</code> then assert <code>presidio_analyzer</code>/<code>spacy</code>/<code>fastapi</code> ∉ <code>sys.modules</code> (AC4)</li>
+          <li><code>test_version_is_0_1_0</code> — <code>__version__ == "0.1.0"</code> (AC5)</li>
+        </ul>
       </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/test_import.py -q</code> GREEN; <code>mypy --strict</code> clean; full suite GREEN</p>
     </div>
-    <!-- Add more steps by copying a .step block -->
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 4 — Publishable packaging: pyproject dep fix + <code>auto_download_model</code> + ADR-0006</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC7 (plan-review finding #1, dev-ruled "1 and 3 both"). PyPI rejects direct-URL <code>Requires-Dist</code>, so <code>en-core-web-sm @ https://…</code> moves out of <code>[project].dependencies</code> to the dev/CI dependency group (contributor workflow unchanged); <code>PresidioDetector</code> gains keyword-only <code>auto_download_model: bool = False</code> handling the now-possible missing-model case; ADR-0006 records the amendment to the 2026-05-17 "spaCy bundled" decision; <code>approved-versions.md</code> hard-pins block updated in the same commit (its header rule).</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/pyproject.toml</code> (EDIT), <code>packages/python-core/biltiq_privacy/detectors/presidio_backend.py</code> (EDIT), <code>packages/python-core/tests/detectors/test_presidio_backend.py</code> (EDIT), <code>docs/adr/0006-spacy-model-distribution.md</code> (NEW), <code>docs/architecture/approved-versions.md</code> (EDIT)</p>
+      <div class="step-tests">
+        <strong>Tests (3):</strong>
+        <ul>
+          <li><code>test_missing_model_default_raises_with_both_remedies</code> — model-absent + flag False → <code>MissingNERModelError</code>; message names the post-install command AND the flag; no download attempted (AC7)</li>
+          <li><code>test_auto_download_true_invokes_spacy_download_once</code> — model-absent + flag True → spaCy CLI download helper called exactly once, then engine builds (both the download fn AND the model-availability check patched — the dev env has the model installed, so the absent precondition must be simulated; no network in tests) (AC7)</li>
+          <li><code>test_default_path_makes_no_network_call</code> — model present + defaults → download helper never invoked (guard for <code>on_prem_preferred</code>) (AC7)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> detector tests GREEN; <code>mypy --strict</code> clean; full suite GREEN; <code>uv sync</code> (dev path) still installs the model</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 5 — AC3 end-to-end integration test (real Presidio + DPDP + chain verify)</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> Separate commit so the fake-detector unit layer (Step 1) and the heavy integration layer stay independently runnable. Uses the existing <code>sample_indian_pii</code> fixture and <code>PresidioDetector</code>; mirrors BILTIQ-011's <code>test_detector_to_regime_pipeline</code> but through the public <code>anonymise()</code> entry point only.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>packages/python-core/tests/test_e2e_anonymise.py</code> (NEW)</p>
+      <div class="step-tests">
+        <strong>Tests (≈3):</strong>
+        <ul>
+          <li><code>test_e2e_indian_pii_full_pipeline</code> — raw text with Indian PII → <code>anonymise(..., regime=DPDPRegime())</code>: originals absent from output, tokens/generalisations present, <code>compliance.compliant</code> is True, <code>verify_chain([result.audit_row])["valid"]</code> (TypedDict — subscript access) (AC3)</li>
+          <li><code>test_e2e_two_call_chain_verifies</code> — second call threads <code>prev_hash=first.audit_row["hash"]</code>; <code>verify_chain</code> over both rows (AC3)</li>
+          <li><code>test_e2e_no_network_calls</code> — pipeline run makes no outbound HTTP (socket guard), per test-generator rule for BiltIQ products (AC4)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/test_e2e_anonymise.py -q</code> GREEN; <code>mypy --strict</code> clean; full suite GREEN</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 6 — Docs + packaging verification: README example, CHANGELOG, stack.md, sdist/wheel build + metadata gate</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> AC5's visible deliverables. README gains a runnable example (the Step 5 happy path, trimmed) plus the post-install line (AC7); CHANGELOG gets the <code>feat</code> entry; <code>stack.md</code> gains the <code>pipeline.anonymise</code> row (same-PR rule). Packaging is verified now — <code>python -m build</code> (or <code>uv build</code>) must produce sdist+wheel cleanly, <strong>the wheel METADATA must contain no direct-URL <code>Requires-Dist</code></strong> (the exact defect class PyPI rejects), and the wheel must import in a scratch venv — so Ship's PyPI publish has no untested mechanics.</p>
+      <p class="step-meta"><strong>Files:</strong> <code>README.md</code> (EDIT), <code>CHANGELOG.md</code> (EDIT), <code>docs/architecture/stack.md</code> (EDIT)</p>
+      <div class="step-tests">
+        <strong>Tests:</strong> none new (static docs). Verification: build command output quoted; <code>unzip -p dist/*.whl '*/METADATA' | grep 'Requires-Dist.*@'</code> must match nothing; <code>pip install dist/*.whl</code> + <code>python -c "import biltiq_privacy; print(biltiq_privacy.__version__)"</code> in a scratch venv (deleted after — no residue). README example executed verbatim once to confirm it runs (AC5).
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> build exits 0; METADATA grep empty; wheel imports; full suite GREEN</p>
+    </div>
   </section>
 
   <section id="test-strategy">
@@ -135,16 +218,19 @@
     <table>
       <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
       <tbody>
-        <tr><td>Unit</td><td class="placeholder">function behavior</td><td class="placeholder">tests/path/test_foo.py</td></tr>
-        <tr><td>Integration</td><td class="placeholder">end-to-end round-trip</td><td class="placeholder">tests/path/test_integration.py</td></tr>
-        <tr><td>Manual</td><td class="placeholder">open in browser, verify rendered output</td><td>—</td></tr>
+        <tr><td>Unit</td><td>Merge policy, orchestration order, result shape, determinism, failure paths — all against a fake detector (no Presidio import)</td><td><code>tests/test_pipeline.py</code></td></tr>
+        <tr><td>Unit</td><td>Public surface: <code>__all__</code> contract, lazy-import subprocess probe, version pin</td><td><code>tests/test_import.py</code></td></tr>
+        <tr><td>Unit</td><td>Model-distribution behaviour: missing-model error message, opt-in download invocation, default-path no-network guard</td><td><code>tests/detectors/test_presidio_backend.py</code></td></tr>
+        <tr><td>Integration</td><td>AC3 round trip through the public entry point: PresidioDetector → DPDPRegime → chain verify; multi-call chaining; no-network guard</td><td><code>tests/test_e2e_anonymise.py</code></td></tr>
+        <tr><td>Manual</td><td>README example executed verbatim; wheel build + METADATA gate + install in scratch venv</td><td>—</td></tr>
       </tbody>
     </table>
+    <p style="font-size:0.85rem">Estimated new tests: ≈24 (3+11+4+3+3). Mocking ratio: fake detector only (1 of 5 collaborators) in the pipeline unit layer; one mocked download helper in Step 4; zero mocks in the integration layer — within the ≤50% rule.</p>
   </section>
 
   <section id="rollback-plan">
     <h2>Rollback Plan</h2>
-    <p class="placeholder">How to undo if something goes wrong. For additive-only changes: "Remove new files, revert text insertions. No data loss."</p>
+    <p>Additive-only until Ship: remove <code>pipeline.py</code> + new tests, revert the <code>__init__.py</code>/README/CHANGELOG/stack.md edits. No data, no schema. <strong>After PyPI publish</strong> (Ship step): a published version is immutable — rollback is <code>yank 0.1.0</code> on PyPI + publish <code>0.1.1</code>; never delete-and-reupload. The publish action itself runs only on explicit dev confirmation with dev-supplied credentials.</p>
   </section>
 
   <section id="risks">
@@ -153,10 +239,40 @@
       <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">Risk description</td>
-          <td class="placeholder">1</td>
+          <td>R1 — <code>zip(detections, audit_records)</code> alignment depends on two ordering contracts (merge emits start-ordered; pseudonymiser reverses audit back to document order); a detector emitting unordered spans could mispair tokens</td>
+          <td>2</td>
           <td><span class="risk-m">MED</span></td>
-          <td class="placeholder">How it is mitigated.</td>
+          <td><code>anonymise()</code> feeds the pseudonymiser the <em>merged, start-sorted</em> list only; <code>test_zip_alignment_with_unordered_detector_output</code> pins the behaviour.</td>
+        </tr>
+        <tr>
+          <td>R2 — Merge policy (higher-score-wins) intentionally differs from BILTIQ-015's future CompositeDetector (longest-span-wins); a future "harmonisation" could silently change v0.1.0 behaviour</td>
+          <td>1</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Docstring note naming the two layers + characterisation tests pinning the CDSCO policy.</td>
+        </tr>
+        <tr>
+          <td>R3 — <code>DPDPRegime</code> over <code>generalise=False</code> output may report non-compliant (DPDP-4 generalisation marker check)</td>
+          <td>2</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Correct attestation behaviour, not a bug — documented in the facade docstring; test asserts the report is still produced.</td>
+        </tr>
+        <tr>
+          <td>R4 — PyPI publish is irreversible per version; a packaging defect ships to the index</td>
+          <td>6/Ship</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Step 6 verifies sdist+wheel build + METADATA gate + scratch-venv install <em>before</em> Ship; publish is dev-confirmed; rollback = yank + 0.1.1.</td>
+        </tr>
+        <tr>
+          <td>R5 — Eager re-export regression: a future edit to <code>presidio_backend</code> moving imports to module level would break AC4 silently</td>
+          <td>3</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Subprocess probe in <code>test_import.py</code> fails the suite the moment heavy deps leak into top-level import.</td>
+        </tr>
+        <tr>
+          <td>R6 — <code>auto_download_model=True</code> is a network call from library code (<code>on_prem_preferred</code> tension); or the dep removal breaks the contributor/CI install path</td>
+          <td>4</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Default False; explicit per-instance opt-in; guard test pins the no-network default; ADR-0006 records the gating. Dev path keeps the model via the dependency group — <code>uv sync</code> verified in the Step 4 gate.</td>
         </tr>
       </tbody>
     </table>
@@ -168,10 +284,22 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-11</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft from locked spec + architect design. Rendered inline (vLLM Socratic driver is interactive-only — <code>inline-Claude-required</code> fallback, consistent with BILTIQ-010/011).</td>
+          <td>BILTIQ-012 Plan</td>
+        </tr>
+        <tr>
+          <td>2026-06-11</td>
+          <td>steps, test-strategy, risks</td>
+          <td>Plan-reviewer round 1 (5 findings): (#1) new Step 4 — publishable packaging (drop direct-URL model dep, opt-in <code>auto_download_model</code>, ADR-0006) + METADATA gate in Step 6; (#2) <code>ChainedRow</code>/<code>VerifyReport</code> are TypedDicts — test descriptions switched to subscript access; (#3) old Step 1 split into Steps 1 (merge port) + 2 (facade); (#5) <code>mypy --strict</code> added to every code-step gate (Steps 1–5; Step 6 is docs-only). Steps renumbered 1–6; ≈21 → ≈24 tests.</td>
+          <td>plan-reviewer round 1</td>
+        </tr>
+        <tr>
+          <td>2026-06-11</td>
+          <td>risks, steps 4/6</td>
+          <td>Plan-reviewer round 2 (mechanical): R1/R3 step refs 1→2, R4 4/Ship→6/Ship + mitigation text corrected to Step 6; Step 4 download test now notes the availability check is patched alongside the download fn; <code>mypy --strict</code> claim scoped to code steps. Escalated to human plan approval per the two-consecutive-revisions rule.</td>
+          <td>plan-reviewer round 2</td>
         </tr>
       </tbody>
     </table>
