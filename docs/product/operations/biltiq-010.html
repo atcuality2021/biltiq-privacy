@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BILTIQ-010 — Operations Runbook</title>
+    <style>
+        :root {
+            --primary: #0052cc;
+            --text: #172b4d;
+            --bg: #ffffff;
+            --code-bg: #f4f5f7;
+            --border: #dfe1e6;
+            --success: #36b37e;
+            --danger: #ff5630;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: #fafbfc;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            background: var(--bg);
+            padding: 40px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h1 { border-bottom: 2px solid var(--primary); padding-bottom: 10px; color: var(--primary); }
+        h2 { margin-top: 30px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        h3 { color: var(--primary); }
+        code {
+            background: var(--code-bg);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background: var(--code-bg);
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border: 1px solid var(--border);
+        }
+        th { background-color: var(--code-bg); }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .badge-done { background: #e3fcef; color: #006644; }
+        .badge-open { background: #ffebe6; color: #bf2600; }
+        #change-history tr:nth-child(even) { background: #fafbfc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BILTIQ-010 — Operations Runbook</h1>
+            <p><strong>Feature:</strong> Audit Hash-Chain (Pure Logic)<br>
+            <strong>Audience:</strong> Operations / Infrastructure</p>
+        </header>
+
+        <section id="overview">
+            <h2>Overview</h2>
+            <p>The <code>BILTIQ-010</code> module provides a stateless, tamper-evident audit mechanism located in <code>biltiq_privacy.core.audit_chain</code>. Unlike legacy implementations tied to SQLAlchemy, this is a "leaf" library containing pure mathematical logic to ensure cryptographic integrity of audit logs across disparate systems (Postgres, S3, JSON files).</p>
+            <p><strong>Core Logic:</strong></p>
+            <ul>
+                <li><code>append_row(prev_hash, payload)</code>: Computes a new <code>ChainedRow</code> using SHA-256.</li>
+                <li><code>verify_chain(rows)</code>: A single-pass forward walk that detects payload mutation, hash corruption, reordering, insertion, or deletion.</li>
+                <li><strong>Genesis Anchor:</strong> All chains must anchor to <code>GENESIS_PREV_HASH</code> (64 zero-hex characters).</li>
+            </ul>
+            <p><strong>Compliance Note:</strong> Designed to satisfy 21 CFR Part 11 and Annex 11 requirements for data integrity and non-repudiation of audit trails.</p>
+        </section>
+
+        <section id="deployment">
+            <h2>Deployment</h2>
+            <p>As a pure Python library, deployment is managed via standard package workflows. No database migrations or infrastructure provisioning are required for this specific component.</p>
+            <ul>
+                <li><strong>Integration:</strong> Consumers (e.g., CDSCO, CommandCenter) must import <code>biltiq_privacy.core.audit_chain</code> and integrate the <code>append_row</code> result into their existing persistence layer.</li>
+                <li><strong>Dependency Check:</strong> Ensure <code>requires-python &gt;= 3.11</code>. This module uses <code>TypeAlias</code> and the <code>|</code> union operator which are incompatible with older versions.</li>
+                <li><strong>Verification:</strong> Post-deployment, run the existing test suite to ensure the <code>doc_hasher</code> SHA-256 primitive is correctly mapped to the new chaining logic.</li>
+            </ul>
+        </section>
+
+        <section id="configuration">
+            <h2>Configuration</h2>
+            <p>There are no runtime environment variables or config files for this module. Configuration is strictly defined by the <strong>Canonical Serialization Contract</strong> (ADR-0005):</p>
+            <pre>json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)</pre>
+            <p><strong>Operational Constraints:</strong></p>
+            <ol>
+                <li><strong>Timestamps:</strong> The library does <em>not</em> read the system clock. Consumers must supply the timestamp within the payload to maintain determinism.</li>
+                <li><strong>Hashing:</strong> Uses the internal <code>doc_hasher.hash_text</code>. Do not replace this with <code>hashlib.sha256().hexdigest()</code> directly in consumer code to avoid divergence.</li>
+            </ol>
+        </section>
+
+        <section id="rollback-recovery">
+            <h2>Rollback and Recovery</h2>
+            <p>Because this is a stateless logic library, "rollback" refers to the library versioning in the application environment.</p>
+            <ul>
+                <li><strong>Rollback Strategy:</strong> In the event of a verification mismatch caused by a logic change, revert the Python package version to the previous stable release.</li>
+                <li><strong>Data Recovery:</strong> If an audit chain is detected as "broken" (via <code>verify_chain</code>), the module will report the <code>first_broken_index</code>. Operations must investigate the storage layer at that specific index to determine if a hardware failure or malicious tampering occurred. 
+                <em>Note: This module cannot "repair" a broken chain; it only detects the breach.</em></li>
+            </ul>
+        </section>
+
+        <section id="monitoring-alerts">
+            <h2>Monitoring and Alerts</h2>
+            <p>Monitoring should be implemented at the <strong>Consumer Level</strong> (the service writing/reading the rows).</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Alert Trigger</th>
+                        <th>Severity</th>
+                        <th>Action Required</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>verify_chain(rows).valid == False</code></td>
+                        <td>CRITICAL</td>
+                        <td>Immediate forensic audit of the storage layer. Possible data tampering or corruption.</td>
+                    </tr>
+                    <tr>
+                        <td><code>TypeError</code> during <code>append_row</code></td>
+                        <td>WARNING</td>
+                        <td>Check consumer payload for non-JSON-serializable types (e.g., complex objects, datetimes instead of strings).</td>
+                    </tr>
+                    <tr>
+                        <td>Missing <code>GENESIS_PREV_HASH</code> link</td>
+                        <td>HIGH</td>
+                        <td>Verify the integrity of the chain's origin; ensure the first row correctly references the 64-zero sentinel.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="change-history">
+            <h2>Change History</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Section</th>
+                        <th>What Changed</th>
+                        <th>Trigger</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2026-06-01</td>
+                        <td>all</td>
+                        <td>Initial draft from port brainstorm BILTIQ-010</td>
+                        <td>Initial Creation</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-01</td>
+                        <td>open-questions</td>
+                        <td>Resolved both OQs at Think: caller-supplied timestamp; canonical JSON. Spec locked.</td>
+                        <td>Design Decision</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-01</td>
+                        <td>acceptance-criteria</td>
+                        <td>All 5 ACs flipped OPEN&rarr;DONE after Step 5 verification.</td>
+                        <td>Testing Completion</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+</body>
+</html>

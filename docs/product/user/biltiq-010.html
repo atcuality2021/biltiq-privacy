@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BILTIQ-010 — User Guide</title>
+    <style>
+        :root {
+            --primary: #0056b3;
+            --text: #333;
+            --bg: #ffffff;
+            --code-bg: #f4f4f4;
+            --border: #ddd;
+            --success: #28a745;
+            --danger: #dc3545;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            background: var(--bg);
+            padding: 3rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-radius: 8px;
+        }
+        h1 { border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; color: var(--primary); }
+        h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+        h3 { margin-top: 1.5rem; color: #555; }
+        code {
+            background: var(--code-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background: var(--code-bg);
+            padding: 1rem;
+            overflow-x: auto;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        pre code { padding: 0; background: none; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+        }
+        th { background: #f8f9fa; }
+        .badge-done {
+            background: var(--success);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .note {
+            background: #e7f3ff;
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        #change-history { margin-top: 4rem; }
+        @media (max-width: 600px) {
+            .container { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>BILTIQ-010 — User Guide</h1>
+        <p><strong>Feature:</strong> Audit Hash-Chain (Pure Implementation)</p>
+        <p><strong>Audience:</strong> Infrastructure & Backend Developers</p>
+    </header>
+
+    <section id="what-this-does">
+        <h2>What This Does</h2>
+        <p>The <code>biltiq_privacy.core.audit_chain</code> module provides a lightweight, stateless, and tamper-evident mechanism for creating audit logs. Unlike traditional audit systems, this module is <strong>purely algorithmic</strong>: it handles the cryptographic commitment of data without imposing a database, web framework, or specific storage engine.</p>
+        
+        <h3>Key Capabilities</h3>
+        <ul>
+            <li><strong>Tamper-Evidence:</strong> Uses SHA-256 hash-chaining to ensure that any modification, insertion, deletion, or reordering of rows is cryptographically detectable.</li>
+            <li><strong>Deterministic Serialization:</strong> Implements a strict "Canonical JSON" contract (sort-keys, compact separators, UTF-8) to ensure chains are byte-identical across different programming languages and operating systems.</li>
+            <li><strong>Zero Side-Effects:</strong> The library does not read the system clock or write to disk. It is a functional tool that expects the caller to provide timestamps and handle persistence.</li>
+            <li><strong>Regulatory Alignment:</strong> Designed with the spirit of 21 CFR Part 11 and Annex 11 in mind, providing a portable, verifiable audit trail.</li>
+        </ul>
+    </section>
+
+    <section id="getting-started">
+        <h2>Getting Started</h2>
+        <p>To begin using the audit chain, you will primarily interact with the <code>GENESIS_PREV_HASH</code> constant and the <code>append_row</code> function.</p>
+        
+        <h3>Core Concepts</h3>
+        <ul>
+            <li><strong>Genesis:</strong> The very first row in a chain must use the constant <code>GENESIS_PREV_HASH</code> (64 zero characters) as its <code>prev_hash</code>.</li>
+            <li><strong>ChainedRow:</strong> A dictionary containing <code>prev_hash</code>, a <code>payload</code> (your data), and the resulting <code>hash</code>.</li>
+        </ul>
+
+        <h3>Basic Implementation Pattern</h3>
+        <pre><code>from biltiq_privacy.core.audit_chain import (
+    append_row, verify_chain, GENESIS_PREV_HASH
+)
+
+# 1. Create the first row (Genesis)
+row0 = append_row(GENESIS_PREV_HASH, {"event": "system_start", "ts": "2026-06-01T00:00:00Z"})
+
+# 2. Create subsequent rows using the previous hash
+row1 = append_row(row0["hash"], {"event": "user_login", "user": "admin"})
+
+# 3. Form a chain
+audit_log = [row0, row1]
+
+# 4. Verify integrity
+report = verify_chain(audit_log)
+print(f"Is valid: {report['valid']}")</code></pre>
+    </section>
+
+    <section id="common-tasks">
+        <h2>Common Tasks</h2>
+        
+        <h3>Generating a New Audit Trail</h3>
+        <p>When starting a new sequence, always anchor your first call to <code>append_row</code> with <code>GENESIS_PREV_HASH</code>. All subsequent rows must use the <code>hash</code> value of the row immediately preceding it.</p>
+
+        <h3>Verifying an Existing Chain</h3>
+        <p>The <code>verify_chain(rows)</code> function performs a single forward walk through the provided list. It detects:</p>
+        <ul>
+            <li><strong>Payload Mutation:</strong> If a single byte in the payload changes.</li>
+            <li><strong>Hash Corruption:</strong> If the stored hash itself is altered.</li>
+            <li><strong>Reordering/Insertion/Deletion:</strong> If the sequence of hashes is broken.</li>
+        </ul>
+        <p>If a failure is found, the function returns <code>valid: False</code> along with the <code>first_broken_index</code>.</p>
+
+        <h3>Handling Timestamps</h3>
+        <div class="note">
+            <strong>Important:</strong> This library <strong>never</strong> calls the system clock. To ensure the chain is deterministic and reproducible, you must include the timestamp inside your payload dictionary.
+        </div>
+    </section>
+
+    <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symptom</th>
+                    <th>Probable Cause</th>
+                    <th>Resolution</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>TypeError</code> during <code>append_row</code></td>
+                    <td>Payload contains non-JSON serializable data (e.g., a Python set or custom object).</td>
+                    <td>Ensure all payload values are standard JSON types (str, int, float, bool, dict, list, None).</td>
+                </tr>
+                <tr>
+                    <td><code>verify_chain</code> returns <code>valid: False</code></td>
+                    <td>The data has been tampered with or the sequence is interrupted.</td>
+                    <td>Check the <code>first_broken_index</code> to identify exactly where the integrity break occurred.</td>
+                </tr>
+                <tr>
+                    <td>Chains fail to verify across different machines</td>
+                    <td>Non-canonical JSON serialization is being used by the consumer.</td>
+                    <td>Ensure you are using the <code>append_row</code> function provided by this library, which enforces canonical key ordering and spacing.</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="change-history">
+        <h2>Change History</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Section</th>
+                    <th>What Changed</th>
+                    <th>Trigger</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>2026-06-01</td>
+                    <td>all</td>
+                    <td>Initial draft from port brainstorm BILTIQ-010</td>
+                    <td>Initial Creation</td>
+                </tr>
+                <tr>
+                    <td>2026-06-01</td>
+                    <td>open-questions</td>
+                    <td>Resolved both OQs at Think: caller-supplied timestamp; canonical JSON.</td>
+                    <td>Spec Locked</td>
+                </tr>
+                <tr>
+                    <td>2026-06-01</td>
+                    <td>acceptance-criteria</td>
+                    <td>All 5 ACs flipped OPEN&rarr;DONE after Step 5 verification.</td>
+                    <td>Reflect</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+</div>
+
+</body>
+</html>
