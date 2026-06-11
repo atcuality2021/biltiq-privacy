@@ -34,8 +34,7 @@ class AnonymiseResult:
     """Everything one :func:`anonymise` call produced.
 
     ``detections`` necessarily carry the original span text (the detector
-    contract) — treat the result as sensitive and do not log it raw; pair any
-    logging with :class:`~biltiq_privacy.core.log_filter.RedactionFilter`.
+    contract) — treat the result as sensitive and do not log it raw.
     The original input text is deliberately *not* echoed back (the caller
     already holds it; echoing widens the PII surface).
     """

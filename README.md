@@ -37,7 +37,7 @@ next_result = anonymise(
 assert verify_chain([result.audit_row, next_result.audit_row])["valid"]
 ```
 
-`result.detections` carries the original span text by design (the detector contract) — treat the result object as sensitive and don't log it raw; pair logging with `biltiq_privacy.core.log_filter.RedactionFilter`. The audit-chain payload itself is PII-free (counts, flags, and SHA-256 commitments only), so the rows are safe to persist anywhere.
+`result.detections` carries the original span text by design (the detector contract) — treat the result object as sensitive and don't log it raw. The audit-chain payload itself is PII-free (counts, flags, and SHA-256 commitments only), so the rows are safe to persist anywhere.
 
 ## Who it's for
 

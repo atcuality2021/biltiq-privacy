@@ -33,9 +33,9 @@ Dev ruling 2026-06-11 ("options 1 and 3 both"):
    `Requires-Dist` (gate-checked at Build: `unzip -p dist/*.whl '*/METADATA' |
    grep 'Requires-Dist.*@'` must match nothing).
 2. **The dev/CI path keeps the model bundled.** The direct URL moves to the
-   repo-root `[dependency-groups].dev` (PEP 735 groups never reach published
-   metadata), and `ci.yml` installs the tarball explicitly. Contributor workflow
-   (`uv sync`) is unchanged.
+   `[dependency-groups].dev` of both the repo root and `packages/python-core`
+   (PEP 735 groups never reach published metadata), and `ci.yml` installs the
+   tarball explicitly. Contributor workflow (`uv sync`) is unchanged.
 3. **Consumers get two remedies, both documented in `MissingNERModelError`:**
    - a one-line post-install: `python -m spacy download en_core_web_sm`;
    - opt-in self-service: `PresidioDetector(auto_download_model=True)` downloads

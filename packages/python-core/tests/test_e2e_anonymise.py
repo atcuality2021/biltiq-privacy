@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 """AC3 end-to-end integration tests for anonymise() (BILTIQ-012).
 
-Real stack, zero mocks: PresidioDetector (Presidio + Indian pack + spaCy NER)
+Real stack, zero behaviour mocks (one no-network guard patch on socket):
+PresidioDetector (Presidio + Indian pack + spaCy NER)
 → Pseudonymiser → generaliser → DPDPRegime → audit chain, all through the
 public top-level entry point only.
 """
@@ -99,6 +100,10 @@ def test_e2e_indian_pii_full_pipeline(
     assert statuses["DPDP-3"] == "pass"
     assert statuses["DPDP-4"] == "pass"
     assert statuses["DPDP-5"] == "pass"
+    # And the AC3 headline: the full report is compliant over this blob —
+    # a regression in any of the other four checks fails here.
+    assert result.compliance.compliant is True
+    assert result.compliance.score == "8/8"
 
     assert verify_chain([result.audit_row])["valid"] is True
 
