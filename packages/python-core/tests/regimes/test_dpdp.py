@@ -270,6 +270,66 @@ def test_identical_inputs_identical_report() -> None:
     assert _validate() == _validate()
 
 
+# --- Step 4: public surface + pipeline integration ---------------------------
+
+
+def test_public_names_importable_from_regimes() -> None:
+    """Convention: the five regime-surface names re-export from the package."""
+    import biltiq_privacy.regimes as regimes
+
+    for name in ("CheckStatus", "ComplianceCheck", "ComplianceReport", "DPDPRegime", "Regime"):
+        assert hasattr(regimes, name), f"{name} not importable from biltiq_privacy.regimes"
+
+
+def test_regimes_all_sorted_and_complete() -> None:
+    """Convention: ``__all__`` is sorted and matches the declared surface."""
+    import biltiq_privacy.regimes as regimes
+
+    assert regimes.__all__ == sorted(regimes.__all__)
+    assert set(regimes.__all__) == {
+        "CheckStatus",
+        "ComplianceCheck",
+        "ComplianceReport",
+        "DPDPRegime",
+        "Regime",
+    }
+
+
+def test_detector_to_regime_pipeline(sample_indian_pii: str) -> None:
+    """Integration: BILTIQ-009 detector → BILTIQ-007 pseudonymiser → regime.
+
+    Proves the design claim that detector output flows into ``validate()``
+    unchanged (a ``DetectedEntity`` is a ``Detection`` at runtime). Detections
+    are filtered to ``IN_*`` per the documented BILTIQ-002 client-side filter;
+    DPDP-1/4 outcomes depend on scan/marker detail, so the assertion targets
+    the structurally guaranteed checks.
+    """
+    from biltiq_privacy.core.pseudonymiser import Pseudonymiser
+    from biltiq_privacy.detectors import PresidioDetector
+
+    detections = [
+        d for d in PresidioDetector().detect(sample_indian_pii)
+        if d["entity_type"].startswith("IN_")
+    ]
+    anonymised, audit_records = Pseudonymiser(key=b"test-key").pseudonymise_text(
+        sample_indian_pii, list(detections)
+    )
+    report = DPDPRegime().validate(
+        sample_indian_pii,
+        anonymised,
+        detections,
+        audit_records,
+        generated_at="2026-06-11T00:00:00+00:00",
+    )
+    statuses = {check.check_id: check.status for check in report.checks}
+    assert report.total == 8
+    assert (statuses["DPDP-2"], statuses["DPDP-3"], statuses["DPDP-5"]) == (
+        "pass",
+        "pass",
+        "pass",
+    )
+
+
 def test_indian_entity_types_match_recognisers() -> None:
     """Drift guard: the DPDP-5 coverage set equals the recognisers' entities."""
     from biltiq_privacy.indian.recognisers import INDIAN_RECOGNISERS
