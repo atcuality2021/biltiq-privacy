@@ -46,12 +46,14 @@ def test_dpdp1_residual_gstin_fails_stricter_than_source() -> None:
 
 
 def test_phone_underscore_boundary_delta() -> None:
-    """Delta (b) pin: ``\\b`` lets an underscore-glued phone go unmatched.
+    """Delta (b) pin: ``\\b`` suppresses underscore-glued phones at regex level.
 
-    The source's lookbehind ``(?<![a-zA-Z0-9])`` flagged ``patient_<phone>``
-    filenames; BILTIQ-002's ``\\b`` treats the underscore as a word character,
-    so no boundary exists and the match is suppressed — and the scan's own
-    underscore heuristic would skip it anyway. Documented, dev-ruled.
+    The source's lookbehind ``(?<![a-zA-Z0-9])`` matched ``patient_<phone>``
+    filenames at the regex level but its scan-level underscore heuristic then
+    skipped them — same observable outcome as BILTIQ-002's ``\\b``, where the
+    underscore (a word character) means no boundary exists and the match never
+    forms. The delta is in the matching mechanism, not this case's outcome;
+    pinned so any future divergence surfaces. Documented, dev-ruled.
     """
     bare_phone = PHONE_IN_VALID[0].replace("+91", "").replace("-", "").replace(" ", "")
     check = DPDPRegime()._check_pii_removal(f"see patient_{bare_phone}.pdf")
