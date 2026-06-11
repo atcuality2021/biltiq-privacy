@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Design: [TASK_TITLE]</title>
+  <title>Design: Regime ABC + DPDP validator</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -88,20 +88,131 @@
 <body>
 <main>
   <header>
-    <h1>Design: [TASK_TITLE]</h1>
+    <h1>Design: Regime ABC + DPDP validator</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Author</dt><dd><!-- @harish --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-011</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-11</dd></div>
     </dl>
   </header>
 
   <section id="approach">
     <h2>Approach</h2>
     <h3>Name</h3>
-    <p class="placeholder">One-line name for the chosen approach.</p>
+    <p>Frozen-dataclass report contract behind a minimal <code>Regime</code> ABC: regime-agnostic
+    <code>Regime</code> / <code>ComplianceCheck</code> / <code>ComplianceReport</code> in
+    <code>regimes/base.py</code>; all eight CDSCO checks as private methods on
+    <code>DPDPRegime</code> in <code>regimes/dpdp.py</code>, with India-specific metadata
+    (check IDs, legal sections, framework names, residual-pattern table, marker defaults)
+    held as module-level data.</p>
+
     <h3>Description</h3>
-    <p class="placeholder">Chosen approach narrative — why this option, what it trades off, what it preserves. 3–6 sentences.</p>
+    <p>CDSCO's <code>backend/compliance/dpdp_validator.py</code> (151 LOC) returns nested plain
+    dicts from one function. This port splits it along the seam the spec names: the
+    <em>shape of an attestation</em> (any regime → a report of typed checks) goes into
+    <code>regimes/base.py</code>, and the <em>eight DPDP/NDHM/ICMR check behaviours</em> go into
+    <code>regimes/dpdp.py</code>. The report types are
+    <code>@dataclass(slots=True, frozen=True)</code> — mandated by
+    <code>approved-versions.md</code> ("Default shape for <code>ComplianceCheck</code>,
+    <code>ComplianceReport</code>, detector results") — with check status typed as
+    <code>Literal["pass", "fail", "warning", "info"]</code> (the four statuses the source emits;
+    no <code>Any</code>, Anti-Pattern #4). Overall <code>compliant</code> keeps the source
+    semantic: every check must be <code>"pass"</code> — <code>warning</code>/<code>info</code>
+    count against compliance, exactly as <code>passed == total</code> did in the source.</p>
+
+    <p><strong><code>validate()</code> signature.</strong> The ABC fixes
+    <code>validate(original, anonymised, detections, audit_records, *, generated_at) -&gt;
+    ComplianceReport</code>. The four positional parameters are the spec AC2 contract;
+    <code>detections</code>/<code>audit_records</code> reuse the shipped BILTIQ-007
+    <code>Detection</code>/<code>AuditRecord</code> TypedDicts from
+    <code>core/pseudonymiser.py</code> (typed as <code>Sequence[...]</code>; a BILTIQ-009
+    <code>DetectedEntity</code> is a <code>Detection</code> at runtime, so detector output flows in
+    unchanged — no parallel type, Anti-Pattern #1). <code>generated_at: str</code> is
+    <strong>required, keyword-only, caller-supplied</strong> per the dev ruling and the
+    BILTIQ-010 determinism precedent: the module never reads the clock, so identical inputs
+    always produce an identical (and <code>==</code>-comparable, thanks to frozen dataclasses)
+    report. This is a deliberate delta from the source's
+    <code>datetime.now(timezone.utc).isoformat()</code>; consumers that want a wall-clock stamp
+    pass <code>datetime.now(timezone.utc).isoformat()</code> themselves (the
+    <code>approved-versions.md</code> form), e.g. the BILTIQ-013 sidecar.</p>
+
+    <p><strong>Configurable generalisation markers (DPDP-4 ruling, extended at design review).</strong>
+    The marker list is a keyword-only constructor parameter —
+    <code>DPDPRegime(*, generalisation_markers: tuple[str, ...] = ("XXXX", "Healthcare Facility",
+    "India"))</code> — mirroring the <code>PresidioDetector(*, score_threshold=0.5)</code>
+    constructor-injection precedent. Defaults reproduce the CDSCO trio, so default behaviour is
+    source-equivalent while non-healthcare consumers can substitute their own markers (AC4).
+    Per the design-review ruling (2026-06-11) the <strong>same injected marker list</strong> also
+    drives DPDP-1's residual mask filter: a residual match is skipped when its value contains any
+    configured marker. A consumer overriding the markers changes DPDP-1 and DPDP-4 consistently
+    (one notion of "what generalised output looks like"). There is no separate
+    <code>_MASK_MARKER</code> constant. This widens the source's filter (which skipped only
+    <code>"XXXX"</code>-containing values) to all three default markers — <strong>behaviour delta
+    (d)</strong>, ratified at plan review: a residual value containing a descriptive marker (e.g.
+    a leaked email such as <code>contact@AirIndia.com</code>, whose text contains
+    <code>"India"</code>) is filtered here but would have been flagged by CDSCO — a known
+    false-negative surface in the default configuration, accepted for marker-semantics
+    consistency and pinned by a dedicated test so the behaviour is visible, not accidental.
+    Consumers wanting source-strict DPDP-1 filtering pass
+    <code>generalisation_markers=("XXXX",)</code>.</p>
+
+    <p><strong>Checks as methods, metadata as data (not a data-driven check registry).</strong>
+    Each check is a private method (<code>_check_pii_removal</code>, <code>_check_audit_trail</code>,
+    … <code>_check_icmr_ethics</code>) returning one <code>ComplianceCheck</code>;
+    <code>validate()</code> calls them in the fixed source order and assembles the report. The
+    eight checks take heterogeneous inputs (text scan; two list-length comparisons; a token-shape
+    probe; a substring scan; a set intersection; a length ratio) — a generic predicate table
+    would force a one-size <code>(context: dict[str, object]) -&gt; bool</code> signature that
+    erodes <code>mypy --strict</code> typing for zero extensibility gain. What AC4 actually
+    requires — that CDSCO/NDHM/ICMR <em>references</em> be data, not behaviour baked into the
+    abstraction — is satisfied by keeping <code>base.py</code> entirely regime-agnostic and
+    holding all India-specific identity as data in <code>dpdp.py</code>: check IDs in
+    legal-section format (<code>DPDP-1</code>…<code>DPDP-6</code>, <code>NDHM-1</code>,
+    <code>ICMR-1</code>), section strings, <code>frameworks = ("DPDP Act 2023", "NDHM", "ICMR",
+    "CDSCO")</code> as a <code>ClassVar</code>, the residual-pattern table, and the marker
+    defaults. NDHM-1 and ICMR-1 stay in <code>dpdp.py</code> per the dev ruling (India-specific
+    frameworks).</p>
+
+    <p><strong>Residual scan: reuse BILTIQ-002 + port only EMAIL (AC3 ruling).</strong> The
+    DPDP-1 scan iterates a module-level
+    <code>_RESIDUAL_PATTERNS: Final[dict[str, re.Pattern[str]]]</code> built as
+    <code>{**PATTERNS, "EMAIL": re.compile(EMAIL_PATTERN)}</code> — the eight compiled
+    BILTIQ-002 patterns by reference (never re-declared) plus the single pattern 002 lacks,
+    EMAIL, ported verbatim from CDSCO's <code>pii_patterns.py</code>
+    (<code>\b[\w.+-]+@[\w-]+\.[\w.]+\b</code>) as a <code>Final[str]</code> in
+    <code>dpdp.py</code> (placement weighed in § Alternatives). The scan ports the source's two
+    token-skip heuristics verbatim (skip a match directly preceded by <code>_</code>; skip a
+    match inside an unclosed <code>[</code> bracket — both protect pseudonym tokens like
+    <code>[IN_AADHAAR_1a2b3c4d]</code>) and the <code>"XXXX"</code> mask filter. Three behaviour
+    deltas vs the source, all pinned by tests: (a) <strong>stricter scan</strong> — CDSCO scanned
+    5 types (ABHA, AADHAAR, PAN, PHONE, EMAIL); we scan 9, so residual GSTIN / Voter ID / IFSC /
+    Medical-Reg values now fail DPDP-1; (b) <strong>phone boundary</strong> — BILTIQ-002's
+    <code>PHONE_IN_PATTERN</code> uses <code>\b</code> where the source used an
+    underscore-permitting lookbehind, changing matching adjacent to underscores
+    (e.g. <code>patient_98765…pdf</code> filenames); (c) <strong>no PII values in the report by default</strong>
+    — evidence is carried as <code>"TYPE@position"</code> strings (e.g.
+    <code>"AADHAAR@112"</code>) rather than the matched text, where the source embedded the
+    leaked value itself. The report is exactly the artifact consumers persist, log, and
+    (BILTIQ-013) return over HTTP; copying leaked PII into it would re-leak what the check exists
+    to catch. Per the design-review ruling (2026-06-11) this is <strong>configurable</strong>:
+    <code>DPDPRegime(*, include_values: bool = False)</code> — when <code>True</code>, evidence
+    strings carry the matched value (<code>"AADHAAR@112:1234 5678 9012"</code>, source-equivalent
+    triage detail) for consumers whose report sink is access-controlled. The safe behaviour is the
+    default; the flag's docstring warns that enabling it places PII in the report. A fourth delta,
+    (d) <strong>wider mask filter</strong> — DPDP-1's residual filter skips matches containing
+    <em>any</em> configured marker, not only <code>"XXXX"</code> (see the marker paragraph above;
+    ratified at plan review, pinned by test). Evidence is capped at 5 entries, porting the
+    source's <code>real_residual[:5]</code>; <code>details</code> carries the full count.</p>
+
+    <p><strong>DPDP-5 coverage set.</strong> The Indian-type set is a module constant
+    <code>_INDIAN_ENTITY_TYPES: Final[frozenset[str]]</code> listing the eight <code>IN_*</code>
+    entity names exactly as <code>indian/recognisers.py</code> declares them
+    (<code>IN_AADHAAR</code>, <code>IN_PAN</code>, <code>IN_ABHA</code>, <code>IN_GSTIN</code>,
+    <code>IN_VOTER_ID</code>, <code>IN_IFSC</code>, <code>IN_PHONE</code>,
+    <code>IN_MEDICAL_REG</code>) — identical to the source's set. It cannot be derived
+    mechanically from <code>PATTERNS</code> keys (the <code>PHONE_IN</code> key maps to the
+    <code>IN_PHONE</code> entity), so a consistency test asserts the constant equals the
+    recognisers' <code>supported_entity</code> set, preventing silent drift.</p>
   </section>
 
   <section id="alternatives">
@@ -111,8 +222,14 @@
         <tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr>
       </thead>
       <tbody>
-        <tr><td>1</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
-        <tr><td>2</td><td class="placeholder">Alternative name</td><td class="placeholder">One-line rejection reason.</td></tr>
+        <tr><td>1</td><td><code>TypedDict</code> report types (the <code>ChainedRow</code> / <code>Detection</code> precedent)</td><td>Foreclosed by <code>approved-versions.md</code>: the <code>@dataclass(slots=True, frozen=True)</code> row explicitly names <code>ComplianceCheck</code> and <code>ComplianceReport</code> as its targets ("Default shape for <code>ComplianceCheck</code>, <code>ComplianceReport</code>, detector results"). The wire-round-trip argument that justified TypedDicts for <code>ChainedRow</code> (BILTIQ-010) does not apply: a report is produced and read, never re-loaded for re-verification, and the BILTIQ-013 sidecar maps it to a pydantic response model anyway. Frozen dataclasses also give immutability — an attestation should not be editable after issue.</td></tr>
+        <tr><td>2</td><td>Data-driven check registry (a table of <code>(id, section, predicate)</code> rows the validator iterates)</td><td>The eight predicates take heterogeneous, differently-typed inputs; a uniform registry signature forces an untyped context bag (<code>dict[str, object]</code> probes everywhere) that fights <code>mypy --strict</code> and obscures each check's actual dependencies. AC4's "data, not hardcoded behaviour" concern is about the framework <em>references</em>, which are already data (constants + <code>ClassVar</code>s + constructor params); the predicate logic itself is behaviour and belongs in methods. Revisit only if Phase C regimes reveal genuinely table-shaped checks.</td></tr>
+        <tr><td>3</td><td>Add <code>EMAIL_PATTERN</code> to <code>indian/patterns.py</code> (BILTIQ-002's module)</td><td>Email is not an Indian ID format. <code>patterns.py</code>'s documented contract is "eight ID formats": its AC2 entity list, <code>_REDACT_ORDER</code>, the eight-recogniser Presidio adapter, and the BILTIQ-002 invariant tests all assume exactly eight — adding a ninth ripples through <code>redact()</code> ordering, the adapter, and shipped tests of a closed task. AC3's "port only what 002 lacks" names the gap, not the destination; the residual scan is the only consumer, so the constant lives beside it in <code>dpdp.py</code> and merges with <code>PATTERNS</code> at the scan table. If a second consumer appears (GDPR regime, Phase C), promote it to a shared region-agnostic patterns module then — per <code>stack.md</code>'s "when to add a wrapper" rule, not before.</td></tr>
+        <tr><td>4</td><td>New shared module <code>core/patterns.py</code> for region-agnostic patterns, seeded with EMAIL</td><td>A one-pattern, one-consumer module today — speculative structure (Anti-Pattern #6). Deferred to the first real second consumer; the <code>Final[str]</code> constant form makes the later move a cut-paste plus import change.</td></tr>
+        <tr><td>5</td><td>pydantic models for the report</td><td>Server-only by hard rule: <code>stack.md</code> § Library framework ("No FastAPI, no Starlette, no Pydantic-Settings"), <code>approved-versions.md</code> ("Pydantic is server-only; library uses dataclasses"), and the AGENT_RULES.md library/server boundary. The sidecar wraps the dataclass in its own response model.</td></tr>
+        <tr><td>6</td><td>Library-generated timestamp (<code>datetime.now(timezone.utc)</code> inside <code>validate()</code>)</td><td>Breaks determinism — identical inputs would yield unequal reports, making behaviour-equivalence tests (AC2) and report comparison flaky. Overruled by the explicit dev ruling adopting the BILTIQ-010 caller-supplied-timestamp precedent; the clock call stays in consumers, where <code>approved-versions.md</code> already prescribes its form.</td></tr>
+        <tr><td>7</td><td>Carry residual PII values in DPDP-1 evidence unconditionally (source behaviour: <code>real_residual[:5]</code> with <code>value</code>)</td><td>The report is the artifact that gets persisted, logged, and returned over HTTP (BILTIQ-013) — embedding the leaked value re-leaks it into every downstream sink, against the AGENT_RULES.md PII rule's spirit. <strong>Dev ruling 2026-06-11:</strong> configurable — <code>include_values: bool = False</code>; locators-only (<code>"AADHAAR@112"</code>) by default, values appended only on explicit opt-in for access-controlled sinks. Documented behaviour delta (c) applies to the default path.</td></tr>
+        <tr><td>8</td><td>Markers as a <code>validate()</code> parameter instead of constructor injection</td><td>Markers are regime configuration, not per-document input — passing them per call invites inconsistent values across calls on one regime instance and bloats the ABC signature every Phase C regime must carry. Constructor injection matches <code>PresidioDetector(*, score_threshold)</code> and <code>Pseudonymiser(*, key)</code>.</td></tr>
       </tbody>
     </table>
   </section>
@@ -123,53 +240,203 @@
     <table>
       <thead><tr><th>File</th><th>Purpose</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What it does.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/regimes/base.py</code></td><td>The regime-agnostic seam (AC1). Exports <code>CheckStatus</code> (<code>Literal</code> alias), <code>ComplianceCheck</code> and <code>ComplianceReport</code> (<code>@dataclass(slots=True, frozen=True)</code>), and the <code>Regime</code> ABC (<code>regime_id</code>/<code>frameworks</code> <code>ClassVar</code>s + abstract <code>validate()</code>). Imports: stdlib <code>abc</code>, <code>dataclasses</code>, <code>typing</code>, <code>collections.abc</code>, plus <code>Detection</code>/<code>AuditRecord</code> from <code>core/pseudonymiser.py</code>. No regex, no India reference, no Presidio/spaCy/FastAPI import (AC4). SPDX header + CDSCO-origin docstring, mirroring <code>detectors/base.py</code>.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/regimes/dpdp.py</code></td><td>The DPDP 2023 regime (AC2, AC3). <code>EMAIL_PATTERN: Final[str]</code> (ported verbatim from CDSCO <code>pii_patterns.py</code>), <code>_RESIDUAL_PATTERNS</code> (BILTIQ-002 <code>PATTERNS</code> by reference + compiled EMAIL), <code>_INDIAN_ENTITY_TYPES</code>, <code>_scan_residual_pii(text) -&gt; list[tuple[str, int, str]]</code> (token-skip heuristics ported verbatim; returns type + position + matched value for internal filtering — the value never reaches the report unless <code>include_values=True</code>), and <code>DPDPRegime(Regime)</code> (constructor: <code>generalisation_markers</code> + <code>include_values</code>) with the eight checks as private methods in source order; the injected marker list drives both the DPDP-1 mask filter and the DPDP-4 detection (design-review ruling). Check IDs, names, descriptions, and legal-section strings preserved verbatim from the source. Imports: stdlib <code>re</code>/<code>typing</code>, <code>regimes.base</code>, <code>indian.patterns</code>, <code>core.pseudonymiser</code> types — import-light, no Presidio/spaCy load.</td></tr>
+        <tr><td><code>packages/python-core/tests/regimes/__init__.py</code></td><td>Regular-package marker, matching <code>tests/core/</code> and <code>tests/detectors/</code> precedent.</td></tr>
+        <tr><td><code>packages/python-core/tests/regimes/test_regimes_base.py</code></td><td>AC1 tests: <code>Regime</code> cannot be instantiated; a subclass missing <code>validate</code> raises <code>TypeError</code>; a minimal concrete subclass works; <code>ComplianceCheck</code>/<code>ComplianceReport</code> are frozen (mutation raises <code>FrozenInstanceError</code>) and slotted (no <code>__dict__</code>); <code>score</code> property formats <code>"7/8"</code>; equality holds for identical field values (determinism support). Mirrors <code>test_detectors_base.py</code> structure.</td></tr>
+        <tr><td><code>packages/python-core/tests/regimes/test_dpdp.py</code></td><td>AC2/AC3/AC5 tests, synthetic PII only (reuse <code>tests/fixtures/india.py</code> values where useful). Per check: one passing + one failing/non-pass case (8 × 2 minimum) — DPDP-1 clean vs residual Aadhaar; DPDP-2 enough records vs fewer-than-detections → <code>warning</code>; DPDP-3 bracketed token vs none → <code>warning</code>; DPDP-4 default marker present vs absent → <code>info</code>; DPDP-5 Indian type detected vs none → <code>warning</code>; DPDP-6 details string correct incl. the empty-<code>original</code> division guard (always-<code>pass</code> edge); NDHM-1 records vs empty → <code>warning</code>; ICMR-1 metadata + always-<code>pass</code>. Plus: overall <code>compliant</code> only when all eight <code>pass</code> (a <code>warning</code> flips it); delta pins — (a) residual GSTIN → DPDP-1 fail (stricter-scan delta), (b) underscore-adjacent phone string pinning the <code>\b</code> behaviour delta, (c) default evidence strings carry no matched value AND <code>include_values=True</code> appends it (both flag states pinned); EMAIL residual caught (ported pattern); token-skip heuristics leave pseudonym tokens unflagged; custom <code>generalisation_markers</code> honoured by BOTH DPDP-4 detection and the DPDP-1 mask filter (override changes both consistently); <code>generated_at</code> echoed verbatim + identical inputs → equal reports; <code>_INDIAN_ENTITY_TYPES</code> equals the recognisers' <code>supported_entity</code> set.</td></tr>
+        <tr><td><code>packages/python-core/tests/regimes/test_lazy_import.py</code></td><td>Subprocess probe (pattern from <code>tests/detectors/test_lazy_import.py</code>): importing <code>biltiq_privacy.regimes</code> loads neither <code>presidio_analyzer</code>/<code>spacy</code> nor <code>fastapi</code> into <code>sys.modules</code> (AC4 purity, structurally enforced).</td></tr>
       </tbody>
     </table>
     <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
     <table>
       <thead><tr><th>File</th><th>Change</th></tr></thead>
       <tbody>
-        <tr><td><code class="placeholder">path/to/file.py</code></td><td class="placeholder">What changes.</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/regimes/__init__.py</code></td><td>Replace the BILTIQ-001 empty stub with re-exports following <code>detectors/__init__.py</code> verbatim style: <code>CheckStatus</code>, <code>ComplianceCheck</code>, <code>ComplianceReport</code>, <code>Regime</code> from <code>regimes.base</code>; <code>DPDPRegime</code> from <code>regimes.dpdp</code>; sorted <code>__all__</code>; docstring describing the surface and the import-light contract. No top-level <code>biltiq_privacy/__init__.py</code> edit — BILTIQ-009 set the convention that re-exports stop at the subpackage (<code>biltiq_privacy.detectors</code>), and the top-level module still exports only <code>__version__</code>.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td>Rewrite the reserved "Regime ABC" row (<code>biltiq_privacy.regimes.base.Regime</code> — "Implement to add a new regulatory framework") with the real surface: <code>validate(original, anonymised, detections, audit_records, *, generated_at) -&gt; ComplianceReport</code>, frozen-dataclass report types, caller-supplied timestamp, all-pass compliance semantic. Add a <code>DPDPRegime</code> row: eight checks (DPDP-1..6, NDHM-1, ICMR-1), residual scan reusing BILTIQ-002 <code>PATTERNS</code> + ported EMAIL, configurable <code>generalisation_markers</code>, four documented source deltas. Same PR as the code (stack.md update rule).</td></tr>
+        <tr><td><code>CHANGELOG.md</code></td><td><strong>Edit (at Ship).</strong> Add an <code>[Unreleased]</code> <code>feat:</code> line for <code>biltiq_privacy.regimes</code> in the BILTIQ-009/010 entry style: ABC + frozen-dataclass report contract, eight ported checks, reuse + deltas, test count, <code>mypy --strict</code> clean.</td></tr>
       </tbody>
     </table>
+    <h3>Explicitly NOT touched</h3>
+    <ul>
+      <li><code>indian/patterns.py</code> — the eight-pattern contract of the closed BILTIQ-002 task stays intact; EMAIL lives in <code>dpdp.py</code> (Alternative #3).</li>
+      <li><code>core/exceptions.py</code> — no new exception. <code>validate()</code> reports non-compliance in the return value (the BILTIQ-010 report-don't-raise symmetry); there is no rejection path that the stdlib doesn't already cover.</li>
+      <li><code>pyproject.toml</code> — no new dependency, no new test dep, no <code>pythonpath</code> change (same package).</li>
+      <li><code>biltiq_privacy/__init__.py</code> — top level stays <code>__version__</code>-only (BILTIQ-009 precedent).</li>
+    </ul>
   </section>
 
   <section id="data-model">
     <h2>Data Model Changes</h2>
-    <p class="placeholder">Schema deltas, new JSONL fields, new SQLite tables. Write "None" if no model changes.</p>
+    <p>Three new in-library types in <code>regimes/base.py</code>; no DB table, no JSONL field, no
+    schema migration, no change to shipped types.</p>
+    <pre><code># regimes/base.py
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Literal, TypeAlias
+
+CheckStatus: TypeAlias = Literal["pass", "fail", "warning", "info"]   # the 4 source statuses
+
+@dataclass(slots=True, frozen=True)
+class ComplianceCheck:
+    check_id: str                    # legal-section ID: "DPDP-1" .. "DPDP-6", "NDHM-1", "ICMR-1"
+    name: str                        # source "check" field, e.g. "PII Removal Completeness"
+    description: str                 # source description, verbatim
+    status: CheckStatus
+    details: str                     # human-readable outcome line (counts, never PII values)
+    section: str                     # legal citation, e.g. "Section 8(1) — Data Minimisation"
+    evidence: tuple[str, ...] = ()   # "TYPE@position" locators (default); values appended only on include_values=True (delta c); capped at 5 entries, ported from the source's real_residual[:5]
+
+@dataclass(slots=True, frozen=True)
+class ComplianceReport:
+    regime_id: str                   # e.g. "DPDP-2023"
+    compliant: bool                  # all checks status == "pass" (source: passed == total)
+    passed: int
+    total: int
+    checks: tuple[ComplianceCheck, ...]   # fixed source order; tuple keeps the dataclass hashable-safe
+    generated_at: str                # caller-supplied, echoed verbatim — no clock read
+    frameworks: tuple[str, ...]      # ("DPDP Act 2023", "NDHM", "ICMR", "CDSCO") for DPDP
+
+    @property
+    def score(self) -> str:          # source "score" field, derived: "7/8"
+        return f"{self.passed}/{self.total}"</code></pre>
+    <p>Field renames from the source dict (<code>id</code> → <code>check_id</code>,
+    <code>check</code> → <code>name</code>, <code>dpdp_compliant</code> → <code>compliant</code>,
+    <code>residual</code> → <code>evidence</code>) avoid a builtin shadow and de-Indianise the base
+    contract; the BILTIQ-013 sidecar owns any wire-format naming. The BILTIQ-007
+    <code>Detection</code>/<code>AuditRecord</code> TypedDicts are consumed, not modified.</p>
   </section>
 
   <section id="api-contract">
     <h2>API Contract Changes</h2>
-    <p class="placeholder">New or changed function signatures, CLI interfaces, env vars. Write "None" if no API changes.</p>
-    <pre><code class="placeholder"># Example:
-# function_name(param: type) -> return_type
-</code></pre>
+    <p>New public surface under <code>biltiq_privacy.regimes</code>; no existing contract changes.
+    Fully typed, no <code>Any</code>, no <code>type: ignore</code>; <code>mypy --strict</code> clean.</p>
+    <pre><code># regimes/base.py — public surface
+CheckStatus: TypeAlias = Literal["pass", "fail", "warning", "info"]
+
+class ComplianceCheck: ...   # frozen dataclass, see Data Model
+class ComplianceReport: ...  # frozen dataclass, see Data Model
+
+class Regime(abc.ABC):
+    """One regulatory framework's attestation strategy (DPDP now; GDPR/HIPAA/CCPA Phase C)."""
+    regime_id: ClassVar[str]
+    frameworks: ClassVar[tuple[str, ...]]
+
+    @abc.abstractmethod
+    def validate(
+        self,
+        original: str,
+        anonymised: str,
+        detections: Sequence[Detection],        # BILTIQ-007 TypedDict; DetectedEntity flows in unchanged
+        audit_records: Sequence[AuditRecord],   # BILTIQ-007 TypedDict
+        *,
+        generated_at: str,                      # caller-supplied (BILTIQ-010 precedent); echoed verbatim
+    ) -> ComplianceReport: ...
+
+
+# regimes/dpdp.py — public surface
+EMAIL_PATTERN: Final[str]   # ported verbatim from CDSCO pii_patterns.py
+
+class DPDPRegime(Regime):
+    regime_id: ClassVar[str] = "DPDP-2023"
+    frameworks: ClassVar[tuple[str, ...]] = ("DPDP Act 2023", "NDHM", "ICMR", "CDSCO")
+
+    def __init__(
+        self,
+        *,
+        generalisation_markers: tuple[str, ...] = ("XXXX", "Healthcare Facility", "India"),
+        include_values: bool = False,   # True → evidence carries matched PII values (opt-in, access-controlled sinks only)
+    ) -> None: ...
+
+    def validate(
+        self,
+        original: str,
+        anonymised: str,
+        detections: Sequence[Detection],
+        audit_records: Sequence[AuditRecord],
+        *,
+        generated_at: str,
+    ) -> ComplianceReport:
+        """Run the 8 CDSCO checks (DPDP-1..6, NDHM-1, ICMR-1) in source order.
+
+        Pure: no clock, no env, no I/O, no logging of inputs. compliant is
+        True only when all 8 checks are "pass" (warning/info count against).
+        """</code></pre>
+    <ul>
+      <li><strong>Re-exports:</strong> the five regime-surface names (<code>CheckStatus</code>, <code>ComplianceCheck</code>, <code>ComplianceReport</code>, <code>Regime</code>, <code>DPDPRegime</code>) importable from <code>biltiq_privacy.regimes</code> (sorted <code>__all__</code>). <code>EMAIL_PATTERN</code> stays public in <code>regimes.dpdp</code> but is NOT re-exported at the subpackage level — it is scan plumbing, not regime surface; consumers import it from the module, mirroring how BILTIQ-002 pattern constants live in <code>indian.patterns</code>.</li>
+      <li><strong>Private (not contract):</strong> <code>_scan_residual_pii</code>, <code>_RESIDUAL_PATTERNS</code>, <code>_INDIAN_ENTITY_TYPES</code>, the eight <code>_check_*</code> methods. The scan may be promoted to public surface later if a second consumer appears; not before.</li>
+      <li><strong>No CLI, no env var, no HTTP change</strong> — HTTP exposure is BILTIQ-013.</li>
+    </ul>
   </section>
 
   <section id="security-compliance">
     <h2>Security &amp; Compliance</h2>
     <ul>
-      <li class="placeholder">Compliance mode: <code>on_prem_preferred</code> — note any external call gating.</li>
-      <li class="placeholder">Secret handling: env vars only, never hardcoded.</li>
-      <li class="placeholder">Input escaping: note any user-controlled data embedded in output.</li>
+      <li><strong>Compliance mode <code>on_prem_preferred</code> — unaffected.</strong> The module is
+      pure stdlib (<code>abc</code>, <code>dataclasses</code>, <code>re</code>, <code>typing</code>)
+      plus in-repo imports (<code>indian.patterns</code>, <code>core.pseudonymiser</code> types).
+      No network, no external/cloud AI, no new dependency → <strong>no ADR required</strong>: no
+      dependency is added, no schema changes, no external service is integrated, and the design
+      follows the established BILTIQ-009/010 porting pattern. (We concur with the Step-1
+      assessment; the plan-reviewer can challenge.)</li>
+      <li><strong>No PII in the report or logs by default.</strong> The module performs no logging
+      at all (no <code>logging</code> call, no <code>print()</code>); the returned report carries
+      counts, statuses, and <code>"TYPE@position"</code> locators — never matched text, original
+      text, or detection values (delta c, § Approach). <code>details</code> strings are count-only
+      by construction. The sole exception is the explicit <code>include_values=True</code> opt-in
+      (dev-ratified), whose docstring warns that the report then contains PII and must go only to
+      access-controlled sinks; the default is always safe.</li>
+      <li><strong>Library/server boundary:</strong> no FastAPI/Starlette/uvicorn/pydantic/DB import
+      anywhere in <code>regimes/</code> (AC4); the <code>test_lazy_import.py</code> subprocess probe
+      enforces it structurally, satisfying the code-review auto-block.</li>
+      <li><strong>No secrets, no env reads:</strong> the regime takes no key and reads no
+      environment (AGENT_RULES.md secrets rule); the only configuration is the marker tuple,
+      injected at construction.</li>
+      <li><strong>Tests use synthetic PII only</strong> — values from the BILTIQ-002
+      <code>*_VALID</code> tuples / <code>tests/fixtures/india.py</code>; no real identifiers
+      anywhere, including in the delta-pin cases.</li>
+      <li><strong>Honest attestation scope:</strong> the report attests the eight ported checks
+      against DPDP 2023 / NDHM / ICMR references; it is not a certification claim (AGENT_RULES.md
+      § Banned in product specs). Docstrings state this plainly.</li>
     </ul>
   </section>
 
   <section id="performance">
     <h2>Performance Considerations</h2>
-    <p class="placeholder">Latency budget, data volume, hot paths. Write "None" if not applicable.</p>
+    <p>The hot path is DPDP-1's residual scan: nine pre-compiled <code>finditer</code> passes over
+    the anonymised text — O(9·n) with small constants. All nine patterns are simple
+    bounded-quantifier character-class regexes (no nested quantifiers, no alternation explosion),
+    so there is no catastrophic-backtracking surface; a 1 MB document costs nine linear scans,
+    low tens of milliseconds on commodity hardware. The per-match skip heuristics slice two short
+    fixed-width windows (≤ 20 chars) — O(1) per match. Eight of the nine compiled patterns are
+    shared with BILTIQ-002 (compiled once at <code>indian.patterns</code> import); only EMAIL
+    compiles at <code>dpdp.py</code> import. The remaining checks are trivial: DPDP-4 is
+    <em>k</em> substring searches (k = 3 by default, O(k·n)); DPDP-2/3/5/NDHM-1 are O(d) passes
+    over detections/audit records; DPDP-6 is O(1) arithmetic. No model load, no NER, no I/O —
+    importing and running the regime never touches Presidio/spaCy. <code>validate()</code> makes a
+    single pass over each input; nothing is re-scanned. No latency-budget concern for the sidecar's
+    per-request path (BILTIQ-013).</p>
   </section>
 
   <section id="rollout">
     <h2>Rollout Plan</h2>
+    <p>Branch: <code>feature/biltiq-011-dpdp-regime</code>. Atomic commits in
+    <code>BILTIQ-011: &lt;step&gt;</code> format; each step is one <code>/biltiq-engineering:build</code>
+    invocation, ≤ 1 hour.</p>
     <ol style="padding-left: 1.4rem;">
-      <li class="placeholder">Step 1 — first safe change to land.</li>
-      <li class="placeholder">Step 2 — next change, depends on step 1.</li>
+      <li>Step 1 — Create <code>regimes/base.py</code> (<code>CheckStatus</code>, <code>ComplianceCheck</code>, <code>ComplianceReport</code>, <code>Regime</code>) + <code>tests/regimes/__init__.py</code> + <code>test_regimes_base.py</code>. No DPDP dependency. (AC1.)</li>
+      <li>Step 2 — Create <code>regimes/dpdp.py</code>: <code>EMAIL_PATTERN</code>, <code>_RESIDUAL_PATTERNS</code>, <code>_scan_residual_pii</code>, <code>DPDPRegime</code> with the eight check methods. Depends on Step 1. (AC2, AC3, AC4.)</li>
+      <li>Step 3 — Create <code>test_dpdp.py</code> (8 × pass/fail + delta pins + marker config + determinism + coverage-set consistency) and <code>test_lazy_import.py</code>. Depends on Step 2. (AC5; deltas a/b/c pinned per the spec ruling.)</li>
+      <li>Step 4 — Rewrite <code>regimes/__init__.py</code> re-exports + sorted <code>__all__</code>; update the reserved <code>stack.md</code> Regime row and add the <code>DPDPRegime</code> row. Depends on Steps 1–2.</li>
+      <li>Step 5 (Ship) — <code>CHANGELOG.md</code> <code>feat:</code> entry; PR via template. High-risk task: human plan review (30 min allocated in spec header) gates Build; human code review gates merge. Depends on Steps 1–4.</li>
     </ol>
     <h3>Rollback</h3>
-    <p class="placeholder">How to undo if something goes wrong after merge.</p>
+    <p>Pure leaf module: two new source files, three new test files, plus additive edits to a
+    previously-empty <code>__init__.py</code>, a reserved <code>stack.md</code> row, and
+    <code>CHANGELOG.md</code>. No data model, no migration, no existing-contract change, and no
+    consumer yet (BILTIQ-013 sidecar and BILTIQ-012 orchestrator have not landed). Rollback is a
+    single <code>git revert</code> of the merge commit — nothing else references the new
+    surface.</p>
   </section>
 
   <section id="change-history">
@@ -180,10 +447,22 @@
       </thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-11</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft from locked spec (5 dev rulings honoured: caller-supplied <code>generated_at</code>, AC3-over-AC2 pattern reuse with deltas a/b pinned, configurable DPDP-4 markers defaulting to the CDSCO trio, NDHM/ICMR data kept in <code>dpdp.py</code>, high-risk human review gates). Frozen-dataclass report types per <code>approved-versions.md</code> mandate; checks as private methods with metadata as data; EMAIL pattern placed in <code>regimes/dpdp.py</code>, not <code>indian/patterns.py</code>; new delta (c): residual evidence carries <code>TYPE@position</code> only, never matched PII values — flagged for dev ratification at plan review. No ADR needed (no new dependency, no schema change, BILTIQ-009/010 porting precedent). vLLM Socratic driver unavailable headlessly — inline-Claude-required fallback in effect for this Step 2 artifact.</td>
+          <td>BILTIQ-011 Step 2</td>
+        </tr>
+        <tr>
+          <td>2026-06-11</td>
+          <td>approach, alternatives, files-to-touch, data-model, api-contract, security</td>
+          <td>Two dev rulings at design review: (1) delta (c) ratified as <strong>configurable</strong> — <code>include_values: bool = False</code> constructor flag, locators-only default, value-carrying evidence on explicit opt-in; (2) DPDP-1's residual mask filter <strong>tracks the injected <code>generalisation_markers</code></strong> instead of a fixed <code>_MASK_MARKER</code> constant — one marker list drives both DPDP-1 filtering and DPDP-4 detection. <code>_scan_residual_pii</code> return type widened to include the matched value for internal filtering.</td>
+          <td>BILTIQ-011 Step 2 design review</td>
+        </tr>
+        <tr>
+          <td>2026-06-11</td>
+          <td>approach, data-model, api-contract</td>
+          <td>Plan-reviewer revision round: (1) delta (d) documented per dev re-ruling — DPDP-1's marker filter is wider than the source's <code>"XXXX"</code>-only skip; known false-negative surface in the default config (e.g. <code>contact@AirIndia.com</code> contains <code>"India"</code>) accepted for marker-semantics consistency, pinned by test, with the <code>("XXXX",)</code> override documented as the source-strict escape hatch; (2) evidence cap <code>[:5]</code> ported from source and documented; (3) stale <code>_MASK_MARKER</code> reference removed; (4) re-export surface fixed at five names — <code>EMAIL_PATTERN</code> stays module-level in <code>regimes.dpdp</code>.</td>
+          <td>BILTIQ-011 plan-reviewer findings 1, 3, 4, 5</td>
         </tr>
       </tbody>
     </table>

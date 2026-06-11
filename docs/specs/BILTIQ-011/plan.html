@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plan: [TASK_TITLE]</title>
+  <title>Plan: Regime ABC + DPDP validator</title>
   <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
   <style>
     :root {
@@ -78,56 +78,131 @@
     .risk-h { color: var(--color-risk-high); font-weight: 700; }
     .risk-m { color: var(--color-risk-med);  font-weight: 700; }
     .risk-l { color: var(--color-risk-low);  font-weight: 700; }
-    .placeholder { color: var(--color-muted); font-style: italic; }
     @media (max-width: 600px) { .meta { flex-direction: column; } }
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Plan: [TASK_TITLE]</h1>
+    <h1>Plan: Regime ABC + DPDP validator</h1>
     <dl class="meta">
-      <div><dt>Task ID</dt><dd><!-- e.g. BILTIQ-123 --></dd></div>
-      <div><dt>Branch</dt><dd><!-- feature/xxx --></dd></div>
-      <div><dt>Base</dt><dd><!-- main --></dd></div>
-      <div><dt>Created</dt><dd><!-- YYYY-MM-DD --></dd></div>
+      <div><dt>Task ID</dt><dd>BILTIQ-011</dd></div>
+      <div><dt>Branch</dt><dd>feature/biltiq-011-dpdp-regime</dd></div>
+      <div><dt>Base</dt><dd>main</dd></div>
+      <div><dt>Created</dt><dd>2026-06-11</dd></div>
     </dl>
   </header>
 
   <section id="steps">
     <h2>Build Sequence</h2>
     <p style="margin-bottom:1rem; font-size:0.85rem; color:var(--color-muted);">
-      Each step = one logical commit. TDD: RED → GREEN in the same step. Run <code>pytest</code> before proceeding.
+      Each step = one logical commit (<code>BILTIQ-011: step N: …</code>). TDD: RED → GREEN in the
+      same step. Run the step gate before proceeding. <strong>High-risk task: a human must approve
+      this plan before Step 1 starts</strong> (spec header allocates 30 min).
     </p>
 
     <div class="step">
       <div class="step-header">
-        <span class="step-title">Step 1 — [Step title]</span>
+        <span class="step-title">Step 1 — <code>regimes/base.py</code>: the regime-agnostic seam (AC1)</span>
         <span class="band">M</span>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step comes first.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files created / modified</span></p>
+      <p class="step-meta"><strong>Rationale:</strong> The ABC and report dataclasses have no DPDP dependency and everything else depends on them — pure leaf first, mirroring the BILTIQ-009 <code>detectors/base.py</code> sequencing.</p>
+      <p class="step-meta"><strong>Files:</strong> CREATE <code>packages/python-core/biltiq_privacy/regimes/base.py</code> (<code>CheckStatus</code> Literal alias, <code>ComplianceCheck</code> + <code>ComplianceReport</code> as <code>@dataclass(slots=True, frozen=True)</code>, <code>Regime</code> ABC with <code>regime_id</code>/<code>frameworks</code> ClassVars + abstract <code>validate()</code>), CREATE <code>packages/python-core/tests/regimes/__init__.py</code>, CREATE <code>packages/python-core/tests/regimes/test_regimes_base.py</code></p>
       <div class="step-tests">
-        <strong>Tests:</strong>
+        <strong>Tests (≈7):</strong>
         <ul>
-          <li class="placeholder">test_function_name — asserts X (AC1)</li>
+          <li><code>test_regime_abc_not_instantiable</code> — <code>Regime()</code> raises <code>TypeError</code> (AC1)</li>
+          <li><code>test_subclass_without_validate_not_instantiable</code> — abstractmethod enforced (AC1)</li>
+          <li><code>test_minimal_concrete_subclass_works</code> — stub regime returns a <code>ComplianceReport</code> (AC1)</li>
+          <li><code>test_compliance_check_frozen_and_slotted</code> — mutation raises <code>FrozenInstanceError</code>; no <code>__dict__</code> (AC1)</li>
+          <li><code>test_compliance_report_frozen_and_slotted</code> — same for the report (AC1)</li>
+          <li><code>test_score_property_formats_passed_over_total</code> — <code>"7/8"</code> (AC2 contract support)</li>
+          <li><code>test_identical_reports_compare_equal</code> — value equality (determinism support, AC2)</li>
         </ul>
       </div>
-      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code class="placeholder">pytest tests/path/to/test.py</code> — GREEN</p>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/regimes/test_regimes_base.py -q</code> GREEN · <code>mypy packages/python-core/biltiq_privacy/regimes/base.py --strict</code> clean</p>
     </div>
 
     <div class="step">
       <div class="step-header">
-        <span class="step-title">Step 2 — [Step title]</span>
+        <span class="step-title">Step 2 — <code>regimes/dpdp.py</code>: residual scan + DPDP-1 (AC3 + delta pins)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> DPDP-1 is the only check with real algorithmic content (the scan, the token-skip heuristics, the marker filter, the evidence policy) and carries all four behaviour deltas — isolate it so the delta pins land in one reviewable commit before the mechanical checks.</p>
+      <p class="step-meta"><strong>Files:</strong> CREATE <code>packages/python-core/biltiq_privacy/regimes/dpdp.py</code> (<code>EMAIL_PATTERN</code> ported verbatim, <code>_RESIDUAL_PATTERNS</code> = BILTIQ-002 <code>PATTERNS</code> by reference + compiled EMAIL, <code>_scan_residual_pii(text) -&gt; list[tuple[str, int, str]]</code>, <code>DPDPRegime.__init__(*, generalisation_markers=…, include_values=False)</code> + <code>_check_pii_removal</code>; remaining checks stubbed <code>NotImplementedError</code>), CREATE <code>packages/python-core/tests/regimes/test_dpdp.py</code> (DPDP-1 + scan portion)</p>
+      <div class="step-tests">
+        <strong>Tests (≈13):</strong>
+        <ul>
+          <li><code>test_dpdp1_clean_text_passes</code> / <code>test_dpdp1_residual_aadhaar_fails</code> — AC5 pass/fail pair</li>
+          <li><code>test_dpdp1_residual_email_fails</code> — ported EMAIL pattern catches (AC3)</li>
+          <li><code>test_dpdp1_residual_gstin_fails</code> — delta (a) pin: stricter than source's 5-type scan (AC3 ruling)</li>
+          <li><code>test_phone_underscore_boundary_delta</code> — delta (b) pin: <code>\b</code> vs source lookbehind documented behaviour</li>
+          <li><code>test_pseudonym_tokens_not_flagged</code> — both token-skip heuristics ported verbatim (AC2)</li>
+          <li><code>test_evidence_locators_only_by_default</code> — delta (c) pin: <code>"TYPE@position"</code>, no matched text</li>
+          <li><code>test_include_values_true_appends_value</code> — opt-in flag pins the dev ruling</li>
+          <li><code>test_masked_values_filtered_via_markers</code> — default markers skip <code>XXXX</code>-containing matches (source equivalence)</li>
+          <li><code>test_custom_markers_drive_dpdp1_filter</code> — overriding markers changes DPDP-1 filtering (design-review ruling)</li>
+          <li><code>test_descriptive_marker_masks_residual_delta</code> — delta (d) pin: a leaked value containing a default descriptive marker (e.g. an email containing <code>"India"</code>) is filtered where CDSCO would flag it; <code>generalisation_markers=("XXXX",)</code> restores source-strict behaviour (re-ruled at plan review)</li>
+          <li><code>test_evidence_capped_at_five</code> — six residuals → 5 evidence entries, full count in <code>details</code> (source <code>real_residual[:5]</code> ported)</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/regimes/ -q</code> GREEN · <code>mypy packages/python-core/biltiq_privacy/regimes/ --strict</code> clean</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 3 — the remaining 7 checks + <code>validate()</code> assembly (AC2, AC4, AC5)</span>
+        <span class="band">M</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> DPDP-2..6, NDHM-1, ICMR-1 are mechanical ports (length comparisons, set intersection, substring scan, arithmetic); with DPDP-1 landed they complete <code>validate()</code> in source order and the all-pass compliance semantic.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>regimes/dpdp.py</code> (implement <code>_check_audit_trail</code>, <code>_check_reversibility</code>, <code>_check_generalisation</code>, <code>_check_indian_coverage</code>, <code>_check_minimisation</code>, <code>_check_ndhm</code>, <code>_check_icmr</code>, assemble <code>validate()</code>), EDIT <code>tests/regimes/test_dpdp.py</code> (extend)</p>
+      <div class="step-tests">
+        <strong>Tests (≈14):</strong>
+        <ul>
+          <li>DPDP-2 pass (records ≥ detections) / warning (fewer) — AC5 pair</li>
+          <li>DPDP-3 pass (bracketed <code>pseudonym_token</code>) / warning (none) — AC5 pair</li>
+          <li>DPDP-4 pass (default marker present) / info (absent) — AC5 pair; plus <code>test_custom_markers_drive_dpdp4</code> (AC4 ruling, same injected list as DPDP-1)</li>
+          <li>DPDP-5 pass (≥1 <code>IN_*</code> detected) / warning (none) — AC5 pair; plus <code>test_indian_entity_types_match_recognisers</code> — consistency against <code>supported_entity</code> values (drift guard)</li>
+          <li>DPDP-6 always-pass + details string + empty-<code>original</code> division guard — AC5 (failing case N/A, documented: source has no fail path)</li>
+          <li>NDHM-1 pass (records) / warning (empty) — AC5 pair</li>
+          <li>ICMR-1 always-pass + section metadata — AC5 (failing case N/A, documented)</li>
+          <li><code>test_compliant_requires_all_pass</code> — one <code>warning</code> flips <code>compliant</code> to <code>False</code> (source semantic)</li>
+          <li><code>test_generated_at_echoed_verbatim</code> + <code>test_identical_inputs_identical_report</code> — caller-supplied timestamp ruling, full determinism</li>
+        </ul>
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> <code>pytest packages/python-core/tests/regimes/ -q</code> GREEN · <code>mypy … --strict</code> clean · <code>ruff check</code> clean</p>
+    </div>
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 4 — public surface: re-exports, purity probe, pipeline integration test</span>
         <span class="band">S</span>
       </div>
-      <p class="step-meta"><strong>Rationale:</strong> <span class="placeholder">Why this step follows step 1.</span></p>
-      <p class="step-meta"><strong>Files:</strong> <span class="placeholder">list files</span></p>
+      <p class="step-meta"><strong>Rationale:</strong> Surface goes public only after behaviour is pinned. The lazy-import probe structurally enforces AC4; one integration test proves the BILTIQ-009 detector output flows into <code>validate()</code> unchanged.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>packages/python-core/biltiq_privacy/regimes/__init__.py</code> (re-export the five regime-surface names <code>CheckStatus</code>, <code>ComplianceCheck</code>, <code>ComplianceReport</code>, <code>Regime</code>, <code>DPDPRegime</code>; <code>EMAIL_PATTERN</code> stays module-level in <code>regimes.dpdp</code>, not re-exported; sorted <code>__all__</code>, BILTIQ-009 style), CREATE <code>packages/python-core/tests/regimes/test_lazy_import.py</code> (subprocess probe), EDIT <code>tests/regimes/test_dpdp.py</code> (one integration test reusing the <code>presidio_engine_indian</code>/<code>sample_indian_pii</code> fixtures: detect → pseudonymise → validate → compliant report)</p>
       <div class="step-tests">
-        <strong>Tests:</strong> <span class="placeholder">none (static files — structural correctness verified by step N)</span>
+        <strong>Tests (≈4):</strong>
+        <ul>
+          <li><code>test_public_names_importable_from_regimes</code> + <code>test_all_sorted_and_complete</code> (convention)</li>
+          <li><code>test_import_regimes_loads_no_heavy_frameworks</code> — subprocess: no <code>presidio_analyzer</code>/<code>spacy</code>/<code>fastapi</code> in <code>sys.modules</code> (AC4)</li>
+          <li><code>test_detector_to_regime_pipeline</code> — <code>PresidioDetector</code> output + <code>Pseudonymiser</code> records validate end-to-end (integration)</li>
+        </ul>
       </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> repo-root <code>pytest packages/python-core -q</code> GREEN (no regression) · <code>mypy</code> strict + <code>ruff</code> clean on all touched files</p>
     </div>
-    <!-- Add more steps by copying a .step block -->
+
+    <div class="step">
+      <div class="step-header">
+        <span class="step-title">Step 5 — docs: stack.md rows + spec AC badges</span>
+        <span class="band">S</span>
+      </div>
+      <p class="step-meta"><strong>Rationale:</strong> stack.md must ship in the same PR as the surface it documents (repo rule); AC badges flip only with evidence from Steps 1–4 gates.</p>
+      <p class="step-meta"><strong>Files:</strong> EDIT <code>docs/architecture/stack.md</code> (rewrite reserved Regime row with the real <code>validate()</code> surface; add <code>DPDPRegime</code> row noting the 8 checks, pattern reuse, marker/values configurability, four documented deltas), EDIT <code>docs/specs/BILTIQ-011/spec.html</code> (AC1–AC5 badges OPEN → DONE with evidence)</p>
+      <div class="step-tests">
+        <strong>Tests:</strong> none (docs only — content accuracy reviewed at Step 4 Review; CHANGELOG + reflect.html land at Ship/Reflect per the Attack Loop, not here)
+      </div>
+      <p class="step-meta" style="margin-top:0.5rem"><strong>Gate:</strong> full verification — repo-root <code>pytest</code> GREEN, <code>mypy --strict</code> clean (all 19+ files), <code>ruff check</code> clean, no banned vocabulary in diff</p>
+    </div>
   </section>
 
   <section id="test-strategy">
@@ -135,16 +210,21 @@
     <table>
       <thead><tr><th>Layer</th><th>What</th><th>Files</th></tr></thead>
       <tbody>
-        <tr><td>Unit</td><td class="placeholder">function behavior</td><td class="placeholder">tests/path/test_foo.py</td></tr>
-        <tr><td>Integration</td><td class="placeholder">end-to-end round-trip</td><td class="placeholder">tests/path/test_integration.py</td></tr>
-        <tr><td>Manual</td><td class="placeholder">open in browser, verify rendered output</td><td>—</td></tr>
+        <tr><td>Unit</td><td>ABC contract, frozen/slotted dataclasses, all 8 checks pass + non-pass (AC5), four delta pins, marker + <code>include_values</code> configurability, determinism, coverage-set drift guard — synthetic PII only (BILTIQ-002 <code>*_VALID</code> fixtures)</td><td><code>tests/regimes/test_regimes_base.py</code>, <code>tests/regimes/test_dpdp.py</code></td></tr>
+        <tr><td>Integration</td><td>Detector → pseudonymiser → regime round-trip on the shared <code>sample_indian_pii</code> fixture (reuses session-scoped <code>presidio_engine_indian</code>; no new model load)</td><td><code>tests/regimes/test_dpdp.py::test_detector_to_regime_pipeline</code></td></tr>
+        <tr><td>Structural</td><td>Import-purity subprocess probe: <code>biltiq_privacy.regimes</code> loads no Presidio/spaCy/FastAPI (AC4)</td><td><code>tests/regimes/test_lazy_import.py</code></td></tr>
+        <tr><td>Manual</td><td>Side-by-side run of <code>validate_dpdp()</code> (CDSCO venv) vs <code>DPDPRegime.validate()</code> on one synthetic document; confirm check-by-check status equality modulo the four documented deltas</td><td>— (recorded in PR Testing section)</td></tr>
       </tbody>
     </table>
   </section>
 
   <section id="rollback-plan">
     <h2>Rollback Plan</h2>
-    <p class="placeholder">How to undo if something goes wrong. For additive-only changes: "Remove new files, revert text insertions. No data loss."</p>
+    <p>Additive-only leaf module: two new source files, three new test files, re-exports into a
+    previously-empty <code>__init__.py</code>, one stack.md rewrite of a reserved row. No schema, no
+    data, no consumer (BILTIQ-012 orchestrator and BILTIQ-013 sidecar have not landed). Rollback at
+    any step = drop the branch; after merge = single <code>git revert</code> of the merge commit.
+    No data loss possible.</p>
   </section>
 
   <section id="risks">
@@ -153,10 +233,40 @@
       <thead><tr><th>Risk</th><th>Step</th><th>Severity</th><th>Mitigation</th></tr></thead>
       <tbody>
         <tr>
-          <td class="placeholder">Risk description</td>
-          <td class="placeholder">1</td>
+          <td>Compliance attestation logic mis-ported — a check passes where CDSCO would fail (regulatory exposure for consumers)</td>
+          <td>2–3</td>
+          <td><span class="risk-h">HIGH</span></td>
+          <td>8 × pass/non-pass test pairs against source semantics; manual side-by-side run vs the live CDSCO function (Test Strategy); mandatory human plan review before Build and human code review before merge.</td>
+        </tr>
+        <tr>
+          <td>The four ruled behaviour deltas (stricter scan / phone boundary / evidence policy / wider mask filter) surprise a consumer migrating from CDSCO</td>
+          <td>2</td>
           <td><span class="risk-m">MED</span></td>
-          <td class="placeholder">How it is mitigated.</td>
+          <td>Each delta pinned by a named test; documented in design.html § Approach, stack.md row, and the PR's Reviewer Notes; <code>include_values=True</code> restores source-level triage detail on opt-in.</td>
+        </tr>
+        <tr>
+          <td>Delta (d) false-negative surface: a default descriptive marker (<code>"India"</code>, <code>"Healthcare Facility"</code>) appearing inside a leaked value masks it from DPDP-1 (dev-accepted at plan review)</td>
+          <td>2</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Pinned by <code>test_descriptive_marker_masks_residual_delta</code> so the behaviour is explicit, not accidental; <code>generalisation_markers=("XXXX",)</code> documented as the source-strict escape hatch in the docstring, design.html, and stack.md row; revisit if BILTIQ-013 exposes marker config over HTTP.</td>
+        </tr>
+        <tr>
+          <td><code>include_values=True</code> used against a non-access-controlled sink → report itself leaks PII</td>
+          <td>2</td>
+          <td><span class="risk-m">MED</span></td>
+          <td>Default is <code>False</code> (safe path needs no decision); docstring warning; test pins the default; BILTIQ-013 sidecar review must decide whether to expose the flag over HTTP at all.</td>
+        </tr>
+        <tr>
+          <td><code>_INDIAN_ENTITY_TYPES</code> drifts from <code>recognisers.py</code> when a ninth recogniser lands</td>
+          <td>3</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td><code>test_indian_entity_types_match_recognisers</code> fails the suite on any drift.</td>
+        </tr>
+        <tr>
+          <td>Integration test drags Presidio/spaCy into the fast unit path, slowing the suite</td>
+          <td>4</td>
+          <td><span class="risk-l">LOW</span></td>
+          <td>Reuses the existing session-scoped <code>presidio_engine_indian</code> fixture (one engine build per session, BILTIQ-009 precedent); purity probe runs in a subprocess and is unaffected.</td>
         </tr>
       </tbody>
     </table>
@@ -168,10 +278,16 @@
       <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr>
-          <td><!-- YYYY-MM-DD --></td>
+          <td>2026-06-11</td>
           <td>all</td>
-          <td>Initial draft</td>
-          <td><!-- task-id --></td>
+          <td>Initial draft from locked spec + reviewed design (7 dev rulings honoured). 5 atomic steps, ~35 tests across 4 layers. vLLM Socratic driver unavailable headlessly — inline-Claude-required fallback in effect for this Step 2 artifact.</td>
+          <td>BILTIQ-011 Step 2</td>
+        </tr>
+        <tr>
+          <td>2026-06-11</td>
+          <td>steps, risks</td>
+          <td>Plan-reviewer revision round (verdict: needs revision, 5 findings): delta (d) pin test + dedicated risk row added (finding 1, dev re-ruled "all markers + document"); AC5 annotation ratified in spec (finding 2); EMAIL_PATTERN kept out of subpackage re-exports (finding 4); evidence-cap test added (finding 5). Note: design.html rollout's Step 5 = Ship; this plan's Step 5 = docs, with Ship as Attack Loop Step 6 — intentional, the plan is the finer-grained artifact.</td>
+          <td>BILTIQ-011 plan-reviewer round 1</td>
         </tr>
       </tbody>
     </table>
