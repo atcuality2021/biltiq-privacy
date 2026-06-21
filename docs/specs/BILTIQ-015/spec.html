@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: LLM &amp; agent privacy facade + sensitive-terms dictionary</title>
+  <style>
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--color-ac-done:#16a34a;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-done{background:#dcfce7;color:var(--color-ac-done);border:1px solid #86efac;}
+    .ac-label{font-size:0.85rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: LLM &amp; agent privacy facade + sensitive-terms dictionary</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-015</dd></div>
+      <div><dt>Phase</dt><dd>B — v0.2.0 (Skyflow head-to-head)</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-11</dd></div>
+      <div><dt>Wall-clock</dt><dd>L</dd></div>
+      <div><dt>Tokens</dt><dd>L</dd></div>
+      <div><dt>Human review (min)</dt><dd>30 (compliance-mode surface)</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>Skyflow's loudest 2026 pitch is GenAI privacy: de-identify before training/RAG/inference,
+    re-identify responses for authorised users, and a "sensitive data dictionary" for
+    business-specific terms. biltiq-privacy already owns every primitive this needs (detect,
+    pseudonymise, generalise, audit, and BILTIQ-014's restore leg) but offers no composed
+    LLM-facing surface — so prospects comparing against Skyflow's demo see a missing product,
+    not present primitives. Their offering also routes data through their SaaS; BiltIQ's own
+    deployment model (vLLM on consumer GPUs) is exactly the customer profile they cannot serve.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>One import gives a consumer a privacy gate around any OpenAI-compatible client:
+    PII and business-sensitive terms never reach the model; authorised responses are restored
+    in-process; every call is chain-auditable. Works air-gapped. Covers the four GenAI
+    touchpoints (collection, fine-tuning, RAG indexing, inference) as documented recipes over
+    one surface.</p>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1</strong> — <code>llm/gate.py</code> ships <code>PrivacyGate(detector, pseudonymiser, *, generalise=False)</code> with <code>protect(text) -> ProtectedText</code> (safe text + session map) and <code>restore(text, session)</code>; round-trip preserves non-sensitive content byte-identically and restores sensitive spans only via the session.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2</strong> — <code>detectors/dictionary.py</code> ships <code>DictionaryDetector(terms, *, normalise=...)</code> behind the BILTIQ-009 <code>Detector</code> ABC: exact + case/whitespace-normalised matching, zero Presidio/spaCy import (subprocess probe), term lists loadable from a consumer file.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3</strong> — <code>detectors/composite.py</code> merges multiple detectors with deterministic overlap resolution (longest-span-wins, ties by score then detector order); property-tested for span integrity.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4</strong> — The library makes no network call: the consumer's client object performs the LLM call between <code>protect</code> and <code>restore</code>. Compliance-mode review confirms `on_prem_required` projects can adopt the gate unmodified.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5</strong> — Per-call audit rows (entities protected, restore events, caller-supplied timestamps) shaped for <code>audit_chain.append_row</code>; chain round-trip test.</span></li>
+      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC6</strong> — Integration test against a live OpenAI-compatible endpoint (vLLM; CI-skippable env gate) proving protect → chat → restore end-to-end; plus four documented recipes (collection / fine-tuning / RAG / inference) in <code>docs/runbooks/llm-privacy.md</code>.</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>Bundling any LLM client or model — consumer supplies the client (compliance-mode neutral).</li>
+      <li>MCP exposure of the gate (BILTIQ-025).</li>
+      <li>Streaming-response restoration (follow-up; v1 restores complete responses).</li>
+      <li>Prompt-injection defence — different problem; the gate handles data egress, not jailbreaks. Documented explicitly to avoid overclaiming.</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li>Session map: reuse BILTIQ-014's <code>TokenMap</code> (sealed, persistable) or a lighter in-memory dict for the common protect→restore-in-one-process flow? Leaning: in-memory default with optional <code>TokenMap</code> for persistence — design decides.</li>
+      <li>Does <code>protect</code> default to pseudonymise-only, or pseudonymise+generalise? Skyflow defaults to masking; our restore leg argues pseudonymise-only default.</li>
+      <li>Dependency on BILTIQ-014: hard (restore requires it) or soft (restore optional when 014 absent)? Sequencing decision for the sprint plan.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody><tr><td>2026-06-11</td><td>all</td><td>Initial draft from Skyflow gap analysis (see <code>docs/architecture/roadmap-skyflow-parity.md</code>)</td><td>Competitive roadmap</td></tr></tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
