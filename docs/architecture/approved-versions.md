@@ -36,10 +36,17 @@
 
 | API | Use | Notes |
 |---|---|---|
-| `APIRouter` with prefixed routes | Endpoint organisation | `/anonymize`, `/validate` under a single router. |
-| `Depends()` for HMAC-key resolution | Inject config | Reads env once at startup, passes per-request. |
+| `APIRouter` with route dependencies | Endpoint organisation + auth | One router per endpoint module; gate with `APIRouter(dependencies=[Depends(require_jwt)])` (BILTIQ-013). |
+| `lifespan=` async context manager | App startup/shutdown | Build the detector once at boot (BILTIQ-013). **Approved replacement for `@app.on_event`** (deprecated below). |
+| `Depends()` for HMAC-key resolution | Inject config | Reads env once at startup, passes per-request. The HMAC key reaches handlers only via `get_hmac_key` — never a body field (BILTIQ-013, AC6). |
 | `BackgroundTasks` for audit log flush | Audit chain | Not on the request path. |
 | `TestClient` for tests | Integration tests | No real network. |
+
+### Auth (server package only)
+
+| API | Use | Notes |
+|---|---|---|
+| `PyJWT ≥ 2.8, < 3` — `jwt.decode(token, secret, algorithms=["HS256"], options={"verify_exp": True})` | Bearer-JWT verification | HS256, **verify-only** (ADR-0007). Pin a single-element `algorithms` allow-list — closes the algorithm-confusion class. Production never calls `jwt.encode` (consumers mint their own tokens); `auth.py` is the only `jwt` importer. PEP 561 typed. |
 
 ### System binaries
 
@@ -78,6 +85,12 @@
 | `BaseModel.dict()` | `BaseModel.model_dump()` | v1 API. |
 | `BaseModel.json()` | `BaseModel.model_dump_json()` | v1 API. |
 | `validator` decorator | `field_validator` / `model_validator` | v1 API. |
+
+### FastAPI (server package only)
+
+| Deprecated API | Replacement | Reason |
+|---|---|---|
+| `@app.on_event("startup")` / `@app.on_event("shutdown")` | `lifespan=` async context manager passed to `FastAPI(...)` | Deprecated upstream since Starlette 0.x; the `lifespan` form is the supported single-entry startup/shutdown hook (BILTIQ-013). |
 
 ### Presidio
 

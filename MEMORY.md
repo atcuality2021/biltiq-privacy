@@ -59,7 +59,7 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Recent decisions (last 30 days)
 
-_(no decisions recorded)_
+- 2026-06-21 — **[ADR-0007](docs/adr/0007-jwt-library-selection.md) accepted:** PyJWT ≥ 2.8, HS256 **verify-only** for the BILTIQ-013 sidecar Bearer auth (single-element algorithm allow-list; server never mints tokens — consumers do). Rejected python-jose (alg-confusion CVE history), authlib (oversized OAuth surface), roll-our-own (crypto risk).
 
 ## Recently completed
 

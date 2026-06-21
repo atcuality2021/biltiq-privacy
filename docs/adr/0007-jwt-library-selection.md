@@ -1,6 +1,6 @@
 # ADR 0007: JWT library selection — PyJWT for verify-only Bearer auth
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-21
 **Deciders:** @atcuality2021
 **Related task:** BILTIQ-013

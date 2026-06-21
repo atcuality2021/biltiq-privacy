@@ -28,9 +28,10 @@ The library core (`packages/python-core/biltiq_privacy/`) is framework-free. No 
 
 ## Server framework (sidecar only — `packages/python-server/`)
 
-- **FastAPI ≥ 0.110** — REST sidecar exposing `/anonymize`, `/validate`, `/healthz`, `/openapi.json`.
-- **uvicorn ≥ 0.27** — ASGI runtime; CLI `biltiq-privacy-server serve`.
-- **pydantic v2** — request/response models. Use `model_validate` / `model_dump`, not `.parse_obj` / `.dict`.
+- **FastAPI ≥ 0.110** — REST sidecar exposing `/detect`, `/anonymize`, `/validate` (JWT-gated), `/healthz` (open), `/openapi.json`. Wired by the `create_app(settings)` factory; startup runs through an ASGI `lifespan` (the approved replacement for deprecated `@app.on_event` — approved-versions.md). Built once at startup, the detector force-loads its model so a missing `en_core_web_sm` surfaces at boot (degraded `/healthz` 503), not on the first request (BILTIQ-013).
+- **uvicorn ≥ 0.27** — ASGI runtime; CLI `biltiq-privacy-server serve [--host --port --workers]` launches it by import string so `--workers > 1` re-imports the app per fork.
+- **PyJWT ≥ 2.8, < 3** — Bearer-JWT auth, HS256 **verify-only** (ADR-0007). `auth.py` is the only module importing `jwt`; production never calls `jwt.encode` (consumers mint their own tokens). Verification pins a single-element algorithm allow-list (closes alg-confusion). PEP 561 typed.
+- **pydantic v2** — request/response models. Use `model_validate` / `model_dump`, not `.parse_obj` / `.dict`. `Settings` is a frozen `BaseModel` (not pydantic-settings — intentionally not a dependency for two env reads).
 
 ---
 
@@ -72,6 +73,9 @@ Extension points used:
 | Multi-region recogniser builder | `biltiq_privacy.recognisers.build_engine(regions=[...])` (v0.2.0+) | Convenience factory wrapping per-region adapters; planned for when EU/US/UK packs land. For Indian-only use today, call `biltiq_privacy.indian.recognisers.build_engine()` directly. |
 | Memory-spine writer | `scripts._memory_writer.write_event(event_type, payload)` | POSIX-atomic append to `.biltiq/memory-stream.jsonl`; consumed by `scripts/_memory_curator.py` to project session signal into `MEMORY.md`. See `AGENT_RULES.md` § Memory. |
 | age streaming wrapper | `biltiq_privacy.backup.age_stream.open_age_writer(out_path, *, recipient)` / `open_age_reader(in_path, *, identity_path)` (BILTIQ-004, v0.5.0+) | `@contextmanager` generators wrapping the system `age` binary via `subprocess.Popen`; yield pipe handles so plaintext never lands on disk (AC2/AC3 invariant, statically enforced by `tests/backup/test_no_intermediate_files.py`). Exception hierarchy: `AgeNotInstalledError(FileNotFoundError)` at `__enter__`, `AgeProcessError(subprocess.CalledProcessError)` at `__exit__` — both stdlib-subclassed so callers need not import the wrapper to handle errors. See ADR-0003. |
+| **Server** app factory + settings | `biltiq_privacy_server.app.create_app(settings)` / `config.load_settings()` (BILTIQ-013) | The one way to build the sidecar app — wires settings onto `app.state`, the `lifespan`, the exception handlers, and the four routers. `load_settings()` reads `BILTIQ_JWT_SECRET` + `BILTIQ_HMAC_KEY` from env once with fail-fast `RuntimeError` (HMAC key ≥ 32 bytes) and returns a frozen `Settings`. Module-level `app = create_app(load_settings())` is the uvicorn target; importing the *package* stays env-free. Tests build their own app with deterministic `Settings` — no global state. |
+| **Server** JWT verification | `biltiq_privacy_server.auth.verify_token(token, *, secret)` (BILTIQ-013) | The only module importing `jwt`. Verifies an HS256 token's signature + expiry against a single-element algorithm allow-list (closes alg-confusion); expired/malformed/wrong-secret/disallowed-alg all → `401` with a generic detail (never echoes token or secret). Verify-only — no `jwt.encode` in production (ADR-0007). |
+| **Server** Depends() seams | `biltiq_privacy_server.dependencies` — `require_jwt`, `get_settings`, `get_hmac_key`, `get_detector` (BILTIQ-013) | Per-request providers reading from `app.state` or the validated bearer credential, **never the request body**. `require_jwt` (attach via `APIRouter(dependencies=[Depends(require_jwt)])`) gates the data endpoints; `get_hmac_key` is the *only* path the HMAC key reaches a handler — never a body field or response (AC6); `get_detector` returns the startup-built singleton or raises to a 503 when the server is degraded. Override `get_detector` via `app.dependency_overrides` in tests to skip the model load. |
 
 [PROJECT: add new internal modules here in the same PR they're created.]
 
