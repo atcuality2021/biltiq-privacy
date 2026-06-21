@@ -1,0 +1,711 @@
+{
+  "components": {
+    "schemas": {
+      "AnonymizeRequest": {
+        "description": "POST /anonymize body (AC2).\n\n``generated_at`` and ``prev_hash`` are optional: the server supplies the\ntimestamp (it is the system boundary) and the genesis hash when omitted.\nThe HMAC key is **never** a body field \u2014 it is injected via ``Depends``\n(AC6).",
+        "properties": {
+          "generalise": {
+            "default": true,
+            "title": "Generalise",
+            "type": "boolean"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "prev_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Hash"
+          },
+          "regime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regime"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "AnonymizeRequest",
+        "type": "object"
+      },
+      "AnonymizeResponse": {
+        "description": "POST /anonymize response \u2014 mirrors ``AnonymiseResult`` field-by-field (AC2).\n\n``original_text`` is deliberately absent: the library drops it to narrow the\nPII surface, and the wire model follows.",
+        "properties": {
+          "anonymised_text": {
+            "title": "Anonymised Text",
+            "type": "string"
+          },
+          "audit_records": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRecordModel"
+            },
+            "title": "Audit Records",
+            "type": "array"
+          },
+          "audit_row": {
+            "$ref": "#/components/schemas/AuditRowModel"
+          },
+          "compliance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplianceReportModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detections": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionModel"
+            },
+            "title": "Detections",
+            "type": "array"
+          }
+        },
+        "required": [
+          "anonymised_text",
+          "detections",
+          "audit_records",
+          "audit_row",
+          "compliance"
+        ],
+        "title": "AnonymizeResponse",
+        "type": "object"
+      },
+      "AuditRecordModel": {
+        "description": "Mirrors :class:`biltiq_privacy.AuditRecord` (TypedDict: five keys).",
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "position_end": {
+            "title": "Position End",
+            "type": "integer"
+          },
+          "position_start": {
+            "title": "Position Start",
+            "type": "integer"
+          },
+          "pseudonym_token": {
+            "title": "Pseudonym Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "pseudonym_token",
+          "position_start",
+          "position_end",
+          "confidence"
+        ],
+        "title": "AuditRecordModel",
+        "type": "object"
+      },
+      "AuditRowModel": {
+        "description": "Mirrors :class:`biltiq_privacy.ChainedRow` (TypedDict).\n\n``payload`` uses pydantic's native ``JsonValue`` (a recursive JSON type)\nrather than ``Any`` so the opaque, caller-owned event mapping stays strictly\ntyped (AP #4). The library's own ``JsonValue`` is an *implicit* recursive\n``TypeAlias`` that pydantic v2 cannot build a schema for, so the wire model\nuses pydantic's equivalent here \u2014 the two describe the same value space.",
+        "properties": {
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Payload",
+            "type": "object"
+          },
+          "prev_hash": {
+            "title": "Prev Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prev_hash",
+          "payload",
+          "hash"
+        ],
+        "title": "AuditRowModel",
+        "type": "object"
+      },
+      "ComplianceCheckModel": {
+        "description": "Mirrors :class:`biltiq_privacy.ComplianceCheck` (frozen dataclass).",
+        "properties": {
+          "check_id": {
+            "title": "Check Id",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "details": {
+            "title": "Details",
+            "type": "string"
+          },
+          "evidence": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_id",
+          "name",
+          "description",
+          "status",
+          "details",
+          "section"
+        ],
+        "title": "ComplianceCheckModel",
+        "type": "object"
+      },
+      "ComplianceReportModel": {
+        "description": "Mirrors :class:`biltiq_privacy.ComplianceReport` (frozen dataclass).\n\n``score`` is the dataclass's derived ``@property`` (e.g. ``\"7/8\"``), echoed\ninto the response (see module docstring on property carry-through).",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceCheckModel"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "compliant": {
+            "title": "Compliant",
+            "type": "boolean"
+          },
+          "frameworks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Frameworks",
+            "type": "array"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "integer"
+          },
+          "regime_id": {
+            "title": "Regime Id",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "regime_id",
+          "compliant",
+          "passed",
+          "total",
+          "checks",
+          "generated_at",
+          "frameworks",
+          "score"
+        ],
+        "title": "ComplianceReportModel",
+        "type": "object"
+      },
+      "DetectRequest": {
+        "description": "POST /detect body (AC1).",
+        "properties": {
+          "language": {
+            "default": "en",
+            "title": "Language",
+            "type": "string"
+          },
+          "score_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Threshold"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "DetectRequest",
+        "type": "object"
+      },
+      "DetectResponse": {
+        "description": "POST /detect response: the detected spans plus their count (AC1).",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "detections": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionModel"
+            },
+            "title": "Detections",
+            "type": "array"
+          }
+        },
+        "required": [
+          "detections",
+          "count"
+        ],
+        "title": "DetectResponse",
+        "type": "object"
+      },
+      "DetectionModel": {
+        "description": "Mirrors :class:`biltiq_privacy.DetectedEntity` (TypedDict: six keys).",
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "text",
+          "start",
+          "end",
+          "score",
+          "source"
+        ],
+        "title": "DetectionModel",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "description": "GET /healthz response (AC4). ``reason`` is populated only when degraded.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "ValidateRequest": {
+        "description": "POST /validate body (AC3). ``regime`` is required; unknown -> 422.",
+        "properties": {
+          "anonymised_text": {
+            "title": "Anonymised Text",
+            "type": "string"
+          },
+          "audit_records": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRecordModel"
+            },
+            "title": "Audit Records",
+            "type": "array"
+          },
+          "detections": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionModel"
+            },
+            "title": "Detections",
+            "type": "array"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "original_text": {
+            "title": "Original Text",
+            "type": "string"
+          },
+          "regime": {
+            "title": "Regime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "original_text",
+          "anonymised_text",
+          "detections",
+          "audit_records",
+          "regime"
+        ],
+        "title": "ValidateRequest",
+        "type": "object"
+      },
+      "ValidateResponse": {
+        "description": "POST /validate response: the full compliance report (AC3).",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ComplianceCheckModel"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "compliant": {
+            "title": "Compliant",
+            "type": "boolean"
+          },
+          "frameworks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Frameworks",
+            "type": "array"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "integer"
+          },
+          "regime_id": {
+            "title": "Regime Id",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "regime_id",
+          "compliant",
+          "passed",
+          "total",
+          "checks",
+          "generated_at",
+          "frameworks",
+          "score"
+        ],
+        "title": "ValidateResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "biltiq-privacy-server",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/anonymize": {
+      "post": {
+        "description": "Anonymise ``body.text`` end to end and serialise the result (AC2).",
+        "operationId": "anonymize_anonymize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnonymizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymizeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Anonymize"
+      }
+    },
+    "/detect": {
+      "post": {
+        "description": "Detect PII spans in ``body.text`` (AC1).\n\nEmpty / whitespace-only text short-circuits to an empty result with no\nengine call, mirroring the library's own ``text.strip()`` guard. A\nrequest-supplied ``score_threshold`` overrides the server default by running\na detector tuned to it; the startup singleton keeps the settings threshold\nfor ``/anonymize``. Building that override detector rebuilds its engine \u2014 a\ndeliberate, override-only cost; the common path reuses the singleton.",
+        "operationId": "detect_detect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Detect"
+      }
+    },
+    "/healthz": {
+      "get": {
+        "description": "Report engine readiness: 200 when loaded, 503 when degraded (AC4).",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz"
+      }
+    },
+    "/validate": {
+      "post": {
+        "description": "Validate a prior anonymisation outcome against the named regime (AC3).",
+        "operationId": "validate_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate"
+      }
+    }
+  }
+}
