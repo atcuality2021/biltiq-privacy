@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EOD — 2026-06-01</title>
+  <style>
+    :root {
+      --color-border: #e5e7eb; --color-bg: #ffffff;
+      --color-bg-subtle: #f9fafb; --color-text: #111827;
+      --color-muted: #6b7280; --color-shipped: #16a34a;
+      --color-wip: #d97706; --color-blocker: #dc2626;
+      --radius: 6px; --max-width: 860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif; font-size: 15px;
+      line-height: 1.6; color: var(--color-text); background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header { border-bottom: 2px solid var(--color-border); padding-bottom: 1.25rem; margin-bottom: 2rem; }
+    header h1 { font-size: 1.5rem; }
+    section { margin-bottom: 2rem; }
+    h2 { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--color-border); padding-left: 0.75rem; margin-bottom: 0.75rem; }
+    h2.shipped { border-color: var(--color-shipped); }
+    h2.wip     { border-color: var(--color-wip); }
+    h2.blocker { border-color: var(--color-blocker); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    p { margin-bottom: 0.4rem; }
+    @media (max-width: 600px) { table { font-size: 0.8rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>EOD — 2026-06-01</h1></header>
+
+  <section id="shipped">
+    <h2 class="shipped">Shipped</h2>
+    <p>PR #9 — BILTIQ-007 + 008 + 009 (core pseudonymiser + generaliser + detector ABC/Presidio backend + Phase A scaffolds 010-012), merged 12:32 UTC. PR #8 — BILTIQ-005 retention writer, merged 04:14 UTC.</p>
+  </section>
+
+  <section id="wip">
+    <h2 class="wip">WIP</h2>
+    <p>BILTIQ-010 — pure tamper-evident audit hash-chain (core.audit_chain). PR #10 OPEN on feature/biltiq-010-audit-chain; full Attack Loop complete (Think→Plan→Build→Review→Test→Ship→Reflect), dev work 100% done, awaiting CI + reviewer (no auto-merge). 5 commits; 11 new tests; 206 passed/1 skipped; mypy --strict + ruff clean; ADR-0005 golden vector recomputed = match; 5/5 ACs flipped DONE.</p>
+  </section>
+
+  <section id="tomorrow">
+    <h2>Tomorrow</h2>
+    <p>BILTIQ-011 — audit-trail check (high-risk DPDP; mandatory HUMAN plan-review before Build). Then BILTIQ-012 — orchestrator capstone (wires detector → pseudonymiser → generaliser → audit_chain row per anonymise call).</p>
+  </section>
+
+  <section id="blockers">
+    <h2 class="blocker">Blockers</h2>
+    <p>None blocking. Deferred-by-reserve: memory-curator MEMORY.md update + ADR-0005↔MEMORY.md link + M17 estimate-actuals row are all held behind the BILTIQ-006 AC8 working-tree reserve (MEMORY.md kept unstaged); reconcile when 006 lands. PR #5 (BILTIQ-004) still open from a prior day, awaiting review.</p>
+  </section>
+
+  <section id="tech-debt-added">
+    <h2>Tech Debt Added</h2>
+    <p>None from BILTIQ-010 (pure leaf, 0 review findings). Pre-existing (not this PR): test-scaffolds/python/example_test.py:27 F821 pytest_mock undefined — carried from BILTIQ-000 bootstrap; still warrants a cleanup ticket.</p>
+  </section>
+
+  <section id="ai-usage">
+    <h2>AI Usage</h2>
+    <p>Sessions 148 · Projects 4 · Prompts 1936 · Responses 3937 · Tokens in/out/cache-w/cache-r: 2,425,743 / 5,438,322 / 24,797,935 / 509,449,762 (cache-r free) · Top tools: Bash 677, Read 328, Edit 258, Write 97, StructuredOutput 70, Grep 48, Skill 45.</p>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td>2026-06-01</td><td>all</td><td>Initial draft</td><td>eod</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

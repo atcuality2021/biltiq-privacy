@@ -66,7 +66,7 @@
 | `asyncio.coroutine` decorator | `async def` | Removed in 3.11. |
 | `requests` (sync) | `httpx` (async) in the SDK helpers | Async-first stack. |
 | Bare `except:` | Specific exception, or `except Exception:` with explicit propagation | Anti-Pattern #3. |
-| `print()` in production code | `logging.getLogger(__name__).info()` with `RedactionFilter` attached | No structured output, no PII redaction otherwise. |
+| `print()` in production code | `logging.getLogger(__name__).info()` (attach `RedactionFilter` once it ships — PLANNED, see stack.md) | No structured output, no PII redaction otherwise. |
 | `python-Levenshtein` | `rapidfuzz` | GPL-2.0 contamination risk (Brief §2 rule 4). |
 | `pymupdf` | (extract PDF in *consuming* projects, not in this lib) | AGPL-3.0 contamination risk (Brief §2 rule 4). |
 
@@ -104,8 +104,15 @@ These pins are deliberately tight because the library exposes specific Presidio 
 "presidio-analyzer >= 2.2, < 3"
 "presidio-anonymizer >= 2.2, < 3"
 "spacy >= 3.7, < 4"
-"en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz"
 "rapidfuzz >= 3.0, < 4"
+
+# en-core-web-sm is dev-path-only since BILTIQ-012 (ADR-0006): PyPI rejects
+# direct-URL Requires-Dist, so the published dist ships without the model.
+# The pin lives in the repo-root [dependency-groups].dev, the package's own
+# [dependency-groups].dev, and ci.yml's explicit install line;
+# consumers post-install (`python -m spacy download en_core_web_sm`) or opt
+# into PresidioDetector(auto_download_model=True). Version pin unchanged
+# from ADR-0002 (3.8.0).
 ```
 
 ```toml

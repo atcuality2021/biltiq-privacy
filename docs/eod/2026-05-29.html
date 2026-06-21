@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EOD 2026-05-29</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1rem; color: #1f2328; line-height: 1.55; }
+  h1 { font-size: 1.5rem; border-bottom: 1px solid #d0d7de; padding-bottom: 0.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 1.6rem; color: #24292f; }
+  ul { padding-left: 1.3rem; }
+  li { margin: 0.2rem 0; }
+  code { background: #f6f8fa; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.92em; }
+  .meta { color: #6e7781; font-size: 0.85rem; }
+  .ai-usage table { border-collapse: collapse; margin-top: 0.4rem; }
+  .ai-usage td { padding: 0.15rem 0.8rem 0.15rem 0; }
+  .ai-usage td:first-child { color: #6e7781; }
+  .none { color: #6e7781; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>EOD &mdash; 2026-05-29</h1>
+<p class="meta">Branch: <code>feature/biltiq-006-spine-v1-10-1</code> · 4 commits today · 1 PR open · 0 PRs merged today.</p>
+
+<section id="shipped">
+  <h2>Shipped</h2>
+  <ul>
+    <li class="none">No PRs merged today. PR <a href="https://github.com/atcuality2021/biltiq-privacy/pull/5">#5 (BILTIQ-004)</a> still open from yesterday &mdash; awaiting reviewer.</li>
+  </ul>
+</section>
+
+<section id="wip">
+  <h2>WIP</h2>
+  <ul>
+    <li><strong>BILTIQ-006</strong> &mdash; vendored memory-spine toolchain drift (plugin v1.10.1 vendor + AC8 drift gate). Branch <code>feature/biltiq-006-spine-v1-10-1</code>. Steps 1&ndash;3 of 10 committed (<code>620dde5</code>, <code>c1d927a</code>, <code>3f2cb25</code>); plan-commit <code>9a338a9</code> preceded them. ~30% done. Two in-Build plan revisions landed (revision-5 = v1.6&rarr;v1.10.1 writer swap blast-radius, revision-6 = mypy + byte-equivalence interaction). Step 3 surface was larger than planned: 8 files staged vs the original 3 (revision-5 + revision-6 acknowledged the additional <code>test_memory_curator_io.py</code> + <code>test_memory_curator_projection.py</code> + <code>test_hook_install.py</code> + <code>pyproject.toml</code> patches).</li>
+    <li>Full pytest: 131 passed, 16 skipped (5+9+1+1 sidelined per revision-5; restored at Step 5 when the curator vendor lands).</li>
+    <li>Working-tree drift: <code>MEMORY.md</code> still unstaged (canonical AC8 reproduction; absorbed at Step 7).</li>
+  </ul>
+</section>
+
+<section id="tomorrow">
+  <h2>Tomorrow</h2>
+  <ul>
+    <li><strong>BILTIQ-006 Step 4</strong> &mdash; create <code>scripts/_memory_reader.py</code> v1.10.1 byte-equivalent (CREATE, not REPLACE: no v1.6 equivalent). S-sized (~30 min). 5 reader tests per plan: time-window filter, type filter, missing-jsonl empty-list, malformed-line skip, schema-v2 forward-compat skip. No anticipated plan revisions &mdash; the <code>[[tool.mypy.overrides]]</code> block landed in Step 3 already pre-lists <code>scripts._memory_reader</code>; the transitive-via-test mypy gate pattern from Step 3 carries forward.</li>
+  </ul>
+</section>
+
+<section id="blockers">
+  <h2>Blockers</h2>
+  <ul>
+    <li class="none">none</li>
+  </ul>
+</section>
+
+<section id="tech-debt-added">
+  <h2>Tech debt added</h2>
+  <ul>
+    <li><strong>Mypy override on vendored spine modules.</strong> <code>pyproject.toml</code> now carries <code>[[tool.mypy.overrides]] module = ["scripts._memory_writer", "scripts._memory_reader", "scripts._memory_curator"] disable_error_code = ["misc", "no-any-return"]</code>. Two byte-equivalent source lines in <code>_memory_writer.py</code> trip these errors and can't be fixed without breaking ADR-0004's byte-equivalence diff gate. The override scope is narrow (test files + non-vendored <code>scripts/*.py</code> still get full <code>--strict</code>), but it's a real local relaxation. Documented in <code>pyproject.toml</code> comment and plan revision-6. Closure path: when plugin source eventually updates <code>_memory_writer.py:43</code> to <code># type: ignore[misc,assignment]</code> and adds an explicit cast at line 122, the override can be removed and a re-vendor lands clean. Tracked-in-plan, not a separate ticket.</li>
+    <li><strong>Transient AP#1 in <code>scripts/_memory_curator.py:43</code>.</strong> Still does <code>from scripts._memory_writer import _resolve_repo_root</code> &mdash; works as accidental re-export through the writer's bare <code>from _paths import</code>. Step 5 (curator vendor) resolves it properly. Inside this PR's lifetime; not a follow-up ticket.</li>
+  </ul>
+</section>
+
+<section id="ai-usage" class="ai-usage">
+  <h2>AI usage &mdash; 2026-05-29</h2>
+  <table>
+    <tr><td>Sessions</td><td>76</td></tr>
+    <tr><td>Projects touched</td><td>6</td></tr>
+    <tr><td>User messages</td><td>1,464</td></tr>
+    <tr><td>Assistant messages</td><td>2,430</td></tr>
+    <tr><td>Tokens &mdash; input</td><td>1,133,879</td></tr>
+    <tr><td>Tokens &mdash; output</td><td>4,451,391</td></tr>
+    <tr><td>Tokens &mdash; cache write</td><td>20,866,429</td></tr>
+    <tr><td>Tokens &mdash; cache read (free)</td><td>250,507,152</td></tr>
+    <tr><td>Tokens &mdash; billable sum</td><td>26,451,699</td></tr>
+  </table>
+  <h3 style="font-size:0.98rem;margin-top:0.9rem;">Top tools</h3>
+  <ul>
+    <li>Bash &mdash; 541</li>
+    <li>Read &mdash; 207</li>
+    <li>Edit &mdash; 176</li>
+    <li>TaskUpdate &mdash; 129</li>
+    <li>TaskCreate &mdash; 68</li>
+    <li>AskUserQuestion &mdash; 36</li>
+    <li>Agent &mdash; 31</li>
+    <li>Write &mdash; 21</li>
+    <li>Skill &mdash; 17</li>
+    <li>StructuredOutput &mdash; 14</li>
+  </ul>
+  <h3 style="font-size:0.98rem;margin-top:0.9rem;">Top projects</h3>
+  <ul>
+    <li><code>-home-atc-Desktop-biltiq-privacy</code> &mdash; 2,756</li>
+    <li><code>-home-atc-Desktop-biltiq-agent-os</code> &mdash; 2,015</li>
+    <li><code>-home-atc-Desktop-game</code> &mdash; 1,188</li>
+    <li><code>-tmp</code> &mdash; 839</li>
+    <li><code>-home-atc-Desktop-idx-82</code> &mdash; 430</li>
+  </ul>
+</section>
+
+</body>
+</html>

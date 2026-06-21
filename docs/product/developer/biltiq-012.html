@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- vllm_quality_warning:true -->
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BILTIQ-012 — Developer Guide</title>
+  <style>
+    :root {
+      --color-border: #e5e7eb; --color-bg: #ffffff; --color-bg-subtle: #f9fafb;
+      --color-text: #111827; --color-muted: #6b7280; --color-warn: #d97706;
+      --radius: 6px; --max-width: 860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px;
+      line-height: 1.6; color: var(--color-text); background: var(--color-bg);
+      padding: 2rem 1rem; }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header { border-bottom: 2px solid var(--color-border); padding-bottom: 1rem;
+      margin-bottom: 1.5rem; }
+    header h1 { font-size: 1.5rem; }
+    .tier-tag { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--color-muted); }
+    .vllm-warning { background: #fffbeb; border: 1px solid #fcd34d;
+      color: var(--color-warn); border-radius: var(--radius); padding: 0.6rem 0.9rem;
+      margin: 1rem 0; font-size: 0.85rem; }
+    h2 { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem; margin-bottom: 0.5rem; }
+    section { margin-bottom: 1.5rem; }
+    p { margin-bottom: 0.4rem; }
+    code { background: var(--color-bg-subtle); padding: 0.1rem 0.3rem; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="tier-tag">Developer Guide</span>
+    <h1>BILTIQ-012 — Developer Guide</h1>
+  </header>
+  <div class="vllm-warning" role="note">
+    Generated on the inline fallback path (vLLM unreachable). Prose fidelity is
+    reduced; review before publishing.
+  </div>
+  <p class="summary">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;UTF-8&quot;&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;
+  &lt;title&gt;Spec: anonymise() orchestration + public API (v0.1.0)&lt;/title&gt;
+  &lt;style&gt;
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-label{font-size:0.85rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;main&gt;
+  &lt;header&gt;
+    &lt;h1&gt;Spec: anonymise() orchestration + public API (v0.1.0)&lt;/h1&gt;
+    &lt;dl class=&quot;meta&quot;&gt;
+      &lt;div&gt;&lt;dt&gt;Task ID&lt;/dt&gt;&lt;dd&gt;BILTIQ-012&lt;/dd&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;dt&gt;Phase&lt;/dt&gt;&lt;dd&gt;A — core pipeline → tag v0.1.0&lt;/dd&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;dt&gt;Owner&lt;/dt&gt;&lt;dd&gt;@atcuality2021&lt;/dd&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;dt&gt;Created&lt;/dt&gt;&lt;dd&gt;2026-06-01&lt;/dd&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;dt&gt;Wall-clock&lt;/dt&gt;&lt;dd&gt;M&lt;/dd&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;dt&gt;Tokens&lt;/dt&gt;&lt;dd&gt;M&lt;/dd&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;dt&gt;Human review (min)&lt;/dt&gt;&lt;dd&gt;30&lt;/dd&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;dt&gt;Harness&lt;/dt&gt;&lt;dd&gt;Claude Code Opus 4.8&lt;/dd&gt;&lt;/div&gt;
+    &lt;/dl&gt;
+  &lt;/header&gt;
+
+  &lt;section id=&quot;problem&quot;&gt;
+    &lt;h2&gt;Problem&lt;/h2&gt;
+    &lt;p&gt;BILTIQ-007–011 deliver the pipeline pieces; nothing yet ties them together or
+    presents a public entry point. CDSCO&#x27;s &lt;code&gt;pipeline.py&lt;/code&gt; orchestrates
+    detect→merge→pseudonymise→generalise but is coupled to a PDF extractor and an
+    optional LLM call. This task ports the orchestration as a clean library function
+    over &lt;em&gt;text input&lt;/em&gt; (extraction is the caller&#x27;s concern), wires the public
+    &lt;code&gt;biltiq_privacy&lt;/code&gt; API, and tags the first publishable release &lt;code&gt;v0.1.0&lt;/code&gt;.&lt;/p&gt;
+  &lt;/section&gt;
+
+  &lt;section id=&quot;user-impact&quot;&gt;
+    &lt;h2&gt;User Impact&lt;/h2&gt;
+    &lt;p&gt;External. First usable release: &lt;code&gt;pip install biltiq-privacy&lt;/code&gt;, then
+    &lt;code&gt;anonymise(text, detector=..., key=..., regime=...)&lt;/code&gt; returns anonymised text +
+    detections + audit row + compliance report. This is the milestone where the
+    library becomes consumable by CDSCO, CommandCenter, and ManthanQuant.&lt;/p&gt;
+  &lt;/section&gt;
+
+  &lt;section id=&quot;acceptance-criteria&quot;&gt;
+    &lt;h2&gt;Acceptance Criteria&lt;/h2&gt;
+    &lt;ul class=&quot;ac-list&quot;&gt;
+      &lt;li class=&quot;ac-item&quot;&gt;&lt;span class=&quot;ac-badge ac-open&quot;&gt;OPEN&lt;/span&gt;&lt;span class=&quot;ac-label&quot;&gt;&lt;strong&gt;AC1&lt;/strong&gt; — A top-level &lt;code&gt;anonymise(text, *, detector, key, generated_at, regime=None, generalise=True, prev_hash=GENESIS_PREV_HASH) -&gt; AnonymiseResult&lt;/code&gt; chains Detector→Pseudonymiser→Generaliser→(Regime)→AuditChain; result carries &lt;code&gt;anonymised_text&lt;/code&gt;, &lt;code&gt;detections&lt;/code&gt;, &lt;code&gt;audit_row&lt;/code&gt;, and &lt;code&gt;compliance&lt;/code&gt; (when a regime is given). &lt;code&gt;generated_at&lt;/code&gt; and &lt;code&gt;prev_hash&lt;/code&gt; are caller-supplied — the library reads no clock (BILTIQ-010/011 determinism precedent, dev-ruled 2026-06-11).&lt;/span&gt;&lt;/li&gt;
+      &lt;li class=&quot;ac-item&quot;&gt;&lt;span class=&quot;ac-badge ac-open&quot;&gt;OPEN&lt;/span&gt;&lt;span class=&quot;ac-label&quot;&gt;&lt;strong&gt;AC2&lt;/strong&gt; — &lt;code&gt;biltiq_privacy/__init__.py&lt;/code&gt; exports the public surface (&lt;code&gt;anonymise&lt;/code&gt;, &lt;code&gt;PresidioDetector&lt;/code&gt;, &lt;code&gt;Detector&lt;/code&gt;, &lt;code&gt;Regime&lt;/code&gt;, &lt;code&gt;DPDPRegime&lt;/code&gt;, error types) with a stable, documented API.&lt;/span&gt;&lt;/li&gt;
+      &lt;li class=&quot;ac-item&quot;&gt;&lt;span class=&quot;ac-badge ac-open&quot;&gt;OPEN&lt;/span&gt;&lt;span class=&quot;ac-label&quot;&gt;&lt;strong&gt;AC3&lt;/strong&gt; — End-to-end integration test: raw text containing Indian PII → detected → pseudonymised → generalised → DPDP report passes → audit row verifies.&lt;/span&gt;&lt;/li&gt;
+      &lt;li class=&quot;ac-item&quot;&gt;&lt;span class=&quot;ac-badge ac-open&quot;&gt;OPEN&lt;/span&gt;&lt;span class=&quot;ac-label&quot;&gt;&lt;strong&gt;AC4&lt;/strong&gt; — Default path imports no PDF/LLM/DB/FastAPI; LLM detection is opt-in only via an injected detector (Phase D). Compliance: &lt;code&gt;on_prem_preferred&lt;/code&gt; respected.&lt;/span&gt;&lt;/li&gt;
+      &lt;li class=&quot;ac-item&quot;&gt;&lt;span class=&quot;ac-badge ac-open&quot;&gt;OPEN&lt;/span&gt;&lt;span class=&quot;ac-label&quot;&gt;&lt;strong&gt;AC5&lt;/strong&gt; — Package version set to &lt;code&gt;0.1.0&lt;/code&gt;; &lt;code&gt;CHANGELOG.md&lt;/code&gt; entry added; &lt;code&gt;README&lt;/code&gt; has a runnable usage example; sdist + wheel build cleanly and &lt;strong&gt;v0.1.0 is published to PyPI at Ship&lt;/strong&gt; (dev-ruled 2026-06-11 — publish in-task, not tag-only; publish itself is a dev-confirmed action with dev-supplied credentials).&lt;/span&gt;&lt;/li&gt;
+      &lt;li class=&quot;ac-item&quot;&gt;&lt;span class=&quot;ac-badge ac-open&quot;&gt;OPEN&lt;/span&gt;&lt;span class=&quot;ac-label&quot;&gt;&lt;strong&gt;AC6&lt;/strong&gt; — &lt;code&gt;python-core&lt;/code&gt; builds and imports cleanly; full test suite green; passes &lt;code&gt;--strict&lt;/code&gt; type check + banned-vocab/residue gates.&lt;/span&gt;&lt;/li&gt;
+      &lt;li class=&quot;ac-item&quot;&gt;&lt;span class=&quot;ac-badge ac-open&quot;&gt;OPEN&lt;/span&gt;&lt;span class=&quot;ac-label&quot;&gt;&lt;strong&gt;AC7&lt;/strong&gt; — Publishable packaging (dev-ruled 2026-06-11, plan-review finding #1): &lt;code&gt;en-core-web-sm&lt;/code&gt; is removed from &lt;code&gt;[project].dependencies&lt;/code&gt; (PyPI rejects direct-URL deps) and kept on the dev/CI install path; the built wheel&#x27;s metadata contains no direct-URL &lt;code&gt;Requires-Dist&lt;/code&gt; (gate-tested); &lt;code&gt;PresidioDetector&lt;/code&gt; gains opt-in &lt;code&gt;auto_download_model=False&lt;/code&gt; — when True and the model is missing, it downloads on first &lt;code&gt;detect()&lt;/code&gt;; &lt;strong&gt;default path makes no network call&lt;/strong&gt; (guard-tested); &lt;code&gt;MissingNERModelError&lt;/code&gt;&#x27;s message names both remedies; README documents the post-install line; ADR records the amendment to the 2026-05-17 &quot;spaCy bundled&quot; decision.&lt;/span&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/section&gt;
+
+  &lt;section id=&quot;out-of-scope&quot;&gt;
+    &lt;h2&gt;Out of Scope&lt;/h2&gt;
+    &lt;ul&gt;
+      &lt;li&gt;REST sidecar (BILTIQ-013) and native SDKs (Phase E).&lt;/li&gt;
+      &lt;li&gt;PDF/CSV extraction adapters — caller passes text (may be a thin follow-up helper).&lt;/li&gt;
+      &lt;li&gt;LLM/hybrid detection (Phase D); extra regimes/region packs (Phase C).&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/section&gt;
+
+  &lt;section id=&quot;open-questions&quot;&gt;
+    &lt;h2&gt;Open Questions&lt;/h2&gt;
+    &lt;ul&gt;
+      &lt;li&gt;&lt;strong&gt;RESOLVED 2026-06-11&lt;/strong&gt; — Result type: &lt;code&gt;@dataclass(slots=True, frozen=True)&lt;/code&gt; &lt;code&gt;AnonymiseResult&lt;/code&gt;, per the approved-versions mandate for library return types.&lt;/li&gt;
+      &lt;li&gt;&lt;strong&gt;RESOLVED 2026-06-11&lt;/strong&gt; — Regime is opt-in (&lt;code&gt;regime=None&lt;/code&gt; default); detection+pseudonymise+generalise is useful alone.&lt;/li&gt;
+      &lt;li&gt;&lt;strong&gt;RESOLVED 2026-06-11 (dev-ruled)&lt;/strong&gt; — Publish v0.1.0 to PyPI as part of this task&#x27;s Ship step (not tag-only). The publish action runs only with explicit dev confirmation and dev-supplied credentials; if credentials are unavailable at Ship, the tag lands and publish becomes an immediate follow-up, recorded in reflect.&lt;/li&gt;
+      &lt;li&gt;&lt;strong&gt;RESOLVED 2026-06-11 (dev-ruled)&lt;/strong&gt; — Determinism: &lt;code&gt;generated_at&lt;/code&gt; (required kwarg) + &lt;code&gt;prev_hash=GENESIS_PREV_HASH&lt;/code&gt; are caller-supplied; no clock read inside the library.&lt;/li&gt;
+      &lt;li&gt;&lt;strong&gt;RESOLVED 2026-06-11 (dev-ruled)&lt;/strong&gt; — Sequencing: PR #11 reviewed + merged to main (&lt;code&gt;c114892&lt;/code&gt;) before this task&#x27;s Build; BILTIQ-012 branches off main.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/section&gt;
+
+  &lt;section id=&quot;change-history&quot;&gt;
+    &lt;h2&gt;Change History&lt;/h2&gt;
+    &lt;table&gt;
+      &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Date&lt;/th&gt;&lt;th&gt;Section&lt;/th&gt;&lt;th&gt;What Changed&lt;/th&gt;&lt;th&gt;Trigger&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+      &lt;tbody&gt;&lt;tr&gt;&lt;td&gt;2026-06-01&lt;/td&gt;&lt;td&gt;all&lt;/td&gt;&lt;td&gt;Initial draft from port brainstorm&lt;/td&gt;&lt;td&gt;BILTIQ-012&lt;/td&gt;&lt;/tr&gt;
+      &lt;tr&gt;&lt;td&gt;2026-06-11&lt;/td&gt;&lt;td&gt;AC1, AC5, open-questions&lt;/td&gt;&lt;td&gt;Think-step rulings folded in: caller-supplied &lt;code&gt;generated_at&lt;/code&gt;/&lt;code&gt;prev_hash&lt;/code&gt; on the facade signature; PyPI publish in-task at Ship; result dataclass; regime opt-in; PR #11 merged before Build. Artifact updates rendered inline (vLLM Socratic driver is interactive-only — &lt;code&gt;inline-Claude-required&lt;/code&gt; fallback, consistent with BILTIQ-010/011).&lt;/td&gt;&lt;td&gt;BILTIQ-012 Think&lt;/td&gt;&lt;/tr&gt;
+      &lt;tr&gt;&lt;td&gt;2026-06-11&lt;/td&gt;&lt;td&gt;AC7 (new)&lt;/td&gt;&lt;td&gt;Plan-reviewer round 1 found the direct-URL &lt;code&gt;en-core-web-sm&lt;/code&gt; dependency blocks any PyPI upload (Warehouse rejects direct-URL &lt;code&gt;Requires-Dist&lt;/code&gt;). Dev ruled &quot;1 and 3 both&quot;: drop from published dist + documented post-install, AND opt-in &lt;code&gt;auto_download_model&lt;/code&gt; (default OFF — no network on the default path, preserving &lt;code&gt;on_prem_preferred&lt;/code&gt;). Amends the 2026-05-17 &quot;spaCy bundled&quot; onboarding decision; ADR required.&lt;/td&gt;&lt;td&gt;plan-reviewer finding #1&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;
+    &lt;/table&gt;
+  &lt;/section&gt;
+&lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</p>
+  <section id="overview">
+    <h2>Overview</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <section id="architecture">
+    <h2>Architecture and APIs</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <section id="integration">
+    <h2>Integration and Extension</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <section id="testing">
+    <h2>Testing and Local Run</h2>
+    <p>Drafted without vLLM. Review and complete this section, or re-run <code>/biltiq-engineering:product-docs</code> once the model endpoint is reachable.</p>
+  </section>
+  <!-- biltiq:manual -->
+  <section id="notes"><h2>Notes</h2><p>Human-authored notes preserved across regeneration go here.</p></section>
+  <!-- /biltiq:manual -->
+  <section id="revision-history">
+    <h2>Revision history</h2>
+    <table>
+      <thead><tr><th>doc_version</th><th>source_commit</th><th>last_updated</th><th>change</th></tr></thead>
+      <tbody><tr><td>1.0.0</td><td>adee84a980d7eecfa8687b70e0e2551cc227a876</td><td>2026-06-11T08:06:38.994380+00:00</td><td>anonymise() facade + public API v0.1.0 (BILTIQ-012)</td></tr>
+        <!-- revision rows appended on update --></tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

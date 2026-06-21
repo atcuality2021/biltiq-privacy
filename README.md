@@ -2,7 +2,42 @@
 
 A reusable Python library + FastAPI sidecar + thin native SDKs for PII detection, pseudonymisation, and region-specific compliance checks (DPDP, GDPR, HIPAA, CCPA). Layered on top of Microsoft Presidio; productised from CDSCO-RegAI's production stack. MIT-licensed, shipped to public PyPI from v0.1.0 (alpha).
 
-> **Status:** Pre-implementation — v0.1.0 scaffolded; engine modules (BILTIQ-002+) not yet ported. Track progress at [`docs/specs/`](docs/specs/).
+> **Status:** v0.1.0 (alpha) — the core pipeline is complete: Indian PII detection, HMAC pseudonymisation, rule-based generalisation, the DPDP 2023 validator, a tamper-evident audit hash-chain, and the `anonymise()` facade tying them together. Sidecar + native SDKs land in v0.1.1+. Track progress at [`docs/specs/`](docs/specs/).
+
+## Usage
+
+```bash
+pip install biltiq-privacy
+python -m spacy download en_core_web_sm   # NER model — one-time post-install (ADR-0006)
+```
+
+```python
+from biltiq_privacy import DPDPRegime, PresidioDetector, anonymise, verify_chain
+
+result = anonymise(
+    "Patient Aadhaar 1234 5678 9011; mobile 9876543210.",
+    detector=PresidioDetector(),     # or PresidioDetector(auto_download_model=True)
+    key=b"your-32-byte-secret-key-here....",   # HMAC key — injected, never read from env
+    generated_at="2026-06-11T00:00:00+00:00",  # caller-supplied; the library reads no clock
+    regime=DPDPRegime(),                       # optional compliance attestation
+)
+
+print(result.anonymised_text)        # tokens + generalisations; originals gone
+print(result.compliance.score)      # e.g. "8/8" — DPDP 2023 check results
+assert verify_chain([result.audit_row])["valid"]
+
+# Chain the next document onto the same tamper-evident audit trail:
+next_result = anonymise(
+    "Follow-up note.",
+    detector=PresidioDetector(),
+    key=b"your-32-byte-secret-key-here....",
+    generated_at="2026-06-11T00:05:00+00:00",
+    prev_hash=result.audit_row["hash"],
+)
+assert verify_chain([result.audit_row, next_result.audit_row])["valid"]
+```
+
+`result.detections` carries the original span text by design (the detector contract) — treat the result object as sensitive and don't log it raw. The audit-chain payload itself is PII-free (counts, flags, and SHA-256 commitments only), so the rows are safe to persist anywhere.
 
 ## Who it's for
 

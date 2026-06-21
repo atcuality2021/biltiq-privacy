@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EOD — 2026-06-11</title>
+  <style>
+    :root {
+      --color-border: #e5e7eb; --color-bg: #ffffff;
+      --color-bg-subtle: #f9fafb; --color-text: #111827;
+      --color-muted: #6b7280; --color-shipped: #16a34a;
+      --color-wip: #d97706; --color-blocker: #dc2626;
+      --radius: 6px; --max-width: 860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif; font-size: 15px;
+      line-height: 1.6; color: var(--color-text); background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header { border-bottom: 2px solid var(--color-border); padding-bottom: 1.25rem; margin-bottom: 2rem; }
+    header h1 { font-size: 1.5rem; }
+    section { margin-bottom: 2rem; }
+    h2 { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--color-border); padding-left: 0.75rem; margin-bottom: 0.75rem; }
+    h2.shipped { border-color: var(--color-shipped); }
+    h2.wip     { border-color: var(--color-wip); }
+    h2.blocker { border-color: var(--color-blocker); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    p { margin-bottom: 0.4rem; }
+    @media (max-width: 600px) { table { font-size: 0.8rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>EOD — 2026-06-11</h1></header>
+
+  <section id="shipped">
+    <h2 class="shipped">Shipped</h2>
+    <p>&lt;ul&gt;&lt;li&gt;&lt;strong&gt;PR #11 — BILTIQ-011: Regime ABC + DPDP 2023 validator&lt;/strong&gt; (merged 06:38Z after mandatory high-risk human review). 43 tests; side-by-side vs live CDSCO: 8/8 statuses identical.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;PR #10 — BILTIQ-010: pure tamper-evident audit hash-chain&lt;/strong&gt; (merged 02:54Z; ADR-0005 canonical-JSON golden vector).&lt;/li&gt;&lt;li&gt;&lt;strong&gt;PR #5 — BILTIQ-004: age streaming wrapper + POSIX installer&lt;/strong&gt; (merged 03:16Z; ADR-0003).&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="wip">
+    <h2 class="wip">WIP</h2>
+    <p>&lt;ul&gt;&lt;li&gt;&lt;strong&gt;BILTIQ-012 — anonymise() facade + public API&lt;/strong&gt;: PR #13 OPEN, ~95% done (all 7 Attack-Loop steps complete; awaiting PR review, then tag v0.1.0 + PyPI publish with dev credentials). Branch &lt;code&gt;feature/biltiq-012-anonymise-facade&lt;/code&gt;. 24 new tests (284 total), ADR-0006 accepted, wheel METADATA gate verified.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;PR #12 — Skyflow parity+ roadmap&lt;/strong&gt; (docs-only): OPEN, awaiting review. 8 scoped tickets (BILTIQ-014/015 spec scaffolds included).&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="tomorrow">
+    <h2>Tomorrow</h2>
+    <p>&lt;ul&gt;&lt;li&gt;Review + merge PR #13 → tag &lt;code&gt;v0.1.0&lt;/code&gt; → PyPI publish (dev-confirmed, dev credentials — twine/uv token or trusted publishing).&lt;/li&gt;&lt;li&gt;Then start BILTIQ-013 (FastAPI sidecar).&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="blockers">
+    <h2 class="blocker">Blockers</h2>
+    <p>&lt;ul&gt;&lt;li&gt;PyPI publish needs dev credentials (token or trusted-publishing setup) — only blocking the AC5 publish leg, not the merge.&lt;/li&gt;&lt;li&gt;&lt;code&gt;biltiq-gates.yml&lt;/code&gt; still fails in 0s on every push — four tasks shipped with zero gates-CI signal (unticketed, re-upped in two reflects).&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="tech-debt-added">
+    <h2>Tech Debt Added</h2>
+    <p>&lt;ul&gt;&lt;li&gt;&lt;strong&gt;RedactionFilter phantom&lt;/strong&gt;: &lt;code&gt;core/log_filter.py&lt;/code&gt; listed in stack.md since pre-implementation but never built — caught when README cited it; row marked PLANNED; needs its own ticket.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Merge-policy label drift&lt;/strong&gt;: IN_PHONE/IN_MEDICAL_REG replaced under UK_NHS/PERSON labels on the sample blob (CDSCO higher-score-wins); revisit at BILTIQ-015 CompositeDetector.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;BILTIQ-012 product docs via inline fallback&lt;/strong&gt; (vLLM 524 ×3; quality-warning stamped) — refresh when endpoint healthy.&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="ai-usage">
+    <h2>AI Usage</h2>
+    <p>&lt;ul&gt;&lt;li&gt;Sessions: 1 · Projects: 1 (biltiq-privacy)&lt;/li&gt;&lt;li&gt;Prompts: 554 · Responses: 1000&lt;/li&gt;&lt;li&gt;Tokens (in/out/cache-w/cache-r): 456,601 / 854,493 / 4,055,372 / 180,665,868 (cache reads free; billable sum 5,366,466)&lt;/li&gt;&lt;li&gt;Top tools: Bash 250, Edit 131, Read 53, Write 22, Skill 20, Agent 9&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td>2026-06-11</td><td>all</td><td>Initial draft</td><td>eod</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
