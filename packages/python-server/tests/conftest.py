@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
+from fastapi.testclient import TestClient
 
 #: Deterministic test secret for HS256 signing/verification.
 TEST_JWT_SECRET = "test-jwt-secret-not-a-real-secret"
@@ -77,3 +78,44 @@ def server_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 def valid_token() -> str:
     """A valid, short-lived HS256 token signed with the test secret."""
     return _mint_token()
+
+
+class FakeDetector:
+    """A no-load :class:`~biltiq_privacy.Detector` stand-in for tests.
+
+    The real ``PresidioDetector`` pulls in spaCy + Presidio and a ~1-2 s model
+    load on first ``detect``. This fake honours the same constructor and method
+    shape so the lifespan and endpoint tests exercise the real wiring without
+    any model load (AC10). It returns no detections by default; tests needing
+    specific spans override ``get_detector`` via ``app.dependency_overrides``.
+    """
+
+    def __init__(self, *, score_threshold: float = 0.5) -> None:
+        self.score_threshold = score_threshold
+
+    def detect(self, text: str, language: str = "en") -> list[object]:
+        """Return no detections — the seam exists to avoid loading a model."""
+        return []
+
+
+@pytest.fixture
+def fastapi_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """A TestClient over a factory-built app with the fake-detector seam.
+
+    Sets the required secrets, swaps the lifespan's ``PresidioDetector`` for
+    :class:`FakeDetector` so startup loads no model, then yields a client inside
+    the app's lifespan context (``with`` runs startup/shutdown) — so
+    ``app.state`` is populated exactly as in production, minus the model load.
+    """
+    monkeypatch.setenv("BILTIQ_JWT_SECRET", TEST_JWT_SECRET)
+    monkeypatch.setenv("BILTIQ_HMAC_KEY", TEST_HMAC_KEY)
+    monkeypatch.setattr(
+        "biltiq_privacy_server.lifespan.PresidioDetector", FakeDetector
+    )
+
+    from biltiq_privacy_server.app import create_app
+    from biltiq_privacy_server.config import load_settings
+
+    app = create_app(load_settings())
+    with TestClient(app) as client:
+        yield client
