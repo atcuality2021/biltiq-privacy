@@ -79,6 +79,75 @@ uv run pytest
 
 Both paths run the same 4-Python matrix (3.11 / 3.12 / 3.13 / 3.14) and the same tests.
 
+## Sidecar (REST server)
+
+The `biltiq-privacy-server` package wraps the engine in a FastAPI sidecar — for the Node / PHP / Go SDKs and any non-Python consumer.
+
+```bash
+pip install biltiq-privacy-server
+python -m spacy download en_core_web_sm   # NER model — one-time post-install (ADR-0006)
+```
+
+The server reads two secrets from the environment at startup and **fails fast** if either is missing (the HMAC key must be ≥ 32 bytes). They are never logged and never travel over the wire:
+
+```bash
+export BILTIQ_JWT_SECRET='your-jwt-signing-secret'          # HS256 verification secret
+export BILTIQ_HMAC_KEY='your-32-byte-pseudonymisation-key!' # ≥ 32 bytes (256-bit)
+biltiq-privacy-server serve                                 # binds 0.0.0.0:8088, 1 worker
+# serve --host 127.0.0.1 --port 9090 --workers 4   # scale-out re-imports the app per worker
+```
+
+The data endpoints are **Bearer-JWT gated**. The server is **verify-only** — it never issues tokens; **consumers mint their own JWT** signed with `BILTIQ_JWT_SECRET` (ADR-0007). For example, in Python:
+
+```python
+import jwt, datetime  # PyJWT
+token = jwt.encode(
+    {"sub": "my-service", "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=5)},
+    "your-jwt-signing-secret",
+    algorithm="HS256",
+)
+```
+
+One call per endpoint (`$TOKEN` is the value above):
+
+```bash
+# Liveness/readiness — unauthenticated; 200 healthy, 503 if the NER model is missing
+curl -s http://localhost:8088/healthz
+
+# Detect PII spans
+curl -s -X POST http://localhost:8088/detect \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"text": "Call Ravi on 9876543210."}'
+
+# Anonymise (+ optional DPDP-2023 compliance attestation)
+curl -s -X POST http://localhost:8088/anonymize \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"text": "Call Ravi on 9876543210.", "regime": "DPDP-2023"}'
+
+# Validate an already-anonymised payload against a regime (fields come from an /anonymize response)
+curl -s -X POST http://localhost:8088/validate \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"original_text": "Call Ravi on 9876543210.",
+       "anonymised_text": "Call Ravi on [IN_PHONE_8ea4f7ab].",
+       "detections": [{"entity_type": "IN_PHONE", "text": "9876543210", "start": 13, "end": 23, "score": 0.9, "source": "presidio"}],
+       "audit_records": [{"entity_type": "IN_PHONE", "pseudonym_token": "[IN_PHONE_8ea4f7ab]", "position_start": 13, "position_end": 23, "confidence": 0.9}],
+       "regime": "DPDP-2023"}'
+```
+
+The HMAC pseudonymisation key never appears in a request or response — it is injected server-side per request, so SDK clients send only `text` and never handle the key.
+
+### OpenAPI contract
+
+`packages/python-server/openapi.json` is committed and is the contract the native SDK generator consumes. A drift test fails CI if the live schema and the committed file diverge. Regenerate it (no extra script — a one-liner) after any handler or model change:
+
+```bash
+python -c "import json; from biltiq_privacy_server import __version__; from biltiq_privacy_server.app import create_app; from biltiq_privacy_server.config import Settings; json.dump(create_app(Settings(jwt_secret='openapi-export', hmac_key=b'0'*32, version=__version__)).openapi(), open('packages/python-server/openapi.json','w'), indent=2, sort_keys=True); open('packages/python-server/openapi.json','a').write(chr(10))"
+```
+
+### Docker (offered, not led with)
+
+A `packages/python-server/Dockerfile` scaffold builds from the repo root (`docker build -f packages/python-server/Dockerfile -t biltiq/privacy-server:0.1.0 .`). The default deployment is native pip + systemd; the image is a starting point — pin the base digest and add a non-root user before production.
+
 ## Repository layout
 
 ```

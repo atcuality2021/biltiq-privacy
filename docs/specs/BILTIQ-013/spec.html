@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: FastAPI sidecar — /detect, /anonymize, /validate (v0.1.0)</title>
+  <style>
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    h3{font-size:0.95rem;font-weight:600;margin:1rem 0 0.4rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    pre{background:var(--color-bg-subtle);border:1px solid var(--color-border);border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.85em;overflow-x:auto;margin-bottom:0.75rem;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;margin-top:0.15rem;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-done{background:#dcfce7;color:#15803d;border:1px solid #86efac;}
+    .ac-label{font-size:0.85rem;}
+    .risk-box{background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius);padding:0.6rem 0.9rem;margin-bottom:0.75rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: FastAPI sidecar — /detect, /anonymize, /validate (v0.1.0)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-013</dd></div>
+      <div><dt>Phase</dt><dd>B — sidecar + polyglot SDKs</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-21</dd></div>
+      <div><dt>Wall-clock</dt><dd>M</dd></div>
+      <div><dt>Tokens</dt><dd>M</dd></div>
+      <div><dt>Human review (min)</dt><dd>45 (high-risk: auth)</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Sonnet 4.6</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p><code>biltiq-privacy</code> v0.1.0 is now published and covers the full privacy pipeline
+    (detect → pseudonymise → generalise → DPDP validate → audit chain). It is Python-only. The
+    polyglot SDK plan (Node/PHP/Go, v0.1.1+) requires an HTTP interface. Consumers in non-Python
+    stacks — ATC CommandCenter (Node), ManthanQuant (mixed), CDSCO-RegAI (Python but containerised
+    separately) — must be able to call the privacy engine over REST without embedding the Python
+    runtime.</p>
+    <p>The <code>packages/python-server/</code> skeleton was scaffolded in BILTIQ-001 with
+    FastAPI + uvicorn + pydantic v2 declared but no routes implemented. This task fills it in.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>External. Any consumer in any language can <code>POST /anonymize</code> with a JSON body and
+    receive anonymised text + audit row + compliance report. The three endpoints cover the complete
+    surface a polyglot SDK needs. JWT Bearer auth protects all three endpoints; <code>GET /healthz</code>
+    is unauthenticated (load balancer / container probe).</p>
+    <p>Deployment paths: <code>pip install biltiq-privacy-server &amp;&amp; biltiq-privacy-server serve</code>
+    (native, preferred) or <code>docker run biltiq/privacy-server:0.1.0</code> (offered).</p>
+  </section>
+
+  <section id="design-constraints">
+    <h2>Design Constraints (ruling before design)</h2>
+    <ul>
+      <li><strong>Thin shim only.</strong> The server translates JSON ↔ library calls. No business logic, no
+      regime implementation, no recogniser code lives here. Every privacy operation delegates to
+      <code>biltiq_privacy.*</code>.</li>
+      <li><strong>HMAC key never travels over the wire.</strong> <code>BILTIQ_HMAC_KEY</code> env var, read
+      once at startup, injected via FastAPI <code>Depends()</code>. Callers do not supply a key in
+      the request body.</li>
+      <li><strong>JWT secret in env.</strong> <code>BILTIQ_JWT_SECRET</code> env var (HS256). Callers
+      supply <code>Authorization: Bearer &lt;token&gt;</code>. The server verifies signature + expiry; it
+      does not issue tokens (token issuance is the consumer's concern).</li>
+      <li><strong>NER model loaded once at startup.</strong> <code>PresidioDetector</code> is instantiated
+      during app startup; a missing <code>en_core_web_sm</code> surfaces as a startup-time
+      <code>503 Service Unavailable</code> (not a per-request 500).</li>
+      <li><strong><code>generated_at</code> is caller-supplied or server-clock.</strong> If the caller omits
+      <code>generated_at</code>, the server supplies <code>datetime.now(timezone.utc).isoformat()</code>
+      (the server is a system boundary — it may read the clock; the library underneath stays pure).</li>
+      <li><strong>Audit chain is caller-owned.</strong> The server appends one row per <code>/anonymize</code>
+      call and returns it; the caller persists the rows. The server holds no state between requests.</li>
+      <li><strong>Pydantic v2 API only.</strong> <code>model_validate</code>, <code>model_dump</code>,
+      <code>field_validator</code> — never v1 aliases (<code>.parse_obj</code>, <code>.dict()</code>,
+      <code>@validator</code>).</li>
+    </ul>
+  </section>
+
+  <section id="endpoints">
+    <h2>Endpoint Contracts (informational — design will finalise schema)</h2>
+
+    <h3>POST /detect</h3>
+    <pre>{
+  "text": "Call Ravi on 9876543210.",
+  "language": "en",           // optional, default "en"
+  "score_threshold": 0.5      // optional, default 0.5
+}
+→ 200
+{
+  "detections": [
+    {"entity_type": "IN_PHONE", "text": "9876543210",
+     "start": 13, "end": 23, "score": 0.85, "source": "presidio"}
+  ],
+  "count": 1
+}</pre>
+
+    <h3>POST /anonymize</h3>
+    <pre>{
+  "text": "Call Ravi on 9876543210.",
+  "generated_at": "2026-06-21T07:00:00+00:00",  // optional; server clock if omitted
+  "regime": "DPDP-2023",                          // optional; null skips compliance
+  "generalise": true,                              // optional, default true
+  "prev_hash": "0000...0000"                       // optional; GENESIS_PREV_HASH if omitted
+}
+→ 200
+{
+  "anonymised_text": "+91 XXXXX XX210",
+  "detections": [...],
+  "audit_records": [...],
+  "audit_row": {"hash": "...", "prev_hash": "...", "payload": {...}},
+  "compliance": {"checks": [...], "compliant": true, "score": "8/8"} // null if no regime
+}</pre>
+
+    <h3>POST /validate</h3>
+    <pre>{
+  "original_text": "Call Ravi on 9876543210.",
+  "anonymised_text": "+91 XXXXX XX210",
+  "detections": [...],
+  "audit_records": [...],
+  "generated_at": "2026-06-21T07:00:00+00:00",
+  "regime": "DPDP-2023"
+}
+→ 200
+{
+  "checks": [...],
+  "compliant": true,
+  "score": "8/8",
+  "generated_at": "2026-06-21T07:00:00+00:00",
+  "total": 8
+}</pre>
+
+    <h3>GET /healthz</h3>
+    <pre>→ 200  { "status": "ok", "version": "0.1.0" }
+→ 503  { "status": "degraded", "reason": "NER model not loaded" }  // startup failure</pre>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <div class="risk-box">
+      <strong>HIGH-RISK ticket (auth path).</strong> Mandatory human plan review before Step 3 Build
+      begins. Skill review does not substitute.
+    </div>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC1 — /detect endpoint.</strong>
+      <code>POST /detect</code> runs <code>PresidioDetector(score_threshold=...).detect(text)</code> and
+      returns a JSON array of detections. Optional <code>score_threshold</code> overrides the default
+      (0.5). Empty text returns <code>{"detections": [], "count": 0}</code>. Requires valid JWT Bearer.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC2 — /anonymize endpoint.</strong>
+      <code>POST /anonymize</code> calls <code>biltiq_privacy.anonymise()</code> with the server-injected
+      HMAC key; returns the full <code>AnonymiseResult</code> serialised as JSON including
+      <code>audit_row</code>. Missing <code>generated_at</code> defaults to server UTC clock.
+      Missing <code>prev_hash</code> defaults to <code>GENESIS_PREV_HASH</code>. Requires valid JWT Bearer.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC3 — /validate endpoint.</strong>
+      <code>POST /validate</code> instantiates the named regime and calls
+      <code>regime.validate(original_text, anonymised_text, detections, audit_records, generated_at=...)</code>;
+      returns the <code>ComplianceReport</code> serialised as JSON. Unknown regime ID returns
+      <code>422 Unprocessable Entity</code>. Requires valid JWT Bearer.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC4 — /healthz probe.</strong>
+      <code>GET /healthz</code> returns <code>200 {"status": "ok", "version": "0.1.0"}</code> when
+      the NER model loaded successfully at startup. Returns <code>503</code> if startup failed.
+      No auth required.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC5 — JWT Bearer auth.</strong>
+      All three data endpoints verify <code>Authorization: Bearer &lt;token&gt;</code> using
+      <code>BILTIQ_JWT_SECRET</code> (HS256). Missing or invalid token → <code>401</code>.
+      Expired token → <code>401</code>. The server never issues tokens.
+      A missing <code>BILTIQ_JWT_SECRET</code> env var at startup raises
+      <code>RuntimeError</code> (fast-fail before binding the port).</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC6 — HMAC key injection.</strong>
+      <code>BILTIQ_HMAC_KEY</code> env var is read once at startup and injected into every
+      <code>/anonymize</code> call via <code>Depends()</code>. The key never appears in request
+      bodies, response bodies, or logs. Missing env var at startup → <code>RuntimeError</code>
+      (fast-fail). A key shorter than 32 bytes → <code>RuntimeError</code> at startup.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC7 — NER model startup load.</strong>
+      The FastAPI app's startup event calls <code>PresidioDetector().detect("")</code> to
+      trigger the engine build and cache it as an app-state singleton. A
+      <code>MissingNERModelError</code> sets an app-state flag; <code>/healthz</code> returns
+      <code>503</code> and all three data endpoints return <code>503</code> until a restart with
+      the model present.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC8 — CLI entry point.</strong>
+      <code>biltiq-privacy-server serve [--host HOST] [--port PORT] [--workers N]</code> starts
+      uvicorn. Default: <code>0.0.0.0:8088</code>, 1 worker. <code>pyproject.toml
+      [project.scripts]</code> entry registered.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC9 — OpenAPI schema exported.</strong>
+      <code>GET /openapi.json</code> returns the FastAPI-generated schema. Schema is committed to
+      <code>packages/python-server/openapi.json</code> (used by SDK generator in v0.1.1+).
+      Schema is regenerated in CI via a test assertion that compares the live schema to the
+      committed file.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC10 — Tests with TestClient; no real network.</strong>
+      All tests use <code>fastapi.testclient.TestClient</code>. No real uvicorn, no real network.
+      <code>BILTIQ_HMAC_KEY</code> and <code>BILTIQ_JWT_SECRET</code> are monkeypatched to
+      deterministic test values. ≥ 90% line coverage on <code>biltiq_privacy_server/</code>.
+      Full suite green with no network access (socket guard on the detect path).</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC11 — Error shape consistency.</strong>
+      All error responses follow <code>{"detail": "...", "code": "..."}</code>.
+      <code>HMACKeyRequiredError</code> from the library → <code>500</code> (should never reach
+      the caller; indicates a server misconfiguration). <code>MissingNERModelError</code> →
+      <code>503</code>. Pydantic validation failures → FastAPI's default <code>422</code>.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC12 — Packaging.</strong>
+      <code>packages/python-server/pyproject.toml</code> version is <code>0.1.0</code>.
+      <code>pip install biltiq-privacy-server</code> succeeds in a clean venv with
+      <code>biltiq-privacy</code> pre-installed. <code>CHANGELOG.md</code> entry added.
+      <code>README.md</code> updated with server quickstart (install + env vars + serve command
+      + one curl example per endpoint).</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li>Token issuance / OAuth2 flows — the server verifies JWTs; it does not mint them.</li>
+      <li>Rate limiting, request queuing, async workers — v0.2.0 concern.</li>
+      <li>Audit row persistence — the server returns the row; the caller persists it.</li>
+      <li>GDPR / HIPAA / CCPA regime support — Phase C (BILTIQ-017/018/019). Only <code>DPDP-2023</code>
+      is a valid regime ID in v0.1.0; unknown regime IDs return 422.</li>
+      <li>Multi-detector support via request body — only <code>PresidioDetector</code> in v0.1.0.</li>
+      <li>Node / PHP / Go SDK generation — v0.1.1+ (BILTIQ-016); this task produces the
+      <code>openapi.json</code> those SDKs will generate from.</li>
+      <li>Docker image — offered but not built in this task; Dockerfile scaffolded only.</li>
+      <li><code>RedactionFilter</code> on server logs — still PLANNED; log lines must not emit PII
+      until it ships.</li>
+    </ul>
+  </section>
+
+  <section id="dependencies">
+    <h2>Dependencies</h2>
+    <table>
+      <thead><tr><th>Dependency</th><th>Type</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>BILTIQ-012 merged (v0.1.0)</td><td>Hard — blocks all</td><td>Done: <code>anonymise()</code>, <code>PresidioDetector</code>, <code>DPDPRegime</code> all available.</td></tr>
+        <tr><td><code>python-jose[cryptography]</code> or <code>PyJWT</code></td><td>New dep — design must choose</td><td>JWT decode library. Design step ADR required (both are common; preference is <code>PyJWT&gt;=2.8</code> — lighter, actively maintained, no jose quirks).</td></tr>
+        <tr><td><code>BILTIQ_HMAC_KEY</code> env var</td><td>Runtime</td><td>≥ 32 bytes; validated at startup.</td></tr>
+        <tr><td><code>BILTIQ_JWT_SECRET</code> env var</td><td>Runtime</td><td>HS256 secret; validated at startup.</td></tr>
+        <tr><td><code>en_core_web_sm</code> installed</td><td>Runtime</td><td>Already installed in the dev env; documented in README server quickstart.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="rulings">
+    <h2>Dev Rulings</h2>
+    <table>
+      <thead><tr><th>Decision</th><th>Ruling</th><th>Date</th></tr></thead>
+      <tbody>
+        <tr><td>Endpoints in v0.1.0</td><td>/detect + /anonymize + /validate (dev-selected 2026-06-21)</td><td>2026-06-21</td></tr>
+        <tr><td>Auth mechanism</td><td>Bearer JWT (HS256, server-verify-only; dev-selected 2026-06-21)</td><td>2026-06-21</td></tr>
+        <tr><td>HMAC key source</td><td>Env var only — never in request body</td><td>2026-06-21</td></tr>
+        <tr><td>generated_at when omitted</td><td>Server supplies UTC clock (system boundary; library stays pure)</td><td>2026-06-21</td></tr>
+        <tr><td>JWT library</td><td>To be chosen in design step (PyJWT preference)</td><td>pending</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="risks">
+    <h2>Risks</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Risk</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td>R1</td><td>JWT secret in env — if leaked, any caller can forge tokens</td><td>Mandatory human plan review; startup fast-fail on missing secret; never log the secret or any Bearer header value.</td></tr>
+        <tr><td>R2</td><td>HMAC key in env — same env as JWT secret; a stolen env dump compromises both</td><td>Document that both vars should come from a secrets manager (Vault, AWS Secrets Manager) in the runbook, not hardcoded in <code>.env</code> files committed to git.</td></tr>
+        <tr><td>R3</td><td>DetectedEntity / AuditRecord in response bodies contain original PII spans</td><td>AC10 test: assert no raw PII value appears in the serialised <code>/detect</code> or <code>/anonymize</code> response for a known test input. (Library already guarantees audit_row is PII-free; the detection list is inherently not.)</td></tr>
+        <tr><td>R4</td><td><code>RedactionFilter</code> not yet shipped — server logs may emit PII from request bodies</td><td>Until RedactionFilter is ready, the server must not log request bodies at DEBUG level. A ruff lint rule banning <code>logger.debug(...request.*)</code> can enforce this.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+</body>
+</html>

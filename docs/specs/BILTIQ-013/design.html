@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: FastAPI sidecar — /detect, /anonymize, /validate, /healthz (v0.1.0)</title>
+  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    .adr-box { background: var(--color-bg-subtle); border: 1px solid var(--color-border); border-left: 4px solid var(--color-modified); border-radius: var(--radius); padding: 1rem 1.25rem; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: FastAPI sidecar — /detect, /anonymize, /validate, /healthz (v0.1.0)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-013</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021 (drafted by biltiq-code-architect)</dd></div>
+      <div><dt>Created</dt><dd>2026-06-21</dd></div>
+      <div><dt>Compliance mode</dt><dd>on_prem_preferred</dd></div>
+      <div><dt>Risk</dt><dd>HIGH (auth path — human plan review mandatory)</dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Chosen Approach</h2>
+    <h3>Name</h3>
+    <p><strong>App-factory thin shim: <code>create_app()</code> + per-endpoint routers + a startup
+    lifespan that builds the <code>PresidioDetector</code> singleton into <code>app.state</code>, with all
+    privacy work delegated to <code>biltiq_privacy.*</code>.</strong> The server contributes zero privacy
+    logic — it only translates JSON ↔ library calls and maps library exceptions to HTTP status codes.</p>
+
+    <h3>Description</h3>
+    <p>The package <code>biltiq_privacy_server/</code> is organised as a factory, not a module-level app
+    singleton. <code>create_app(settings: Settings) -&gt; FastAPI</code> reads validated config, registers
+    routers, installs exception handlers, and attaches the ASGI lifespan. A module-level
+    <code>app = create_app(load_settings())</code> is exposed only for <code>uvicorn</code>'s import string;
+    every test builds its own app from a test <code>Settings</code> so no global state leaks across tests
+    (AC10).</p>
+
+    <p><strong>Lifespan / startup singleton (AC7).</strong> A FastAPI <code>lifespan</code> async context
+    manager (the approved replacement for the deprecated <code>@app.on_event("startup")</code>) runs once
+    before the port binds. It constructs <code>PresidioDetector(score_threshold=...)</code> and calls
+    <code>.detect("")</code> to force the spaCy/Presidio engine build (the library's instance-level lazy
+    singleton). On success it stores the detector on <code>app.state.detector</code> and sets
+    <code>app.state.ner_ok = True</code>. If the library raises <code>MissingNERModelError</code>, the
+    handler catches it, sets <code>app.state.ner_ok = False</code> and <code>app.state.detector = None</code>,
+    and logs the remedy (no PII). The app still starts so <code>/healthz</code> can report
+    <code>503</code> and the three data endpoints can return <code>503</code> until a restart with the
+    model present — a degraded-but-observable boundary rather than a crash loop.</p>
+
+    <p><strong>Config &amp; fast-fail secrets (AC5, AC6).</strong> <code>config.py</code> defines a frozen
+    <code>Settings</code> (a plain pydantic v2 <code>BaseModel</code> with a <code>field_validator</code>,
+    <em>not</em> pydantic-settings — that dep is not in stack.md and a single env read needs no extra
+    library). <code>load_settings()</code> reads <code>BILTIQ_JWT_SECRET</code> and
+    <code>BILTIQ_HMAC_KEY</code> from <code>os.environ</code> exactly once and constructs the model;
+    construction raises <code>RuntimeError</code> if either var is missing, and the HMAC validator raises
+    <code>RuntimeError</code> if the key is shorter than 32 bytes. <code>load_settings()</code> runs at
+    import time of the <code>app</code> module, so a misconfigured deployment fails before
+    <code>uvicorn</code> binds the port.</p>
+
+    <p><strong><code>Depends()</code> chain.</strong> Three dependency providers in
+    <code>dependencies.py</code> read from <code>request.app.state</code> / the cached settings (never from
+    the request body):</p>
+    <ul>
+      <li><code>require_jwt</code> — extracts the Bearer token via FastAPI's
+      <code>HTTPBearer(auto_error=False)</code> security scheme, verifies it with PyJWT against the JWT
+      secret (HS256, <code>verify_exp</code> on), and returns the decoded claims. Missing/invalid/expired
+      → <code>401</code>. This <code>Depends</code> is attached to all three data routers and to nothing
+      on <code>/healthz</code>.</li>
+      <li><code>get_hmac_key</code> — returns <code>settings.hmac_key</code> (<code>bytes</code>) for
+      injection into <code>/anonymize</code>; the key is never serialised, never logged, never read from a
+      request field (AC6).</li>
+      <li><code>get_detector</code> — returns <code>app.state.detector</code>, or raises
+      <code>MissingNERModelError</code> (→ <code>503</code> via the handler) when
+      <code>app.state.ner_ok</code> is False, so every data endpoint shares the AC7 degraded gate
+      uniformly.</li>
+    </ul>
+
+    <p><strong>Router organisation.</strong> One router file per endpoint under <code>routers/</code>
+    (<code>detect.py</code>, <code>anonymize.py</code>, <code>validate.py</code>, <code>health.py</code>),
+    each an <code>APIRouter</code> with explicit <code>response_model</code> and <code>status_code</code>.
+    The three data routers declare <code>dependencies=[Depends(require_jwt)]</code> at the router level so
+    auth cannot be forgotten on an individual route; <code>health.py</code> has no auth dependency. This
+    keeps each handler a ~10-line translate-and-delegate function and makes the auth boundary auditable at
+    a glance (one grep for the data routers' <code>dependencies=</code>).</p>
+
+    <p><strong>Model layer (<code>models.py</code>).</strong> Pydantic v2 request/response models mirror the
+    library's <code>TypedDict</code>s and frozen dataclasses one-to-one. Library types stay authoritative;
+    the pydantic models are a serialisation boundary only. Responses are assembled by reading the frozen
+    <code>AnonymiseResult</code> / <code>ComplianceReport</code> dataclass fields and the
+    <code>DetectedEntity</code> / <code>AuditRecord</code> / <code>ChainedRow</code> dicts into the
+    matching pydantic model via <code>model_validate</code> (TypedDicts are plain dicts at runtime, so they
+    validate directly). The server defines no privacy data shapes of its own beyond these wire mirrors.</p>
+
+    <p><strong>Regime registry.</strong> A one-entry mapping
+    <code>_REGIMES: dict[str, type[Regime]] = {"DPDP-2023": DPDPRegime}</code> in
+    <code>regimes_registry.py</code>, with a <code>resolve_regime(regime_id) -&gt; Regime</code> helper that
+    instantiates the class with defaults or raises a <code>UnknownRegimeError</code> (→ <code>422</code>).
+    The registry is the single seam where Phase C regimes (GDPR/HIPAA/CCPA) slot in later; today only
+    <code>DPDP-2023</code> is valid per spec § Out of Scope.</p>
+
+    <p><strong>Error-to-HTTP mapping (<code>errors.py</code>).</strong> Registered exception handlers convert
+    library exceptions into the uniform <code>{"detail": ..., "code": ...}</code> envelope (AC11):
+    <code>MissingNERModelError → 503</code>, <code>HMACKeyRequiredError → 500</code> (a server
+    misconfiguration that should never reach a caller), <code>UnknownRegimeError → 422</code>, JWT failures
+    <code>→ 401</code>, and pydantic <code>RequestValidationError → 422</code> reshaped into the same
+    envelope.</p>
+
+    <p><strong>generated_at boundary.</strong> The server is a system boundary, so when a request omits
+    <code>generated_at</code> the handler supplies
+    <code>datetime.now(timezone.utc).isoformat()</code> before calling the (clock-free) library — the only
+    place the server reads a clock, isolated to the two handlers that need it (dev ruling 2026-06-21).</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>python-jose[cryptography]</code> for JWT</td><td>Dev-confirmed PyJWT &gt;= 2.8 (2026-06-21). python-jose has a slower release cadence and a history of key-confusion / algorithm-confusion CVEs; PyJWT is lighter, actively maintained, and sufficient for HS256 verify-only. See ADR-0007 draft below.</td></tr>
+        <tr><td>2</td><td>Module-level <code>app = FastAPI()</code> singleton with decorators</td><td>A global app forces global config and makes <code>TestClient</code> tests share state (env, detector singleton). The factory lets each test build an isolated app from a test <code>Settings</code> (AC10) and keeps the <code>uvicorn</code> import-string app a one-liner over the factory.</td></tr>
+        <tr><td>3</td><td>Lazy first-request model load</td><td>Spec AC7 + the constraint require startup load: a missing model must surface as a startup-time <code>503</code>, not a per-request <code>500</code> on the unlucky first caller. Lazy load also pays the ~1–2&nbsp;s NER build inside a request, blowing the first request's latency budget.</td></tr>
+        <tr><td>4</td><td>HMAC key in the request body</td><td>Dev-ruled out: the key never travels over the wire. It is read once from <code>BILTIQ_HMAC_KEY</code> at startup and injected via <code>Depends()</code>; a body field would log-leak and force every caller to hold the secret.</td></tr>
+        <tr><td>5</td><td>One fat router with all four endpoints</td><td>Mixes the auth boundary (three endpoints need JWT, <code>/healthz</code> must not) in one file, making it easy to attach/forget auth on the wrong route. Per-endpoint routers put <code>dependencies=[Depends(require_jwt)]</code> at the router level for the three data endpoints and leave health auth-free — auditable in one read.</td></tr>
+        <tr><td>6</td><td>pydantic-settings <code>BaseSettings</code> for config</td><td>Not in stack.md and adds a dependency for two env reads. A plain pydantic <code>BaseModel</code> + a <code>load_settings()</code> that reads <code>os.environ</code> covers it and keeps the fast-fail logic explicit and testable via monkeypatch (AC10).</td></tr>
+        <tr><td>7</td><td><code>async def</code> handlers calling the sync library directly</td><td>Presidio/spaCy detection is sync and CPU-bound; running it inline in the event loop blocks every other request. Plain <code>def</code> handlers let FastAPI run them in its threadpool (see Performance).</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+    <p>All under <code>packages/python-server/</code> unless noted. The server is a thin shim: no file below
+    contains recogniser, regime, generaliser, pseudonymiser, or hash-chain logic — every such operation is a
+    call into <code>biltiq_privacy.*</code>.</p>
+
+    <h3>New <span class="tag tag-new">CREATE</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><code>biltiq_privacy_server/config.py</code></td><td>Frozen pydantic v2 <code>Settings(BaseModel)</code> (<code>jwt_secret: str</code>, <code>hmac_key: bytes</code>, <code>jwt_algorithm: Literal["HS256"] = "HS256"</code>, <code>score_threshold: float = 0.5</code>, <code>version: str</code>) with a <code>field_validator</code> enforcing <code>len(hmac_key) &gt;= 32</code>. <code>load_settings()</code> reads the two env vars once and raises <code>RuntimeError</code> on missing/short — the AC5/AC6 fast-fail. No clock, no privacy logic.</td></tr>
+        <tr><td><code>biltiq_privacy_server/auth.py</code></td><td>JWT verification using <strong>PyJWT</strong>: <code>verify_token(token, *, secret) -&gt; dict[str, object]</code> wrapping <code>jwt.decode(..., algorithms=["HS256"], options={"verify_exp": True})</code> — the algorithm is a module-level single-element allow-list constant, not a caller argument, so it cannot be widened per call — and mapping <code>jwt.ExpiredSignatureError</code> / <code>jwt.InvalidTokenError</code> to a <code>401</code>-bound <code>HTTPException</code>. The only file that imports <code>jwt</code> (AC5).</td></tr>
+        <tr><td><code>biltiq_privacy_server/dependencies.py</code></td><td>The <code>Depends()</code> providers: <code>require_jwt</code> (HTTPBearer + <code>auth.verify_token</code>), <code>get_settings</code> (returns the cached <code>Settings</code>), <code>get_hmac_key</code> (returns <code>settings.hmac_key</code>; AC6), <code>get_detector</code> (returns <code>request.app.state.detector</code> or raises <code>MissingNERModelError</code> when <code>ner_ok</code> is False; AC7).</td></tr>
+        <tr><td><code>biltiq_privacy_server/models.py</code></td><td>Pydantic v2 request/response models mirroring the library types (see Data Model). <code>DetectRequest/Response</code>, <code>AnonymizeRequest/Response</code>, <code>ValidateRequest/Response</code>, <code>HealthResponse</code>, <code>ErrorResponse</code>, and the element models <code>DetectionModel</code>, <code>AuditRecordModel</code>, <code>AuditRowModel</code>, <code>ComplianceCheckModel</code>, <code>ComplianceReportModel</code>. v2 API only. No business logic.</td></tr>
+        <tr><td><code>biltiq_privacy_server/regimes_registry.py</code></td><td><code>_REGIMES: dict[str, type[Regime]] = {"DPDP-2023": DPDPRegime}</code> + <code>resolve_regime(regime_id) -&gt; Regime</code> raising <code>UnknownRegimeError</code> on miss (AC3). The single seam for Phase C regimes.</td></tr>
+        <tr><td><code>biltiq_privacy_server/errors.py</code></td><td><code>UnknownRegimeError</code> (server-local), plus <code>register_exception_handlers(app)</code> mapping <code>MissingNERModelError→503</code>, <code>HMACKeyRequiredError→500</code>, <code>UnknownRegimeError→422</code>, and <code>RequestValidationError→422</code> into the uniform <code>{"detail","code"}</code> envelope (AC11).</td></tr>
+        <tr><td><code>biltiq_privacy_server/lifespan.py</code></td><td>The ASGI <code>lifespan</code> async context manager (AC7): build <code>PresidioDetector</code>, force engine via <code>.detect("")</code>, set <code>app.state.detector</code> / <code>app.state.ner_ok</code>; catch <code>MissingNERModelError</code> → degraded state. No PII logged.</td></tr>
+        <tr><td><code>biltiq_privacy_server/routers/detect.py</code></td><td><code>POST /detect</code> handler (<code>def</code>, threadpool): runs <code>detector.detect(text)</code> (threshold-overridden detector if the request supplies one), returns <code>DetectResponse</code>. JWT-gated at router level (AC1).</td></tr>
+        <tr><td><code>biltiq_privacy_server/routers/anonymize.py</code></td><td><code>POST /anonymize</code> handler: supplies <code>generated_at</code> default (server clock), <code>prev_hash</code> default (<code>GENESIS_PREV_HASH</code>), resolves optional regime, calls <code>biltiq_privacy.anonymise(..., detector=..., key=get_hmac_key())</code>, serialises <code>AnonymiseResult</code> → <code>AnonymizeResponse</code> (AC2).</td></tr>
+        <tr><td><code>biltiq_privacy_server/routers/validate.py</code></td><td><code>POST /validate</code> handler: <code>resolve_regime()</code>, supplies <code>generated_at</code> default, calls <code>regime.validate(...)</code>, serialises <code>ComplianceReport</code> → <code>ValidateResponse</code> (AC3).</td></tr>
+        <tr><td><code>biltiq_privacy_server/routers/health.py</code></td><td><code>GET /healthz</code> (no auth): <code>200 {"status":"ok","version":...}</code> when <code>app.state.ner_ok</code>, else <code>503 {"status":"degraded","reason":"NER model not loaded"}</code> (AC4).</td></tr>
+        <tr><td><code>biltiq_privacy_server/routers/__init__.py</code></td><td>Re-export the four routers for <code>app.py</code> to include.</td></tr>
+        <tr><td><code>biltiq_privacy_server/app.py</code></td><td><code>create_app(settings) -&gt; FastAPI</code>: include routers, <code>register_exception_handlers</code>, attach <code>lifespan</code>; module-level <code>app = create_app(load_settings())</code> for the uvicorn import string (AC9 openapi served here automatically).</td></tr>
+        <tr><td><code>biltiq_privacy_server/cli.py</code></td><td><code>serve(--host, --port, --workers)</code> launching <code>uvicorn.run("biltiq_privacy_server.app:app", ...)</code>; defaults <code>0.0.0.0:8088</code>, 1 worker (AC8). stdlib <code>argparse</code> — no new dep.</td></tr>
+        <tr><td><code>biltiq_privacy_server/__main__.py</code></td><td><code>python -m biltiq_privacy_server</code> → <code>cli.main()</code>.</td></tr>
+        <tr><td><code>tests/conftest.py</code></td><td><code>fastapi_client</code> fixture (stack.md row): monkeypatch <code>BILTIQ_JWT_SECRET</code>/<code>BILTIQ_HMAC_KEY</code> to deterministic test values, build app via factory, yield <code>TestClient</code>; a <code>valid_token</code> fixture minting a short-lived HS256 token with the test secret; a fake-detector seam so most tests need no model load (AC10).</td></tr>
+        <tr><td><code>tests/test_detect.py</code></td><td>AC1: detection happy path, threshold override, empty-text → <code>{"detections":[],"count":0}</code>, missing/invalid JWT → 401.</td></tr>
+        <tr><td><code>tests/test_anonymize.py</code></td><td>AC2: full <code>AnonymiseResult</code> serialisation incl. <code>audit_row</code>; <code>generated_at</code> default; <code>prev_hash</code> default = <code>GENESIS_PREV_HASH</code>; regime=null skips compliance; JWT gate. AC6: HMAC key absent from request/response/logs.</td></tr>
+        <tr><td><code>tests/test_validate.py</code></td><td>AC3: report serialisation; unknown regime → 422; JWT gate.</td></tr>
+        <tr><td><code>tests/test_health_and_startup.py</code></td><td>AC4 + AC7: healthz ok vs degraded; degraded app returns 503 on all three data endpoints; no-auth on healthz.</td></tr>
+        <tr><td><code>tests/test_auth.py</code></td><td>AC5: missing token 401, malformed 401, expired 401, wrong-secret 401; missing <code>BILTIQ_JWT_SECRET</code> at startup → <code>RuntimeError</code>.</td></tr>
+        <tr><td><code>tests/test_config.py</code></td><td>AC6: missing <code>BILTIQ_HMAC_KEY</code> → RuntimeError; &lt;32-byte key → RuntimeError; valid key constructs.</td></tr>
+        <tr><td><code>tests/test_errors.py</code></td><td>AC11: every error follows <code>{"detail","code"}</code>; 503/500/422 mappings.</td></tr>
+        <tr><td><code>tests/test_openapi_committed.py</code></td><td>AC9: live <code>app.openapi()</code> equals the committed <code>openapi.json</code> (regen-on-drift assertion).</td></tr>
+        <tr><td><code>tests/test_no_pii_in_response.py</code></td><td>R3/AC10: assert no raw PII value from a known synthetic input appears in any place it must not (audit_row payload, logs).</td></tr>
+        <tr><td><code>tests/test_models.py</code></td><td>Plan-time test decomposition: unit-level pydantic wire-model validation + the library-field-name drift guard called for in § Thin-shim watch (AC1/AC3).</td></tr>
+        <tr><td><code>tests/test_dependencies.py</code></td><td>Plan-time test decomposition: lifespan success/degrade + the <code>Depends</code> providers (<code>require_jwt</code>, <code>get_hmac_key</code>, <code>get_detector</code>) and factory isolation (AC5/AC6/AC7/AC10).</td></tr>
+        <tr><td><code>tests/test_cli.py</code></td><td>Plan-time test decomposition: CLI arg parsing with <code>uvicorn.run</code> mocked (no bind), split out of <code>test_health_and_startup.py</code> for cohesion (AC8).</td></tr>
+        <tr><td><code>packages/python-core/biltiq_privacy/py.typed</code> (other package) <span class="tag tag-new">CREATE</span></td><td>PEP 561 marker so the fully-typed library is importable under the server's <code>mypy --strict</code> (without it, <code>import biltiq_privacy</code> raises <code>import-untyped</code> and every step's strict gate fails). Zero logic; also benefits the v0.1.1+ native SDK type consumers.</td></tr>
+        <tr><td><code>openapi.json</code></td><td>Committed schema for the v0.1.1+ SDK generator (AC9). Regenerated via a documented <code>python -c</code> one-liner in the README — no new script file.</td></tr>
+        <tr><td><code>Dockerfile</code></td><td>Scaffolded, not built in this task (spec § Out of Scope): documents the native-equivalent image; CI does not build it.</td></tr>
+        <tr><td><code>docs/adr/0007-jwt-library-selection.md</code> (repo root) <span class="tag tag-new">CREATE</span></td><td>PyJWT &gt;= 2.8 selection (extracted from the ADR-0007 draft section below).</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td><code>biltiq_privacy_server/__init__.py</code></td><td>Retire the "pre-implementation scaffold" docstring; keep <code>__version__</code>. Do not eagerly import <code>app</code> here (so <code>import biltiq_privacy_server</code> stays free of an env read; the smoke test in <code>test_import.py</code> must keep passing without secrets set).</td></tr>
+        <tr><td><code>pyproject.toml</code></td><td>Add <code>"pyjwt&gt;=2.8,&lt;3"</code> to <code>[project.dependencies]</code> (AC5, ADR-0007). Add <code>[project.scripts] biltiq-privacy-server = "biltiq_privacy_server.cli:main"</code> (AC8). Add <code>pytest-cov</code> coverage config (≥90% gate, AC10). Version stays <code>0.1.0</code> (AC12).</td></tr>
+        <tr><td><code>tests/test_import.py</code></td><td>Keep the two scaffold smoke tests; they must still pass without <code>BILTIQ_*</code> env set (asserts the package import has no side-effecting env read).</td></tr>
+        <tr><td><code>README.md</code> (repo root)</td><td>AC12: server quickstart — install, the two env vars, <code>biltiq-privacy-server serve</code>, one curl per endpoint, <code>en_core_web_sm</code> note.</td></tr>
+        <tr><td><code>CHANGELOG.md</code> (repo root)</td><td>AC12: <code>feat:</code> entry for the sidecar under Unreleased / rolled into <code>[0.1.0]</code> at Ship.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td>Same-PR rule: extend the § Server framework + Internal-modules rows to note the four endpoints, the PyJWT dep, and the <code>fastapi_client</code> fixture (already listed) now backed by a real app.</td></tr>
+        <tr><td><code>docs/architecture/approved-versions.md</code></td><td>Add a <code>PyJWT &gt;= 2.8</code> row to § FastAPI/server + the hard-pins block; add <code>lifespan</code> as the approved startup mechanism (vs deprecated <code>@app.on_event</code>).</td></tr>
+        <tr><td><code>packages/python-core/pyproject.toml</code> (other package)</td><td>Force-include the new <code>py.typed</code> in the wheel (hatchling <code>[tool.hatch.build.targets.wheel].force-include</code> or package-data) so the marker ships to consumers. Additive packaging only — no library logic change; rollback is reverting one marker + one packaging line.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>AC → file traceability</h3>
+    <table>
+      <thead><tr><th>AC</th><th>Design element / file(s)</th></tr></thead>
+      <tbody>
+        <tr><td>AC1 /detect</td><td><code>routers/detect.py</code>, <code>models.py</code> (Detect*), <code>dependencies.get_detector</code> · <code>test_detect.py</code></td></tr>
+        <tr><td>AC2 /anonymize</td><td><code>routers/anonymize.py</code> → <code>biltiq_privacy.anonymise</code>, <code>get_hmac_key</code>, <code>GENESIS_PREV_HASH</code> default · <code>test_anonymize.py</code></td></tr>
+        <tr><td>AC3 /validate</td><td><code>routers/validate.py</code>, <code>regimes_registry.resolve_regime</code> (422 on miss) · <code>test_validate.py</code></td></tr>
+        <tr><td>AC4 /healthz</td><td><code>routers/health.py</code> reading <code>app.state.ner_ok</code> · <code>test_health_and_startup.py</code></td></tr>
+        <tr><td>AC5 JWT auth</td><td><code>auth.py</code> (PyJWT), <code>dependencies.require_jwt</code>, <code>config.load_settings</code> fast-fail · <code>test_auth.py</code></td></tr>
+        <tr><td>AC6 HMAC injection</td><td><code>config.Settings</code> (&lt;32B fail), <code>dependencies.get_hmac_key</code> · <code>test_config.py</code>, <code>test_anonymize.py</code></td></tr>
+        <tr><td>AC7 NER startup</td><td><code>lifespan.py</code>, <code>dependencies.get_detector</code>, <code>errors.py</code> (503) · <code>test_health_and_startup.py</code></td></tr>
+        <tr><td>AC8 CLI</td><td><code>cli.py</code>, <code>pyproject [project.scripts]</code> · CLI test in <code>test_health_and_startup.py</code> (arg parsing, no real bind)</td></tr>
+        <tr><td>AC9 OpenAPI</td><td><code>app.py</code> (auto <code>/openapi.json</code>), committed <code>openapi.json</code> · <code>test_openapi_committed.py</code></td></tr>
+        <tr><td>AC10 TestClient</td><td><code>tests/conftest.py</code> (monkeypatched secrets, fake detector), coverage gate · all test files</td></tr>
+        <tr><td>AC11 error shape</td><td><code>errors.py</code>, <code>models.ErrorResponse</code> · <code>test_errors.py</code></td></tr>
+        <tr><td>AC12 packaging</td><td><code>pyproject.toml</code>, README, CHANGELOG · clean-venv install verified at Ship</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model / API Contract</h2>
+    <p>No persistence schema — the server is stateless (audit rows are returned, not stored; spec
+    constraint). The only new shapes are the pydantic v2 wire models in <code>models.py</code>, each a thin
+    mirror of an authoritative library type. <strong>v2 API only:</strong> <code>model_validate</code> /
+    <code>model_dump</code> / <code>field_validator</code> — never <code>parse_obj</code> / <code>.dict()</code> /
+    <code>@validator</code> (approved-versions § Pydantic v1→v2).</p>
+
+    <h3>Element models (mirror the library record types)</h3>
+    <table>
+      <thead><tr><th>Pydantic model</th><th>Mirrors (library)</th><th>Fields</th></tr></thead>
+      <tbody>
+        <tr><td><code>DetectionModel</code></td><td><code>DetectedEntity</code> (TypedDict: <code>entity_type, text, start, end, score, source</code>)</td><td>same six keys; <code>score: float</code></td></tr>
+        <tr><td><code>AuditRecordModel</code></td><td><code>AuditRecord</code> (TypedDict: <code>entity_type, pseudonym_token, position_start, position_end, confidence</code>)</td><td>same five keys</td></tr>
+        <tr><td><code>AuditRowModel</code></td><td><code>ChainedRow</code> (TypedDict: <code>prev_hash, payload, hash</code>)</td><td><code>prev_hash: str</code>, <code>payload: dict[str, JsonValue]</code> (typed alias, no <code>Any</code>), <code>hash: str</code></td></tr>
+        <tr><td><code>ComplianceCheckModel</code></td><td><code>ComplianceCheck</code> (frozen dataclass)</td><td><code>check_id, name, description, status, details, section, evidence: tuple[str,...]</code></td></tr>
+        <tr><td><code>ComplianceReportModel</code></td><td><code>ComplianceReport</code> (frozen dataclass; note <code>score</code> is a <em>property</em>)</td><td><code>regime_id, compliant, passed, total, checks, generated_at, frameworks</code> + computed <code>score</code> echoed in the response</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Serialisation strategy (dataclass / TypedDict → pydantic)</h3>
+    <ul>
+      <li><strong>TypedDicts</strong> (<code>DetectedEntity</code>, <code>AuditRecord</code>,
+      <code>ChainedRow</code>) are plain dicts at runtime →
+      <code>DetectionModel.model_validate(det)</code> validates each directly; no manual field copying.</li>
+      <li><strong>Frozen dataclasses</strong> (<code>ComplianceReport</code>, <code>ComplianceCheck</code>)
+      are not dicts → a small converter reads named fields and builds the model, or
+      <code>ConfigDict(from_attributes=True)</code> + <code>model_validate(report)</code>. The derived
+      <code>score</code> property is read explicitly and placed in the response (pydantic does not see
+      dataclass <code>@property</code>).</li>
+      <li><strong><code>AnonymiseResult</code></strong> (frozen dataclass) → <code>AnonymizeResponse</code>
+      field-by-field: <code>anonymised_text</code>, list of <code>DetectionModel</code>, list of
+      <code>AuditRecordModel</code>, <code>AuditRowModel</code>, optional <code>ComplianceReportModel</code>.</li>
+    </ul>
+
+    <h3>Endpoint request / response models</h3>
+    <pre><code># POST /detect
+class DetectRequest(BaseModel):
+    text: str
+    language: str = "en"
+    score_threshold: float | None = None        # None -&gt; server/settings default
+class DetectResponse(BaseModel):
+    detections: list[DetectionModel]
+    count: int
+
+# POST /anonymize
+class AnonymizeRequest(BaseModel):
+    text: str
+    generated_at: str | None = None             # None -&gt; server UTC clock (boundary)
+    regime: str | None = None                   # None -&gt; skip compliance
+    generalise: bool = True
+    prev_hash: str | None = None                # None -&gt; GENESIS_PREV_HASH
+class AnonymizeResponse(BaseModel):
+    anonymised_text: str
+    detections: list[DetectionModel]
+    audit_records: list[AuditRecordModel]
+    audit_row: AuditRowModel
+    compliance: ComplianceReportModel | None
+
+# POST /validate
+class ValidateRequest(BaseModel):
+    original_text: str
+    anonymised_text: str
+    detections: list[DetectionModel]
+    audit_records: list[AuditRecordModel]
+    generated_at: str | None = None
+    regime: str                                 # required here; unknown -&gt; 422
+class ValidateResponse(ComplianceReportModel): ...
+
+# GET /healthz  (no auth)
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+    reason: str | None = None
+
+# uniform error envelope (AC11)
+class ErrorResponse(BaseModel):
+    detail: str
+    code: str</code></pre>
+    <p><strong>HMAC key is absent from every model above</strong> — it lives only in <code>Settings</code>
+    and flows via <code>Depends(get_hmac_key)</code> (AC6). <strong><code>original_text</code> is not echoed</strong>
+    in <code>AnonymizeResponse</code> (matches the library, which deliberately drops it to narrow the PII
+    surface). API contract change: net-new — three POST + one GET endpoint; no existing contract is broken
+    (the skeleton had none).</p>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance Notes</h2>
+    <p><strong>Compliance mode: <code>on_prem_preferred</code>.</strong> The sidecar makes no cloud / external
+    AI calls. It wraps the same local Presidio/spaCy stack the library already uses; PyJWT is a local crypto
+    library, not a network dependency. No ADR-blocking violation; the one new dependency (PyJWT) gets ADR-0007
+    per the repo rule that new deps are documented.</p>
+    <h3>JWT verification flow (AC5)</h3>
+    <ol style="padding-left:1.4rem;">
+      <li><code>HTTPBearer(auto_error=False)</code> extracts the <code>Authorization: Bearer &lt;token&gt;</code> value; absent → <code>require_jwt</code> raises 401.</li>
+      <li><code>auth.verify_token</code> calls <code>jwt.decode(token, secret, algorithms=["HS256"], options={"verify_exp": True})</code> — algorithm is pinned to a single-element allow-list, closing the alg-confusion class.</li>
+      <li><code>ExpiredSignatureError</code> / <code>InvalidTokenError</code> → 401. Verify-only: the server never calls <code>jwt.encode</code> in production code (only the test fixture mints tokens).</li>
+    </ol>
+    <h3>Secrets &amp; startup fast-fail (R1, R2)</h3>
+    <ul>
+      <li><code>BILTIQ_JWT_SECRET</code> and <code>BILTIQ_HMAC_KEY</code> are read once in <code>load_settings()</code>; missing either → <code>RuntimeError</code> before the port binds (AC5/AC6). HMAC key &lt; 32 bytes → <code>RuntimeError</code>.</li>
+      <li>Neither secret nor any <code>Authorization</code> header value is ever logged (R1). README/runbook documents sourcing both from a secrets manager, not a committed <code>.env</code> (R2).</li>
+    </ul>
+    <h3>No-PII-in-logs constraint (R3, R4)</h3>
+    <ul>
+      <li><code>RedactionFilter</code> is still <strong>PLANNED</strong> (stack.md) — so the server must not log request bodies or detection values at any level until it ships. Handlers log only method + path + status + entity <em>counts</em>, never <code>text</code>, never detection spans, never tokens.</li>
+      <li>R4 mitigation: a ruff lint guard banning <code>logger.debug(...request.*)</code> patterns; <code>test_no_pii_in_response.py</code> asserts no synthetic PII value leaks into the audit_row payload (the library already guarantees the chain payload is PII-free) or into captured log records.</li>
+      <li>R3: the <code>/detect</code> and <code>/anonymize</code> <em>responses</em> necessarily carry detection spans (the detector contract) — this is inherent and documented, not a leak; callers route responses to access-controlled sinks.</li>
+    </ul>
+    <p><strong>Input handling:</strong> pure text-to-JSON; no SQL/shell/markup sink. Pydantic validates the
+    request shape; oversized-body / rate-limiting are explicitly v0.2.0 (spec § Out of Scope).</p>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <p><strong>Model load is a one-time startup cost.</strong> The lifespan handler pays the ~1–2&nbsp;s
+    spaCy/Presidio engine build once, before the port binds; the engine is cached on
+    <code>app.state.detector</code> and reused for every request (the library's instance-level singleton).
+    No request pays the build cost (the AC7 rationale for startup-over-lazy).</p>
+    <p><strong>Sync handlers in a threadpool (decided).</strong> Presidio/spaCy detection is synchronous and
+    CPU-bound. Handlers that touch the detector (<code>/detect</code>, <code>/anonymize</code>) are declared
+    as plain <code>def</code> (not <code>async def</code>); FastAPI runs <code>def</code> handlers in its
+    worker threadpool, so a slow detection does not block the event loop or other in-flight requests.
+    Declaring them <code>async def</code> and calling the sync library inline would block the single event
+    loop — the worst option. <code>/validate</code> (pure-Python regime checks, no model) and
+    <code>/healthz</code> (flag read) are cheap; <code>/validate</code> stays <code>def</code> for
+    consistency with the threadpool model, <code>/healthz</code> can be <code>async def</code> (trivial).
+    True parallelism across CPU cores is the <code>--workers N</code> knob (AC8); the GIL bounds a single
+    worker's threadpool, which is acceptable at v0.1.0 (no async workers / queue — spec § Out of Scope).</p>
+    <p><strong>Hot path:</strong> detection inside <code>engine.analyze</code> (unchanged from the library);
+    the server adds only JWT verify (one HMAC-SHA256 over the token — microseconds) and pydantic
+    validate/dump (bounded by payload size). Latency budget is dominated by NER, identical to a direct
+    library call plus a sub-millisecond auth + serialisation overhead.</p>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <ol style="padding-left:1.4rem;">
+      <li><code>config.py</code> + <code>auth.py</code> + <code>tests/test_config.py</code>, <code>test_auth.py</code> — secrets fast-fail and JWT verify first (the high-risk surface; gated by mandatory human review).</li>
+      <li><code>models.py</code> + <code>regimes_registry.py</code> + <code>errors.py</code> — wire shapes and error envelope.</li>
+      <li><code>lifespan.py</code> + <code>dependencies.py</code> + <code>app.py</code> — factory, startup singleton, Depends chain.</li>
+      <li><code>routers/*</code> + their tests (<code>detect</code>, <code>anonymize</code>, <code>validate</code>, <code>health</code>) — translate-and-delegate handlers.</li>
+      <li><code>cli.py</code> + <code>__main__.py</code> + <code>pyproject [project.scripts]</code> — native install path: <code>pip install biltiq-privacy-server &amp;&amp; biltiq-privacy-server serve</code> (AC8, AC12).</li>
+      <li><code>openapi.json</code> export + <code>test_openapi_committed.py</code> — committed schema for the v0.1.1+ SDK generator (AC9).</li>
+      <li><code>Dockerfile</code> scaffolded (not built; CI does not invoke it — spec § Out of Scope).</li>
+      <li>Docs: README server quickstart, CHANGELOG, stack.md + approved-versions rows, ADR-0007 finalised.</li>
+      <li>Ship gate: full suite green with no network (AC10), ≥90% coverage, <code>mypy --strict</code>, banned-vocab/residue gates; clean-venv install with <code>biltiq-privacy</code> pre-installed verified.</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p>Net-new package surface — pre-publish rollback is reverting the server files (the library is
+    untouched). Post-publish a PyPI version is immutable → <code>yank</code> and ship a fixed
+    <code>0.1.1</code>; never delete-and-reupload. No data migration exists (stateless server).</p>
+  </section>
+
+  <section id="adr-0007">
+    <h2>ADR-0007 draft: JWT library selection</h2>
+    <div class="adr-box">
+      <p><strong>Status:</strong> Proposed (dev-confirmed PyJWT 2026-06-21; to be finalised at Ship).</p>
+      <p><strong>Context.</strong> BILTIQ-013 adds Bearer-JWT auth to the FastAPI sidecar. The server must
+      <em>verify</em> HS256-signed tokens (signature + expiry); it does not issue them (token minting is the
+      consumer's concern). This needs a JWT library. The spec named two candidates and expressed a PyJWT
+      preference; this ADR records the decision.</p>
+      <p><strong>Decision.</strong> Use <strong>PyJWT &gt;= 2.8, &lt; 3</strong> with HS256, verify-only.
+      Verification pins a single-element algorithm allow-list
+      (<code>jwt.decode(..., algorithms=["HS256"], options={"verify_exp": True})</code>) and the server
+      contains no <code>jwt.encode</code> call in production code.</p>
+      <p><strong>Alternatives.</strong> <code>python-jose[cryptography]</code> — rejected: slower release
+      cadence and a history of key-confusion / algorithm-confusion CVEs; heavier dependency tree
+      (cryptography backend) than needed for HS256 verify-only. Rolling our own HMAC verify — rejected:
+      re-implementing JWT parsing/validation is exactly the kind of crypto-adjacent code that should reuse a
+      maintained, audited library.</p>
+      <p><strong>Consequences.</strong> (+) Lighter dependency, active maintenance, smaller attack surface,
+      explicit algorithm pinning closes the alg-confusion class. (+) Verify-only keeps the server out of the
+      token-issuance blast radius. (−) Consumers must mint tokens themselves (documented in README; aligns
+      with the spec's out-of-scope on token issuance). (−) New runtime dependency added to
+      <code>pyproject.toml</code> and recorded in approved-versions.md.</p>
+    </div>
+  </section>
+
+  <section id="thin-shim-watch">
+    <h2>Thin-shim watch (duplication risks to flag)</h2>
+    <ul>
+      <li><strong>Regime instantiation</strong> must stay a registry lookup → <code>DPDPRegime()</code>; the server must never re-implement or parametrise DPDP check logic. Only <code>regimes_registry.py</code> knows regime IDs.</li>
+      <li><strong>generated_at default</strong> is the <em>only</em> clock read; do not let it spread into the library call path or into <code>/validate</code>'s regime — the library stays pure.</li>
+      <li><strong>Detection / merge / pseudonymise / generalise / chain</strong> all live behind <code>biltiq_privacy.anonymise</code> — <code>/anonymize</code> must call the facade, not re-chain the five wrappers (that would duplicate BILTIQ-012's orchestration).</li>
+      <li><strong>HMAC key normalisation</strong> (str→bytes, empty check) belongs to <code>Pseudonymiser</code>; the server validates only length-at-startup and passes the key straight through.</li>
+      <li><strong>Wire models</strong> mirror library types; if the library type changes, the model changes — do not let the two drift into independent shapes (a contract test on field names guards this).</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td>2026-06-21</td><td>all</td><td>Initial architect draft</td><td>BILTIQ-013</td></tr>
+        <tr><td>2026-06-21</td><td>data-model</td><td><strong>Resolved Q1:</strong> <code>/validate</code> returns the full <code>ComplianceReportModel</code> (regime_id, compliant, passed, total, checks, generated_at, frameworks, score) — identical to <code>/anonymize</code>'s <code>compliance</code> field. One shape across both endpoints (dev ruling 2026-06-21).</td><td>dev review</td></tr>
+        <tr><td>2026-06-21</td><td>errors</td><td><strong>Resolved Q2:</strong> Keep the <code>HMACKeyRequiredError → 500</code> handler as defense-in-depth (dead in prod given AC6 startup validation, but a 1-line guard against a raw stack trace).</td><td>dev review</td></tr>
+        <tr><td>2026-06-21</td><td>security-compliance</td><td><strong>Resolved Q3:</strong> No custom ruff rule for R4. The no-PII-logs constraint is enforced by the log-capture assertion in <code>test_no_pii_in_response.py</code> + a code-review checklist item (a lint rule is out of scope for v0.1.0).</td><td>dev review</td></tr>
+        <tr><td>2026-06-21</td><td>config</td><td><strong>Resolved Q4:</strong> HMAC key threshold is 32 <em>bytes</em> post-utf-8-encode (256-bit), matching how <code>Pseudonymiser</code> treats the key.</td><td>dev review</td></tr>
+        <tr><td>2026-06-21</td><td>files-to-touch</td><td>Plan-time refinement folded back for architectural review: added <code>test_models.py</code> / <code>test_dependencies.py</code> / <code>test_cli.py</code> as per-concern test files (test decomposition only — same assertions the AC traceability already implied), and added a <code>packages/python-core/biltiq_privacy/py.typed</code> PEP 561 marker (+ its packaging line) because the server's <code>mypy --strict</code> gate cannot import the untyped library otherwise. python-core is now touched by one additive marker; rollback note updated.</td><td>plan-reviewer round 1 (reverse-coverage + AP#4)</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
