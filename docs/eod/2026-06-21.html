@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EOD — 2026-06-21</title>
+  <style>
+    :root {
+      --color-border: #e5e7eb; --color-bg: #ffffff;
+      --color-bg-subtle: #f9fafb; --color-text: #111827;
+      --color-muted: #6b7280; --color-shipped: #16a34a;
+      --color-wip: #d97706; --color-blocker: #dc2626;
+      --radius: 6px; --max-width: 860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif; font-size: 15px;
+      line-height: 1.6; color: var(--color-text); background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header { border-bottom: 2px solid var(--color-border); padding-bottom: 1.25rem; margin-bottom: 2rem; }
+    header h1 { font-size: 1.5rem; }
+    section { margin-bottom: 2rem; }
+    h2 { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--color-border); padding-left: 0.75rem; margin-bottom: 0.75rem; }
+    h2.shipped { border-color: var(--color-shipped); }
+    h2.wip     { border-color: var(--color-wip); }
+    h2.blocker { border-color: var(--color-blocker); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    p { margin-bottom: 0.4rem; }
+    @media (max-width: 600px) { table { font-size: 0.8rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>EOD — 2026-06-21</h1></header>
+
+  <section id="shipped">
+    <h2 class="shipped">Shipped</h2>
+    <p>&lt;ul&gt;&lt;li&gt;&lt;strong&gt;PR #14 — BILTIQ-013: FastAPI sidecar (verify-only JWT)&lt;/strong&gt; (merged 08:34Z; high-risk auth, mandatory human review approved). REST /detect /anonymize /validate /healthz; 9/9 CI green.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;PR #15 — BILTIQ-013a: operator token-mint CLI (biltiq-privacy-mint)&lt;/strong&gt; (merged 08:40Z; token-signing human review approved). Stacked on #14 — rebased onto main via --onto, 90 tests, mint.py 100% cov, verify-only invariant preserved.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;PR #16 — docs: operator token-issuance runbook + BILTIQ-020 auth-gap amendment&lt;/strong&gt; (merged 08:52Z). New docs/runbooks/token-issuance.md; folded deferred RS256 + token-revocation into BILTIQ-020 (no duplicate ticket).&lt;/li&gt;&lt;li&gt;&lt;strong&gt;PR #17 — ci: release.yml PyPI Trusted Publishing (both packages)&lt;/strong&gt; (merged 09:14Z). OIDC, no stored token; project-scoped publish jobs, library before server.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;PR #12 / #13&lt;/strong&gt; (merged 00:08–00:09Z; prior late block): BILTIQ-012 anonymise() facade + v0.1.0 prep, and the Skyflow parity roadmap.&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="wip">
+    <h2 class="wip">WIP</h2>
+    <p>&lt;ul&gt;&lt;li&gt;None in flight — &lt;code&gt;main&lt;/code&gt; clean, 0 open PRs. All Attack Loops closed (BILTIQ-013, BILTIQ-013a). Release machinery in place, awaiting dev-side PyPI setup.&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="tomorrow">
+    <h2>Tomorrow</h2>
+    <p>&lt;ul&gt;&lt;li&gt;Finish v0.1.0 PyPI publish: add the second pending publisher (&lt;code&gt;biltiq-privacy&lt;/code&gt; library — only &lt;code&gt;biltiq-privacy-server&lt;/code&gt; registered so far) + create the GitHub &lt;code&gt;pypi&lt;/code&gt; environment, then publish a Release on the &lt;code&gt;v0.1.0&lt;/code&gt; tag → verify &lt;code&gt;pip install biltiq-privacy&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;After publish: pick up next roadmap ticket (BILTIQ-014 reversible pseudonymisation, HIGH priority).&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="blockers">
+    <h2 class="blocker">Blockers</h2>
+    <p>&lt;ul&gt;&lt;li&gt;PyPI publish — dev-side setup in progress: PyPI account + both pending publishers + the &lt;code&gt;pypi&lt;/code&gt; environment must exist before the first Release run. Trusted Publishing chosen so no long-lived token is stored (dev had no credentials).&lt;/li&gt;&lt;li&gt;&lt;code&gt;biltiq-gates.yml&lt;/code&gt; still fails fast on every push (carried; unticketed) — release/ci.yml unaffected.&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="tech-debt-added">
+    <h2>Tech Debt Added</h2>
+    <p>&lt;ul&gt;&lt;li&gt;None today. The deferred auth items (asymmetric RS256 signing, per-token revocation) are tracked on roadmap BILTIQ-020, not incurred as debt. release.yml omits a tag↔version consistency check by design (noted in PR #17) — optional follow-up, not debt.&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="ai-usage">
+    <h2>AI Usage</h2>
+    <p>&lt;ul&gt;&lt;li&gt;Sessions: 1 · Projects: 1 (biltiq-privacy)&lt;/li&gt;&lt;li&gt;Prompts: 671 · Responses: 1356&lt;/li&gt;&lt;li&gt;Tokens (in/out/cache-w/cache-r): 1,259,476 / 1,590,045 / 5,163,148 / 177,649,274 (cache reads free; billable sum 8,012,669)&lt;/li&gt;&lt;li&gt;Top tools: Bash 307, Read 95, Edit 79, Write 45, Skill 22, AskUserQuestion 8, Agent 6&lt;/li&gt;&lt;/ul&gt;</p>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td>2026-06-21</td><td>all</td><td>Initial draft</td><td>eod</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>
