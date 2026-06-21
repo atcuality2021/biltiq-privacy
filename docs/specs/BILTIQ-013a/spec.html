@@ -125,49 +125,49 @@ BILTIQ_JWT_SECRET unset/empty      → stderr "BILTIQ_JWT_SECRET is required …
       substitute.
     </div>
     <ul class="ac-list">
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC1 — mints a verifiable token.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC1 — mints a verifiable token.</strong>
       With <code>BILTIQ_JWT_SECRET</code> set, <code>biltiq-privacy-mint --sub ops</code> prints a
       single HS256 JWT to <strong>stdout</strong> (token only, newline-terminated, nothing else on
       stdout) that <code>auth.verify_token(token, secret=&lt;same secret&gt;)</code> accepts, returning
       claims whose <code>sub == "ops"</code>.</span></li>
 
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC2 — secret is env-only.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC2 — secret is env-only.</strong>
       The signing secret is read from <code>BILTIQ_JWT_SECRET</code> via the shared env-var constant.
       The parser exposes <strong>no</strong> <code>--secret</code> (or equivalent) flag — asserted by
       a test that inspects the argparse actions. The secret never appears in stdout.</span></li>
 
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC3 — fail-fast on missing secret.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC3 — fail-fast on missing secret.</strong>
       With <code>BILTIQ_JWT_SECRET</code> unset or empty, the CLI writes an actionable message to
       <strong>stderr</strong>, exits non-zero, prints nothing to stdout, and never echoes any secret
       value.</span></li>
 
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC4 — sub + ttl, tz-aware.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC4 — sub + ttl, tz-aware.</strong>
       <code>--sub</code> is required and sets the <code>sub</code> claim. <code>--ttl</code> (seconds,
       default 3600) sets <code>exp = iat + ttl</code>; both <code>iat</code> and <code>exp</code> are
       timezone-aware UTC (<code>datetime.now(UTC)</code>) — satisfies ruff <code>DTZ</code>. A
       non-positive <code>--ttl</code> is rejected (stderr, non-zero exit).</span></li>
 
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC5 — extensible claims.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC5 — extensible claims.</strong>
       <code>--claim k=v</code> is repeatable; each pair is merged into the payload as a string value.
       A <code>--claim</code> without <code>=</code> is rejected (stderr, non-zero). A <code>--claim</code>
       naming a reserved claim (<code>sub</code>, <code>iat</code>, <code>exp</code>) is rejected — those
       are set by <code>--sub</code>/<code>--ttl</code>/the clock, not free-form. Extra claims are minted
       verbatim and <em>not</em> enforced by the current verify-only server (no roles model yet).</span></li>
 
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC6 — verify-only invariant preserved.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC6 — verify-only invariant preserved.</strong>
       A structural test imports the full <code>biltiq_privacy_server.app:app</code> graph and asserts
       no module in that graph references <code>jwt.encode</code>; <code>jwt.encode</code> lives only in
       the dedicated mint module (and tests). The mint module is <strong>not</strong> imported by
       <code>app</code>, <code>auth</code>, <code>dependencies</code>, or any router.</span></li>
 
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC7 — packaging + docs.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC7 — packaging + docs.</strong>
       <code>pyproject.toml</code> registers the <code>biltiq-privacy-mint</code> console-script.
       ADR-0007 is amended to record the operator-mint carve-out; <code>approved-versions.md</code>'s
       "production never calls <code>jwt.encode</code> / <code>auth.py</code> is the only importer" row
       is updated to "the request-handling runtime never calls <code>encode</code>; the operator mint
       tool does, in a module the app never imports." README documents the command.</span></li>
 
-      <li class="ac-item"><span class="ac-badge ac-open">OPEN</span><span class="ac-label"><strong>AC8 — gates green.</strong>
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC8 — gates green.</strong>
       <code>pytest</code> green, <code>mypy --strict</code> clean (no <code>Any</code>, no unjustified
       <code>type: ignore</code>), <code>ruff check</code> clean, deprecation-warning-free, coverage
       ≥ 90% on the new module.</span></li>
