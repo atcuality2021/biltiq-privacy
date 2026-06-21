@@ -7,6 +7,7 @@ the **only** place ``jwt.encode`` is called — production code is verify-only
 """
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 
@@ -18,6 +19,13 @@ from fastapi.testclient import TestClient
 TEST_JWT_SECRET = "test-jwt-secret-not-a-real-secret"
 #: 34 bytes of ASCII — clears the 32-byte (256-bit) HMAC floor (AC6).
 TEST_HMAC_KEY = "test-hmac-key-0123456789abcdef-ok!"
+
+# Seed the two required secrets at collection time so importing the eager
+# module-level ``biltiq_privacy_server.app:app`` (the uvicorn ASGI target) does
+# not raise during test collection. ``setdefault`` never clobbers a real
+# environment value, and per-test fixtures still override via ``monkeypatch``.
+os.environ.setdefault("BILTIQ_JWT_SECRET", TEST_JWT_SECRET)
+os.environ.setdefault("BILTIQ_HMAC_KEY", TEST_HMAC_KEY)
 
 
 def _mint_token(

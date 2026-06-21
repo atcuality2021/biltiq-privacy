@@ -1,25 +1,30 @@
 # SPDX-License-Identifier: MIT
-"""Application factory: assemble settings, lifespan, handlers (BILTIQ-013).
+"""Application factory + module-level ASGI app (BILTIQ-013).
 
-``create_app(settings)`` returns a fully-wired FastAPI instance. All state lives
-on the returned app — ``app.state.settings`` plus the lifespan-built detector —
-so each app is **isolated**: tests build their own instance with deterministic
-settings and no global leaks (AC10, design alternative #2).
+``create_app(settings)`` returns a fully-wired FastAPI instance: settings on
+``app.state``, the startup lifespan, the exception handlers, and the four
+routers (``/detect``, ``/anonymize``, ``/validate``, ``/healthz``). Every app is
+isolated — tests build their own instance with deterministic settings, so no
+global state leaks across tests (AC10).
 
-There is deliberately **no module-level ``app``** here yet: a module-level
-instance would call :func:`~biltiq_privacy_server.config.load_settings` at import
-time and break the env-free import contract (and the import probe). The CLI
-(Step 6) constructs the app via this factory. Routers are added in Step 5; until
-then the factory wires settings, the lifespan, and the exception handlers.
+``app = create_app(load_settings())`` at module scope is the ASGI target uvicorn
+imports (``biltiq_privacy_server.app:app``, used by the Step 6 CLI). It reads the
+two required secrets from the environment at import, so a misconfigured
+deployment fails fast — before uvicorn binds the port (AC5/AC6) — rather than on
+the first request. Importing the *package* ``biltiq_privacy_server`` stays
+env-free (its ``__init__`` does not import this module); only importing
+``biltiq_privacy_server.app`` requires the secrets, which is exactly the
+serve-time contract.
 """
 from __future__ import annotations
 
 from fastapi import FastAPI
 
 from biltiq_privacy_server import __version__
-from biltiq_privacy_server.config import Settings
+from biltiq_privacy_server.config import Settings, load_settings
 from biltiq_privacy_server.errors import register_exception_handlers
 from biltiq_privacy_server.lifespan import lifespan
+from biltiq_privacy_server.routers import anonymize, detect, health, validate
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -31,4 +36,13 @@ def create_app(settings: Settings) -> FastAPI:
     )
     app.state.settings = settings
     register_exception_handlers(app)
+    app.include_router(detect.router)
+    app.include_router(anonymize.router)
+    app.include_router(validate.router)
+    app.include_router(health.router)
     return app
+
+
+#: ASGI target for uvicorn (``biltiq_privacy_server.app:app``). Reads the
+#: required secrets from the environment at import — fail-fast startup (AC5/AC6).
+app = create_app(load_settings())
