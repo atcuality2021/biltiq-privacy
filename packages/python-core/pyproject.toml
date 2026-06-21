@@ -60,6 +60,11 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
+# The PEP 561 `py.typed` marker lives in biltiq_privacy/ and is shipped by
+# hatchling's default package-file inclusion (verified in the built wheel) —
+# no force-include needed. It pairs with the `Typing :: Typed` classifier so
+# downstream strict-mypy consumers (e.g. packages/python-server) can import
+# the library's types instead of hitting `import-untyped` (BILTIQ-013).
 packages = ["biltiq_privacy"]
 
 [tool.ruff]
