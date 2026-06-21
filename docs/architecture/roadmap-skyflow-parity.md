@@ -103,6 +103,8 @@ Standing advantages to preserve in every ticket: MIT licence + auditable source 
 - Declarative policy file (YAML/JSON, pydantic-validated, hot-reloadable): principals (API keys/service accounts) → allowed operations (`anonymise`, `validate`, `reidentify`) → entity-type scopes → regime constraints.
 - Per-principal rate limits + per-operation audit emission to the hash chain (governance decisions are themselves chained evidence).
 - `reidentify` endpoint (BILTIQ-014 over HTTP) is **deny-by-default** — exposed only via explicit policy; `include_values` never exposed over HTTP (standing decision from BILTIQ-011).
+- **Token revocation** — a principal denylist (revoke a live token / principal without rotating the shared secret), driven by the same policy file + hot-reload. Folds in the gap left by BILTIQ-013/013a, whose only revocation lever today is shared-secret rotation (mass) + short TTLs. See `docs/runbooks/token-issuance.md` § Rotation & revocation.
+- **Asymmetric signing (RS256) option** — a sign/verify key split so the sidecar holds only a public key and is structurally unable to mint, closing the symmetric "anyone who can mint can forge" weakness of the HS256 operator model. Deferral originates in ADR-0007 (BILTIQ-013a carve-out); the verify-only invariant is preserved either way.
 - Library stays pure: all governance lives in `python-server`.
 
 **Better than Skyflow:** policy-as-code in git (reviewable, diffable, CI-testable) vs console-configured policies; every allow/deny decision lands in the tamper-evident chain, so governance is *provable* after the fact.
