@@ -108,6 +108,15 @@ token = jwt.encode(
 )
 ```
 
+For operators and CI smoke tests, the `biltiq-privacy-mint` helper does the same correctly — the signing secret is read **only** from `BILTIQ_JWT_SECRET` (never a CLI argument, so it stays out of `ps` / shell history) and the token is the only thing printed:
+
+```bash
+TOKEN=$(BILTIQ_JWT_SECRET="your-jwt-signing-secret" biltiq-privacy-mint --sub ops --ttl 3600)
+# extra claims (minted but not enforced by the verify-only server): --claim role=admin
+```
+
+This is an operator convenience, not a new server surface — the running server stays **verify-only** and never issues tokens (the mint is a separate console-script; `jwt.encode` lives only there, unreachable from the server's request path — ADR-0007).
+
 One call per endpoint (`$TOKEN` is the value above):
 
 ```bash
