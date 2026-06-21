@@ -50,6 +50,10 @@ dependencies = [
     "pyjwt>=2.8,<3",
 ]
 
+[project.scripts]
+# Native install path (AC8/AC12): `pip install biltiq-privacy-server && biltiq-privacy-server serve`.
+biltiq-privacy-server = "biltiq_privacy_server.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/atcuality2021/biltiq-privacy"
 Repository = "https://github.com/atcuality2021/biltiq-privacy"
@@ -82,3 +86,13 @@ files = ["biltiq_privacy_server"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+
+# Coverage gate (AC10) — invoked via `pytest --cov`; full-suite runs must report
+# >= 90%. Kept out of addopts so single-file step gates stay clean.
+[tool.coverage.run]
+source = ["biltiq_privacy_server"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
