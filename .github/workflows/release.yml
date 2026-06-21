@@ -1,0 +1,118 @@
+# Publish biltiq-privacy + biltiq-privacy-server to PyPI via Trusted Publishing.
+#
+# No API token is stored anywhere. Each publish job requests a short-lived
+# OpenID Connect (OIDC) identity token from GitHub, and PyPI exchanges it for a
+# ~15-minute, project-scoped upload token after matching it against the "trusted
+# publisher" you registered on pypi.org. See docs/runbooks/token-issuance.md for
+# the operator-token model (unrelated) and the PyPI project setup below.
+#
+# ── One-time PyPI setup (you, on pypi.org → Account → Publishing) ────────────
+# Register a *pending publisher* for EACH project (the projects do not exist on
+# PyPI until the first publish), with these exact values:
+#     Owner:           atcuality2021
+#     Repository name: biltiq-privacy
+#     Workflow name:   release.yml
+#     Environment:     pypi          <-- MUST match the `environment:` below.
+#   Project name:      biltiq-privacy          (first pending publisher)
+#   Project name:      biltiq-privacy-server   (second pending publisher)
+# If you choose NOT to use a GitHub environment, delete the `environment:` block
+# from both publish jobs AND leave the PyPI "Environment" field blank — the two
+# must agree or the OIDC match fails.
+#
+# ── How to release ──────────────────────────────────────────────────────────
+# Publish a GitHub Release (Releases → Draft a new release → pick the existing
+# v0.1.0 tag → Publish). That fires `release: published` and runs this workflow.
+# `workflow_dispatch` is also wired for a manual re-run from the Actions tab.
+#
+# Security note: no ${{ ... }} expansion in any run: block references user-
+# supplied data — matches the safe pattern in ci.yml / biltiq-gates.yml.
+
+name: release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build sdist + wheel (both packages)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the build frontend
+        run: python -m pip install --upgrade build
+
+      # hatchling backend (both pyproject.toml files). Building only reads the
+      # source tree + pyproject — it needs neither the sibling package nor the
+      # NER model installed, so no dependency resolution happens here.
+      - name: Build biltiq-privacy (library)
+        run: python -m build --outdir dist-core packages/python-core
+
+      - name: Build biltiq-privacy-server (sidecar)
+        run: python -m build --outdir dist-server packages/python-server
+
+      - name: Show built artifacts
+        run: ls -l dist-core dist-server
+
+      - name: Upload library dists
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-core
+          path: dist-core/
+
+      - name: Upload server dists
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-server
+          path: dist-server/
+
+  publish-core:
+    name: publish biltiq-privacy
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for OIDC Trusted Publishing
+    steps:
+      - name: Download library dists
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-core
+          path: dist-core/
+
+      - name: Publish biltiq-privacy to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-core/
+
+  publish-server:
+    name: publish biltiq-privacy-server
+    # Depends on publish-core so the library is on PyPI first — the server
+    # declares biltiq-privacy as a runtime dependency, so a consumer that
+    # installs the server immediately after release can resolve it.
+    needs: publish-core
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for OIDC Trusted Publishing
+    steps:
+      - name: Download server dists
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-server
+          path: dist-server/
+
+      - name: Publish biltiq-privacy-server to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-server/
