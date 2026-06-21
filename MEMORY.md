@@ -48,7 +48,7 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 - **Active sprint:** Close v0.1.0 release — tag v0.1.0 → PyPI publish → BILTIQ-013 sidecar.
 - **Top 3 tasks in flight:**
   1. **PyPI publish v0.1.0** — BILTIQ-012 merged 2026-06-21; wheel already verified (0 direct-URL deps); needs dev credentials (twine / uv publish / trusted-publishing decision).
-  2. **BILTIQ-013** — FastAPI sidecar (`/anonymize`, `/validate` REST endpoints). Next ticket to start.
+  2. **BILTIQ-013** — FastAPI sidecar — **shipped (PR #14 open, CI green, awaiting mandatory human auth review)**; merge after review, then delete branch.
   3. **`biltiq-gates.yml` fix** — workflow fails in 0s on every push to main; still unticketed. Also unticketed: `RedactionFilter` (`core/log_filter.py`) listed in stack.md but never built — row marked PLANNED.
 - **Top 3 risks:**
   1. **Presidio default global recognisers leak through `build_engine()`** (BILTIQ-002 AC2 caveat — non-Indian entities like UK_NHS, PERSON also fire). Deferred via tech-debt #3 (`india_only=True` flag). Mitigation until then: callers strip non-`IN_*` results client-side.
@@ -59,10 +59,11 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 
 ## Recent decisions (last 30 days)
 
-- 2026-06-21 — **[ADR-0007](docs/adr/0007-jwt-library-selection.md) accepted:** PyJWT ≥ 2.8, HS256 **verify-only** for the BILTIQ-013 sidecar Bearer auth (single-element algorithm allow-list; server never mints tokens — consumers do). Rejected python-jose (alg-confusion CVE history), authlib (oversized OAuth surface), roll-our-own (crypto risk).
+- 2026-06-21 — **[ADR-0007](docs/adr/0007-jwt-library-selection.md) accepted:** PyJWT ≥ 2.8, HS256 **verify-only** for the BILTIQ-013 sidecar Bearer auth (single-element algorithm allow-list; server never mints tokens — consumers do). Rejected python-jose (alg-confusion CVE history), authlib (oversized OAuth surface), roll-our-own (crypto risk). _(Also emitted as a `decision` event so the curator can project it durably — hand-edits to this section get overwritten; see BILTIQ-013 reflect.)_
 
 ## Recently completed
 
+- 2026-06-21 — **BILTIQ-013 (PR #14 open, CI green, awaiting human auth review):** FastAPI sidecar — `biltiq-privacy-server` over the engine. Four routers via `create_app(settings)` factory: `/detect`, `/anonymize`, `/validate` (Bearer-JWT verify-only, HS256, PyJWT/ADR-0007, single-element allow-list → alg-confusion closed) + open `/healthz`. Secrets env-only/fail-fast/never-logged/never-in-wire-models; HMAC key injected via `get_hmac_key`. Detector built once in ASGI `lifespan`; missing NER model → degraded 503 (not crash-loop). Committed `openapi.json` + drift gate (AC9). `serve` CLI + console script. 68 tests @ 99.39% cov; mypy --strict clean; 9/9 CI cells green (3.11–3.14). All 12 ACs DONE. python-core stays framework-free (only py.typed added).
 - 2026-06-11 — **BILTIQ-012 (PR #13 open):** `anonymise()` facade chaining all five shipped stages; frozen `AnonymiseResult`; 18-name top-level public surface with subprocess-pinned lazy-import; PyPI-publishable packaging (ADR-0006); wheel built + METADATA gate 0 direct-URL deps; 284 tests, mypy --strict clean. e2e: DPDP 8/8 compliant, two-call chain verifies, socket-guard offline run.
 - 2026-06-11 — **BILTIQ-011 merged to main** (`c114892`, PR #11, dev-approved after high-risk review): Regime ABC + DPDP 2023 validator — `biltiq_privacy.regimes` (frozen-dataclass `ComplianceCheck`/`ComplianceReport`, `Regime` ABC, `DPDPRegime` with the 8 CDSCO checks). Side-by-side vs live CDSCO function: 8/8 statuses identical. 43 tests.
 - 2026-06-11 — **BILTIQ-004 + BILTIQ-010 merged to main** (`c6a8729`): age streaming wrapper (PR #5) + pure audit hash-chain (PR #10, ADR-0005 golden vector). Main verified: 217 tests + perf gate + mypy strict clean at merge time.
@@ -119,6 +120,12 @@ _(no open questions)_
 ---
 
 ## Session log (last 5 sessions)
+
+### 2026-06-21 — BILTIQ-013 Attack Loop Build → Reflect (sidecar, single session across 2 compactions)
+- Worked on: BILTIQ-013 (FastAPI sidecar). 8 atomic build steps (1 commit each) → 4-slice parallel review → full test battery → PR #14 → reflect.
+- Did: shipped `/detect /anonymize /validate /healthz`, verify-only JWT (ADR-0007), fail-fast secrets, degraded-start lifespan, committed openapi.json + drift gate, CLI serve. 68 tests @ 99.39% cov; 9/9 CI green. PR #14 open, awaiting mandatory human auth review.
+- Discovered: **`## Recent decisions` is curator/event-sourced — hand-edits are overwritten**; the durable path is a `decision` event (now emitted for ADR-0007). Also: AC10 "no network" is satisfied structurally (TestClient + FakeDetector), not by a pytest-socket guard.
+- Next session should: merge PR #14 after human review → delete branch; then PyPI publish v0.1.0 (dev creds) + tag. Still parked: biltiq-gates.yml fix, RedactionFilter ticket, BILTIQ-006 resume/abandon.
 
 ### 2026-06-11 ~12:00–13:30 IST — PR #11 merge + BILTIQ-012 Attack Loop (Think → Reflect, single session)
 - Worked on: PR #11 dev-approved + merged (`c114892`, branch deleted); then BILTIQ-012 (`anonymise()` facade + public API) — all 7 steps; PR #13 open awaiting review.
