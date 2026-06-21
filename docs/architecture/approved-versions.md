@@ -46,7 +46,7 @@
 
 | API | Use | Notes |
 |---|---|---|
-| `PyJWT ≥ 2.8, < 3` — `jwt.decode(token, secret, algorithms=["HS256"], options={"verify_exp": True})` | Bearer-JWT verification | HS256, **verify-only** (ADR-0007). Pin a single-element `algorithms` allow-list — closes the algorithm-confusion class. Production never calls `jwt.encode` (consumers mint their own tokens); `auth.py` is the only `jwt` importer. PEP 561 typed. |
+| `PyJWT ≥ 2.8, < 3` — `jwt.decode(token, secret, algorithms=["HS256"], options={"verify_exp": True})` | Bearer-JWT verification | HS256, **verify-only** (ADR-0007). Pin a single-element `algorithms` allow-list — closes the algorithm-confusion class. The request-handling runtime (`app:app` → routers → `dependencies` → `auth.verify_token`) never calls `jwt.encode`; the operator `biltiq-privacy-mint` tool (`biltiq_privacy_server.mint`) does, in a module the app graph never imports (BILTIQ-013a). `auth.py` remains the only `jwt` importer on the verify path; `mint.py` is the only production `jwt.encode` caller. PEP 561 typed. |
 
 ### System binaries
 

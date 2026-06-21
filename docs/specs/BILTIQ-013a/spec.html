@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec: operator token-mint CLI (biltiq-privacy-mint)</title>
+  <style>
+    :root{--color-border:#e5e7eb;--color-bg:#ffffff;--color-bg-subtle:#f9fafb;--color-text:#111827;--color-muted:#6b7280;--color-ac-open:#d97706;--radius:6px;--max-width:860px;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--color-text);background:var(--color-bg);padding:2rem 1rem;}
+    main{max-width:var(--max-width);margin:0 auto;}
+    header{border-bottom:2px solid var(--color-border);padding-bottom:1.25rem;margin-bottom:2rem;}
+    header h1{font-size:1.5rem;margin-bottom:0.75rem;}
+    .meta{display:flex;flex-wrap:wrap;gap:0.5rem 1.5rem;}
+    .meta dt{font-weight:600;color:var(--color-muted);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.04em;}
+    .meta dd{font-size:0.9rem;}
+    section{margin-bottom:2rem;}
+    h2{font-size:1.1rem;font-weight:700;border-left:4px solid var(--color-border);padding-left:0.75rem;margin-bottom:0.75rem;}
+    h3{font-size:0.95rem;font-weight:600;margin:1rem 0 0.4rem;}
+    p,li{color:var(--color-text);margin-bottom:0.4rem;}
+    ul{padding-left:1.4rem;}
+    code{background:var(--color-bg-subtle);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.92em;}
+    pre{background:var(--color-bg-subtle);border:1px solid var(--color-border);border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.85em;overflow-x:auto;margin-bottom:0.75rem;}
+    .ac-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:0.4rem;}
+    .ac-item{display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem 0.75rem;border-radius:var(--radius);background:var(--color-bg-subtle);border:1px solid var(--color-border);}
+    .ac-badge{font-size:0.7rem;font-weight:700;padding:0.15rem 0.45rem;border-radius:9999px;white-space:nowrap;flex-shrink:0;margin-top:0.15rem;}
+    .ac-open{background:#fef3c7;color:var(--color-ac-open);border:1px solid #fcd34d;}
+    .ac-done{background:#dcfce7;color:#15803d;border:1px solid #86efac;}
+    .ac-label{font-size:0.85rem;}
+    .risk-box{background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius);padding:0.6rem 0.9rem;margin-bottom:0.75rem;}
+    table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+    th,td{text-align:left;padding:0.5rem 0.75rem;border:1px solid var(--color-border);}
+    th{background:var(--color-bg-subtle);font-weight:600;}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Spec: operator token-mint CLI (<code>biltiq-privacy-mint</code>)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-013a</dd></div>
+      <div><dt>Parent</dt><dd>BILTIQ-013 (FastAPI sidecar)</dd></div>
+      <div><dt>Phase</dt><dd>B — sidecar + polyglot SDKs</dd></div>
+      <div><dt>Owner</dt><dd>@atcuality2021</dd></div>
+      <div><dt>Created</dt><dd>2026-06-21</dd></div>
+      <div><dt>Wall-clock</dt><dd>S</dd></div>
+      <div><dt>Tokens</dt><dd>S</dd></div>
+      <div><dt>Human review (min)</dt><dd>30 (high-risk: token signing)</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code Opus 4.8</dd></div>
+    </dl>
+  </header>
+
+  <section id="problem">
+    <h2>Problem</h2>
+    <p>The BILTIQ-013 sidecar is <strong>verify-only</strong>: it checks <code>Authorization: Bearer
+    &lt;token&gt;</code> against <code>BILTIQ_JWT_SECRET</code> but never issues tokens (ADR-0007;
+    <code>auth.py</code> calls only <code>jwt.decode</code>). Token minting is "the consumer's
+    concern" — which is correct for production clients that mint their own JWTs, but leaves an
+    operator with no first-class way to produce a token for a smoke test, a <code>curl</code> against
+    a fresh deployment, or a local integration run. Today the only path is the PyJWT snippet pasted
+    in the README, which is easy to get wrong (naive <code>exp</code>, tz-naive timestamps, wrong
+    algorithm) and tempts operators to put the signing secret on the command line.</p>
+    <p>This task adds a small, <strong>standalone</strong> operator helper that mints a correct
+    short-lived HS256 token — without weakening the verify-only guarantee of the running server.</p>
+  </section>
+
+  <section id="user-impact">
+    <h2>User Impact</h2>
+    <p>Operator-facing, on-prem. <code>BILTIQ_JWT_SECRET=… biltiq-privacy-mint --sub ops --ttl 3600</code>
+    prints a ready-to-use bearer token to stdout. Pipe-friendly:
+    <code>TOKEN=$(BILTIQ_JWT_SECRET=… biltiq-privacy-mint --sub ops)</code>. The minted token verifies
+    against the same server unchanged. No production client is required to use it — it is a
+    convenience for operators and CI smoke tests, not a new auth surface on the server.</p>
+  </section>
+
+  <section id="design-constraints">
+    <h2>Design Constraints (ruling before design)</h2>
+    <ul>
+      <li><strong>Verify-only runtime is preserved.</strong> The ASGI import graph
+      (<code>biltiq_privacy_server.app:app</code> → routers → dependencies → <code>auth</code>) must
+      never reach <code>jwt.encode</code>. The minting code lives in a dedicated module reachable only
+      via its own console-script, never imported by the app. This is the invariant the parent task
+      was built on; it is amended, not broken — see ADR-0007.</li>
+      <li><strong>Secret is env-only.</strong> The signing secret is read from
+      <code>BILTIQ_JWT_SECRET</code> (the same env var the server verifies against). It is
+      <em>never</em> accepted as a CLI argument — a signing key in <code>argv</code> leaks into
+      <code>ps</code>, shell history, and process listings.</li>
+      <li><strong>HS256 only.</strong> The mint signs with HS256 to match the verify side's pinned
+      single-element allow-list (<code>auth._ALGORITHMS</code>). No algorithm flag.</li>
+      <li><strong>Claim shape matches the verify side.</strong> Minted payloads carry tz-aware
+      <code>iat</code>/<code>exp</code> (<code>datetime.now(UTC)</code>) and the operator-supplied
+      <code>sub</code> — the same shape <code>tests/conftest.py::_mint_token</code> already uses, so
+      tokens verify unchanged.</li>
+      <li><strong>No new dependency.</strong> PyJWT is already a server dependency; the CLI uses
+      stdlib <code>argparse</code> like <code>cli.py</code> (keeps the air-gapped install path clean).</li>
+      <li><strong>No coupling to <code>load_settings()</code>.</strong> Minting needs only the JWT
+      secret; it must not require <code>BILTIQ_HMAC_KEY</code> (which <code>load_settings()</code>
+      mandates). The mint reads <code>BILTIQ_JWT_SECRET</code> directly via the shared env-var
+      constant.</li>
+    </ul>
+  </section>
+
+  <section id="cli-contract">
+    <h2>CLI Contract (informational — design finalises)</h2>
+    <pre>BILTIQ_JWT_SECRET=&lt;secret&gt; biltiq-privacy-mint \
+    --sub ops \                 # required: token subject
+    --ttl 3600 \                # optional: lifetime in seconds (default 3600)
+    --claim role=admin \        # optional, repeatable: extra string claims
+    --claim team=privacy
+
+→ stdout: &lt;the.jwt.token&gt;        # token ONLY, newline-terminated, pipe-friendly
+→ exit 0
+
+# error paths (token never printed):
+BILTIQ_JWT_SECRET unset/empty      → stderr "BILTIQ_JWT_SECRET is required …", exit != 0
+--claim with no '='                → stderr "malformed --claim …", exit != 0
+--claim sub=… / iat=… / exp=…       → stderr "reserved claim …", exit != 0</pre>
+  </section>
+
+  <section id="acceptance-criteria">
+    <h2>Acceptance Criteria</h2>
+    <div class="risk-box">
+      <strong>HIGH-RISK ticket (token-signing path).</strong> Amends ADR-0007. Mandatory human plan
+      review before Step 3 Build and mandatory human code review before merge. Skill review does not
+      substitute.
+    </div>
+    <ul class="ac-list">
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC1 — mints a verifiable token.</strong>
+      With <code>BILTIQ_JWT_SECRET</code> set, <code>biltiq-privacy-mint --sub ops</code> prints a
+      single HS256 JWT to <strong>stdout</strong> (token only, newline-terminated, nothing else on
+      stdout) that <code>auth.verify_token(token, secret=&lt;same secret&gt;)</code> accepts, returning
+      claims whose <code>sub == "ops"</code>.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC2 — secret is env-only.</strong>
+      The signing secret is read from <code>BILTIQ_JWT_SECRET</code> via the shared env-var constant.
+      The parser exposes <strong>no</strong> <code>--secret</code> (or equivalent) flag — asserted by
+      a test that inspects the argparse actions. The secret never appears in stdout.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC3 — fail-fast on missing secret.</strong>
+      With <code>BILTIQ_JWT_SECRET</code> unset or empty, the CLI writes an actionable message to
+      <strong>stderr</strong>, exits non-zero, prints nothing to stdout, and never echoes any secret
+      value.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC4 — sub + ttl, tz-aware.</strong>
+      <code>--sub</code> is required and sets the <code>sub</code> claim. <code>--ttl</code> (seconds,
+      default 3600) sets <code>exp = iat + ttl</code>; both <code>iat</code> and <code>exp</code> are
+      timezone-aware UTC (<code>datetime.now(UTC)</code>) — satisfies ruff <code>DTZ</code>. A
+      non-positive <code>--ttl</code> is rejected (stderr, non-zero exit).</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC5 — extensible claims.</strong>
+      <code>--claim k=v</code> is repeatable; each pair is merged into the payload as a string value.
+      A <code>--claim</code> without <code>=</code> is rejected (stderr, non-zero). A <code>--claim</code>
+      naming a reserved claim (<code>sub</code>, <code>iat</code>, <code>exp</code>) is rejected — those
+      are set by <code>--sub</code>/<code>--ttl</code>/the clock, not free-form. Extra claims are minted
+      verbatim and <em>not</em> enforced by the current verify-only server (no roles model yet).</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC6 — verify-only invariant preserved.</strong>
+      A structural test imports the full <code>biltiq_privacy_server.app:app</code> graph and asserts
+      no module in that graph references <code>jwt.encode</code>; <code>jwt.encode</code> lives only in
+      the dedicated mint module (and tests). The mint module is <strong>not</strong> imported by
+      <code>app</code>, <code>auth</code>, <code>dependencies</code>, or any router.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC7 — packaging + docs.</strong>
+      <code>pyproject.toml</code> registers the <code>biltiq-privacy-mint</code> console-script.
+      ADR-0007 is amended to record the operator-mint carve-out; <code>approved-versions.md</code>'s
+      "production never calls <code>jwt.encode</code> / <code>auth.py</code> is the only importer" row
+      is updated to "the request-handling runtime never calls <code>encode</code>; the operator mint
+      tool does, in a module the app never imports." README documents the command.</span></li>
+
+      <li class="ac-item"><span class="ac-badge ac-done">DONE</span><span class="ac-label"><strong>AC8 — gates green.</strong>
+      <code>pytest</code> green, <code>mypy --strict</code> clean (no <code>Any</code>, no unjustified
+      <code>type: ignore</code>), <code>ruff check</code> clean, deprecation-warning-free, coverage
+      ≥ 90% on the new module.</span></li>
+    </ul>
+  </section>
+
+  <section id="out-of-scope">
+    <h2>Out of Scope</h2>
+    <ul>
+      <li><strong>Roles/authorization enforcement.</strong> The server stays verify-only with binary
+      access (valid token / 401). <code>--claim role=…</code> mints the claim but nothing reads it
+      server-side. A roles model is a separate future ticket.</li>
+      <li><strong>JSON-typed claim values.</strong> <code>--claim</code> values are strings in v1.
+      Typed/nested claim values (numbers, booleans, JSON) are deferred.</li>
+      <li><strong>Token revocation / introspection / refresh.</strong> No server-side token store;
+      revocation is out of scope (rotate <code>BILTIQ_JWT_SECRET</code> to invalidate).</li>
+      <li><strong>Asymmetric (RS/ES) signing.</strong> HS256 only, matching the verify side.</li>
+      <li><strong>A <code>serve</code>-CLI subcommand.</strong> Mint is a separate console-script, not a
+      subcommand of <code>biltiq-privacy-server</code> — that placement would put <code>encode</code>
+      into the server CLI's import surface.</li>
+    </ul>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open Questions</h2>
+    <ul>
+      <li><strong>Q1 — Resolved.</strong> Claim surface: extensible <code>--claim k=v</code> (plus
+      <code>--sub</code>/<code>--ttl</code>). Confirmed by dev 2026-06-21.</li>
+      <li><strong>Q2 — Resolved.</strong> Secret source: env-only, no <code>--secret</code> flag.
+      Confirmed by dev 2026-06-21.</li>
+      <li><strong>Q3 — Resolved.</strong> Placement: standalone <code>biltiq-privacy-mint</code>
+      console-script + isolated module, not a <code>biltiq-privacy-server</code> subcommand. Confirmed
+      by dev 2026-06-21.</li>
+    </ul>
+  </section>
+
+  <section id="dependencies">
+    <h2>Dependency / Sequencing Note</h2>
+    <p>This task imports <code>biltiq_privacy_server</code>, which exists only on the (unmerged)
+    <code>feature/biltiq-013-fastapi-sidecar</code> branch — not on <code>main</code>. BILTIQ-013a is
+    branched off that feature branch and <strong>cannot merge to <code>main</code> until PR #14
+    merges first</strong>. Plan/design may proceed now; Build lands after #14 merges (or as an
+    explicitly stacked PR).</p>
+  </section>
+</main>
+</body>
+</html>

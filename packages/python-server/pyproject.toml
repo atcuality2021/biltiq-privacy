@@ -53,6 +53,9 @@ dependencies = [
 [project.scripts]
 # Native install path (AC8/AC12): `pip install biltiq-privacy-server && biltiq-privacy-server serve`.
 biltiq-privacy-server = "biltiq_privacy_server.cli:main"
+# Operator token-mint helper (BILTIQ-013a). Env-only secret; verify-only runtime
+# preserved (jwt.encode isolated to mint.py, unreachable from the app graph).
+biltiq-privacy-mint = "biltiq_privacy_server.mint:main"
 
 [project.urls]
 Homepage = "https://github.com/atcuality2021/biltiq-privacy"

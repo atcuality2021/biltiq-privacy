@@ -64,3 +64,26 @@ dependency. The JWT secret is read once from `BILTIQ_JWT_SECRET` at startup
 ## References
 - `docs/specs/BILTIQ-013/spec.html` (AC5), `design.html` (§ Security & Compliance, ADR-0007 draft)
 - PyJWT algorithm-confusion guidance: pin `algorithms=[...]` explicitly on `decode`.
+
+## Amendment — 2026-06-21 (BILTIQ-013a): operator token-mint carve-out
+
+BILTIQ-013a adds `biltiq-privacy-mint`, a standalone operator/CI helper that signs
+a short-lived HS256 token for smoke tests and `curl` against a fresh deployment.
+This introduces the first production `jwt.encode` call — so the verify-only
+invariant is **restated precisely rather than broken**:
+
+> The request-handling runtime — the `biltiq_privacy_server.app:app` ASGI graph
+> (routers → `dependencies` → `auth.verify_token`) — never reaches `jwt.encode`.
+> `jwt.encode` lives only in `biltiq_privacy_server.mint`, which **nothing in the
+> app graph imports**. `auth.py` remains the only `jwt` importer on the verify
+> path; `mint.py` is the only production `jwt.encode` caller.
+
+The carve-out is enforced structurally (`tests/test_mint_invariant.py`): a source
+grep proves `jwt.encode` appears only in `mint.py`, and a fresh-interpreter import
+of `app:app` proves `mint` is never loaded by the app graph. The mint signs with a
+module-local `_MINT_ALGORITHM` pinned to `auth._ALGORITHMS[0]` by an equality test
+(it does not import `auth` at runtime — keeps the CLI's import graph to
+`argparse`+`pyjwt`+`config`). The signing secret is read env-only from
+`BILTIQ_JWT_SECRET` (no `--secret` flag). No new dependency (PyJWT already pinned);
+the "Tech debt accepted" notes above (no rotation/JWKS, HS256-only) are unchanged.
+See `docs/specs/BILTIQ-013a/{spec,design,plan}.html`.

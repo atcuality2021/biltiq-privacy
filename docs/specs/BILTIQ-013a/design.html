@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design: operator token-mint CLI (biltiq-privacy-mint) (v0.1.0)</title>
+  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <style>
+    :root {
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-new:       #16a34a;
+      --color-modified:  #d97706;
+      --color-risk-high: #dc2626;
+      --color-risk-med:  #d97706;
+      --color-risk-low:  #16a34a;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 2rem 1rem;
+    }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header {
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-left: 4px solid var(--color-border);
+      padding-left: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    pre {
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.5rem 0;
+    }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); vertical-align: top; }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      white-space: nowrap;
+    }
+    .tag-new      { background: #dcfce7; color: var(--color-new);      border: 1px solid #86efac; }
+    .tag-modified { background: #fef3c7; color: var(--color-modified); border: 1px solid #fcd34d; }
+    .tag-risk-h   { background: #fee2e2; color: var(--color-risk-high);border: 1px solid #fca5a5; }
+    .tag-risk-m   { background: #fef3c7; color: var(--color-risk-med); border: 1px solid #fcd34d; }
+    .tag-risk-l   { background: #dcfce7; color: var(--color-risk-low); border: 1px solid #86efac; }
+    .placeholder { color: var(--color-muted); font-style: italic; }
+    .adr-box { background: var(--color-bg-subtle); border: 1px solid var(--color-border); border-left: 4px solid var(--color-modified); border-radius: var(--radius); padding: 1rem 1.25rem; }
+    @media (max-width: 600px) { .meta { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Design: operator token-mint CLI (<code>biltiq-privacy-mint</code>) (v0.1.0)</h1>
+    <dl class="meta">
+      <div><dt>Task ID</dt><dd>BILTIQ-013a</dd></div>
+      <div><dt>Parent</dt><dd>BILTIQ-013 (FastAPI sidecar)</dd></div>
+      <div><dt>Author</dt><dd>@atcuality2021 (drafted by biltiq-code-architect)</dd></div>
+      <div><dt>Created</dt><dd>2026-06-21</dd></div>
+      <div><dt>Compliance mode</dt><dd>on_prem_preferred</dd></div>
+      <div><dt>Risk</dt><dd>HIGH (token-signing path — human plan + code review mandatory)</dd></div>
+    </dl>
+  </header>
+
+  <section id="approach">
+    <h2>Chosen Approach</h2>
+    <h3>Name</h3>
+    <p><strong>Isolated console-script module: a self-contained <code>biltiq_privacy_server/mint.py</code>
+    with its own <code>main(argv)</code>, the single <code>jwt.encode</code> caller in production, imported
+    by nothing in the <code>app:app</code> ASGI graph.</strong> The mint is a sibling of <code>cli.py</code>,
+    not a subcommand of it: <code>cli.py</code> registers <code>biltiq-privacy-server</code> and lives in the
+    server's import surface, so adding a mint subcommand there would drag <code>jwt.encode</code> into the
+    runtime graph and break the verify-only invariant the parent task was built on. The mint module imports
+    only stdlib (<code>argparse</code>, <code>os</code>, <code>sys</code>, <code>datetime</code>), <code>jwt</code>,
+    and two constants from existing server modules — never <code>app</code>, <code>auth</code>'s verify path,
+    <code>dependencies</code>, or any router.</p>
+
+    <h3>Description</h3>
+    <p><strong>Module layout (<code>mint.py</code>).</strong> The module mirrors <code>cli.py</code>'s shape:
+    a <code>build_parser() -&gt; argparse.ArgumentParser</code>, a thin <code>main(argv: Sequence[str] | None
+    = None) -&gt; int</code> console-script entry, and small pure helpers between them. Decomposed into four
+    testable units so each AC has a direct seam:</p>
+    <ul>
+      <li><code>build_parser()</code> — declares <code>--sub</code> (required), <code>--ttl</code>
+      (<code>type=int</code>, default <code>3600</code>), and <code>--claim</code>
+      (<code>action="append"</code>, repeatable, default <code>None</code>). It declares <strong>no</strong>
+      <code>--secret</code> action — AC2's structural guarantee is that this parser has no secret-bearing
+      flag, asserted by a test that walks <code>parser._actions</code> / <code>parse_args</code> option
+      strings.</li>
+      <li><code>_parse_claims(raw: list[str] | None) -&gt; dict[str, str]</code> — splits each
+      <code>k=v</code> on the first <code>=</code> (<code>str.split("=", 1)</code>), rejecting a token with
+      no <code>=</code> and rejecting any key in the reserved set
+      <code>_RESERVED_CLAIMS = frozenset({"sub", "iat", "exp"})</code>. On a bad pair it raises a small
+      module-local <code>MintError</code> carrying an actionable message; values stay strings (AC5; JSON-typed
+      values are spec § Out of Scope).</li>
+      <li><code>_build_payload(sub, ttl, claims) -&gt; dict[str, object]</code> — composes the claim set:
+      <code>now = datetime.now(UTC)</code> (tz-aware, satisfies ruff <code>DTZ</code>), then
+      <code>{"sub": sub, "iat": now, "exp": now + timedelta(seconds=ttl)}</code> merged with the validated
+      extra claims. Because the reserved-claim guard already ran, extra claims can never shadow
+      <code>sub/iat/exp</code>. Shape is byte-for-byte the same as
+      <code>tests/conftest.py::_mint_token</code>, so the token verifies against <code>verify_token</code>
+      unchanged (AC1, AC4).</li>
+      <li><code>_read_secret() -&gt; str</code> — reads <code>os.environ.get(config._JWT_SECRET_ENV)</code>;
+      empty/unset raises <code>MintError</code> with the AC3 message. The constant is imported, not
+      re-spelled, so the mint and the server can never disagree on the env-var name (AC2).</li>
+    </ul>
+
+    <p><strong>argparse + error → exit-code → stderr handling.</strong> <code>--ttl</code> being
+    non-positive is rejected in <code>main</code> (argparse cannot express "&gt; 0" declaratively without a
+    custom <code>type</code>; a <code>_positive_int</code> converter keeps the message uniform with the other
+    <code>MintError</code> paths — chosen over a post-parse check so argparse owns the usage line). The
+    happy path computes the payload, calls
+    <code>token = jwt.encode(payload, secret, algorithm=_MINT_ALGORITHM)</code>, writes the token plus a
+    trailing newline to <strong><code>sys.stdout</code></strong>, and returns <code>0</code>. Every error
+    path (missing secret, malformed claim, reserved claim, non-positive ttl) writes one actionable line to
+    <strong><code>sys.stderr</code></strong>, writes <strong>nothing</strong> to stdout, and returns a
+    non-zero code (<code>2</code>). argparse's own usage errors (missing <code>--sub</code>) already exit
+    non-zero on stderr — consistent. <strong>stdout carries the token and nothing else</strong> (AC1) — no
+    banner, no log line, no secret echo (AC3). The signing key is never an argparse action, never printed,
+    never logged.</p>
+
+    <p><strong>Algorithm constant — own constant, drift pinned by test (dev decision 2026-06-21).</strong>
+    The verify side pins <code>auth._ALGORITHMS = ["HS256"]</code>. The mint signs with the same single
+    algorithm via a <em>module-local</em> constant <code>_MINT_ALGORITHM = "HS256"</code> — it does
+    <strong>not</strong> import <code>auth</code> at runtime. Rationale: <code>auth.py</code> imports
+    <code>fastapi</code>, so reading <code>auth._ALGORITHMS[0]</code> would drag <code>fastapi</code> into the
+    lightweight mint CLI's import graph (the CLI should need only <code>argparse</code> + <code>pyjwt</code> +
+    <code>config</code>), and it would reach into a private (<code>_</code>-prefixed) name. Instead, drift from
+    the verify side is caught by an explicit equality assertion in <code>tests/test_mint.py</code>:
+    <code>assert mint._MINT_ALGORITHM == auth._ALGORITHMS[0]</code> (the test may import <code>auth</code>;
+    only the <em>runtime</em> CLI must stay light). This matches the repo's established "pin invariants via a
+    test" pattern (cf. the OpenAPI drift test). The shipped high-risk <code>auth.py</code> is left
+    <strong>untouched</strong>. The alternatives (import <code>auth._ALGORITHMS[0]</code> at runtime; hoist a
+    shared constant into <code>config.py</code> and edit <code>auth.py</code>) are recorded in
+    § Alternatives.</p>
+
+    <p><strong>No coupling to <code>load_settings()</code> (spec constraint).</strong> The mint reads
+    <code>BILTIQ_JWT_SECRET</code> directly via <code>config._JWT_SECRET_ENV</code> and does <strong>not</strong>
+    call <code>load_settings()</code>, which mandates <code>BILTIQ_HMAC_KEY</code> the mint has no use for.
+    Importing <code>config</code> for the one constant is cheap and side-effect-free (the module-level code in
+    <code>config.py</code> only defines the class + constants; no env read happens at import — that is inside
+    <code>load_settings()</code>). The mint touches none of the HMAC machinery.</p>
+
+    <p><strong>Console-script + module-execution parity.</strong> <code>pyproject.toml</code> gains a second
+    <code>[project.scripts]</code> entry <code>biltiq-privacy-mint = "biltiq_privacy_server.mint:main"</code>.
+    A console script's return value becomes the process exit code, so <code>main</code> returning
+    <code>int</code> wires exit codes for free. No <code>mint</code> entry is added to
+    <code>__main__.py</code> (that file is server-CLI parity only); the mint is reached solely via its own
+    script, keeping its import surface minimal.</p>
+  </section>
+
+  <section id="invariant-note">
+    <h2>Verify-only invariant — how AC6 stays true and how the test proves it</h2>
+    <p>The invariant is directional and precise: <strong>the request-handling runtime
+    (<code>biltiq_privacy_server.app:app</code> → routers → <code>dependencies</code> →
+    <code>auth.verify_token</code>) must never reach <code>jwt.encode</code>.</strong> <code>jwt.encode</code>
+    lives only in <code>mint.py</code> and the test fixture. The mint's runtime imports are
+    <code>argparse</code> + <code>pyjwt</code> + <code>config</code> only — it does not import <code>auth</code>
+    at runtime (the algorithm constant is module-local, with drift caught by a test). The forbidden direction
+    is <code>app → mint</code>, which this design never introduces — <code>app.py</code>, <code>cli.py</code>,
+    the routers, and <code>dependencies.py</code> are untouched, so nothing in the app graph imports
+    <code>mint</code>.</p>
+    <h3>AC6 structural test approach (for Plan to implement)</h3>
+    <p>A single structural test (<code>tests/test_mint_invariant.py</code>) asserts the invariant without
+    running a server, in two complementary checks so a regression in either direction fails:</p>
+    <ul>
+      <li><strong>Reachability walk (primary).</strong> Import <code>biltiq_privacy_server.app</code>, then
+      transitively collect the loaded <code>biltiq_privacy_server.*</code> submodules reachable from it (walk
+      <code>sys.modules</code> filtered to the package prefix after importing <code>app</code>, or recurse
+      <code>module.__dict__</code> for module objects under the prefix). Assert <code>mint</code> is
+      <strong>not</strong> among them, and assert that for every reachable module, its source does not contain
+      a <code>jwt.encode</code> call. The simplest robust form: after <code>import
+      biltiq_privacy_server.app</code>, assert <code>"biltiq_privacy_server.mint" not in sys.modules</code>
+      (it must not have been pulled in), which directly encodes "the app graph does not import the mint."</li>
+      <li><strong>Source grep (secondary, belt-and-braces).</strong> Read the source of every
+      <code>*.py</code> under <code>biltiq_privacy_server/</code> <em>except</em> <code>mint.py</code> and
+      assert none contains the substring <code>jwt.encode</code>; then read <code>mint.py</code> and assert it
+      <em>does</em> (so the test fails if the encode call is ever moved out of the dedicated module). This is
+      the same shape as BILTIQ-013's "only <code>auth.py</code> imports <code>jwt</code>" intent, extended to
+      pin <em>where <code>encode</code> may appear</em>.</li>
+    </ul>
+    <p>The test imports <code>biltiq_privacy_server.app</code> (needs the two env vars seeded — the existing
+    <code>conftest.py</code> <code>os.environ.setdefault</code> already covers collection) and the stdlib
+    <code>sys</code> / <code>importlib</code> / <code>pathlib</code> — no network, no model load.</p>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives Considered</h2>
+    <table>
+      <thead><tr><th>#</th><th>Alternative</th><th>Why Rejected</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>A <code>mint</code> subcommand on the existing <code>biltiq-privacy-server</code> CLI (<code>cli.py</code>)</td><td>Rejected (spec Q3, resolved): <code>cli.py</code> is in the server's import surface; adding mint there puts <code>jwt.encode</code> one import away from <code>app:app</code> and erodes the AC6 verify-only invariant. A standalone script keeps <code>encode</code> out of the runtime graph entirely.</td></tr>
+        <tr><td>2</td><td>A separate distribution package (e.g. <code>biltiq-privacy-mint</code> on PyPI)</td><td>Rejected: an operator helper does not warrant a third published package, its own version/release cadence, and a duplicated dependency on PyJWT. A second console-script in the existing server package gives the same isolation at zero packaging overhead.</td></tr>
+        <tr><td>3</td><td>Keep the README PyJWT snippet only (no code)</td><td>Rejected (the spec's whole motivation): the pasted snippet is the status quo that tempts operators into tz-naive <code>exp</code>, wrong algorithm, and — worst — putting the signing secret on the command line. A first-class tool removes those footguns and is testable.</td></tr>
+        <tr><td>4a</td><td>Import <code>auth._ALGORITHMS[0]</code> into <code>mint.py</code> at runtime (single source of truth)</td><td>Rejected (dev decision 2026-06-21): <code>auth.py</code> imports <code>fastapi</code>, so this drags <code>fastapi</code> into the lightweight mint CLI's runtime import graph, and reaches into a private <code>_</code>-prefixed name. <strong>Chosen instead:</strong> a module-local <code>_MINT_ALGORITHM = "HS256"</code> with an equality test (<code>assert mint._MINT_ALGORITHM == auth._ALGORITHMS[0]</code> in <code>test_mint.py</code>) — drift is caught at test time without runtime coupling, matching the repo's "pin invariants via test" pattern.</td></tr>
+        <tr><td>4b</td><td>Hoist a shared <code>JWT_ALGORITHM</code> constant into <code>config.py</code>, read by both <code>auth</code> and <code>mint</code></td><td>Rejected (dev decision 2026-06-21): truest DRY (collapses all three HS256 spellings to one), but it edits the shipped high-risk <code>auth.py</code>, expanding the parent review surface for a one-line constant. The test-pinned own-constant approach achieves drift safety while leaving <code>auth.py</code> untouched.</td></tr>
+        <tr><td>5</td><td>Accept the secret via a <code>--secret</code> flag (with env as fallback)</td><td>Rejected (spec Q2, resolved): a signing key in <code>argv</code> leaks into <code>ps</code>, shell history, and process listings. Env-only is the constraint; AC2 asserts the parser exposes no such flag.</td></tr>
+        <tr><td>6</td><td>Reuse <code>config.load_settings()</code> to obtain the secret</td><td>Rejected (spec constraint): <code>load_settings()</code> mandates <code>BILTIQ_HMAC_KEY</code> (≥ 32 bytes), which minting does not need — an operator minting a smoke-test token would be forced to supply an unrelated secret. The mint reads <code>BILTIQ_JWT_SECRET</code> directly via the shared <code>config._JWT_SECRET_ENV</code> constant.</td></tr>
+        <tr><td>7</td><td>Print the token via <code>print()</code> / a <code>logging</code> call</td><td>Rejected: <code>print()</code> is banned in this repo (approved-versions) and logging risks formatting/handlers polluting stdout. An explicit <code>sys.stdout.write(token + "\n")</code> guarantees stdout is the token and only the token (AC1), with all diagnostics on stderr.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="files-to-touch">
+    <h2>Files to Touch</h2>
+    <p>All under <code>packages/python-server/</code> unless noted. The mint adds <strong>no</strong> network
+    call, no new dependency (PyJWT is already present), and touches no part of the running server's import
+    graph.</p>
+
+    <h3>New <span class="tag tag-new">CREATE</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><code>biltiq_privacy_server/mint.py</code></td><td>The operator mint. <code>build_parser()</code> (<code>--sub</code> required, <code>--ttl</code> default 3600 via a <code>_positive_int</code> converter, repeatable <code>--claim</code>; no <code>--secret</code>), <code>_parse_claims</code> (split on first <code>=</code>, reject malformed + reserved <code>sub/iat/exp</code>), <code>_build_payload</code> (<code>datetime.now(UTC)</code>, tz-aware <code>iat/exp</code>, shape identical to <code>conftest._mint_token</code>), <code>_read_secret</code> (env-only via <code>config._JWT_SECRET_ENV</code>), and <code>main(argv) -&gt; int</code> doing the single <code>jwt.encode(..., algorithm=_MINT_ALGORITHM)</code>, token-only-to-stdout, errors-to-stderr-non-zero. Module-local <code>MintError</code>. The only production <code>jwt.encode</code> caller (AC1–AC5).</td></tr>
+        <tr><td><code>tests/test_mint.py</code></td><td>Behavioural ACs. AC1: minted token verifies via <code>auth.verify_token</code>, <code>sub == "ops"</code>, stdout is exactly the token + newline. AC3: unset/empty secret → stderr message, non-zero exit, empty stdout, no secret echoed. AC4: <code>--ttl</code> sets <code>exp = iat + ttl</code>, both tz-aware UTC; non-positive ttl rejected. AC5: repeatable <code>--claim k=v</code> merged as strings; missing <code>=</code> rejected; reserved <code>sub/iat/exp</code> rejected. Drives <code>main([...])</code> and captures <code>capsys</code> + exit code.</td></tr>
+        <tr><td><code>tests/test_mint_invariant.py</code></td><td>AC6 structural test (see § Invariant note): assert <code>biltiq_privacy_server.mint</code> is not in <code>sys.modules</code> after importing <code>biltiq_privacy_server.app</code>; assert no <code>biltiq_privacy_server/*.py</code> except <code>mint.py</code> contains <code>jwt.encode</code>, and that <code>mint.py</code> does. AC2 lives here or in <code>test_mint.py</code>: walk the parser and assert no <code>--secret</code>-style option exists.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Modified <span class="tag tag-modified">EDIT</span></h3>
+    <table>
+      <thead><tr><th>File</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td><code>pyproject.toml</code></td><td>AC7: add a second <code>[project.scripts]</code> entry <code>biltiq-privacy-mint = "biltiq_privacy_server.mint:main"</code> alongside the existing <code>biltiq-privacy-server</code>. No dependency change (PyJWT already pinned). Version stays <code>0.1.0</code>.</td></tr>
+        <tr><td><code>docs/adr/0007-jwt-library-selection.md</code> (repo root)</td><td>AC7: amend to record the operator-mint carve-out — the runtime stays verify-only, but a dedicated, app-unreachable module now calls <code>jwt.encode</code> for the operator helper. Exact wording in § ADR-0007 amendment below; add a Change-log / Amendment line dated 2026-06-21 referencing BILTIQ-013a.</td></tr>
+        <tr><td><code>docs/architecture/approved-versions.md</code></td><td>AC7: replace the Auth row clause "Production never calls <code>jwt.encode</code> … <code>auth.py</code> is the only <code>jwt</code> importer" with the amended phrasing (see § approved-versions amendment). No version bump to the PyJWT pin.</td></tr>
+        <tr><td><code>docs/architecture/stack.md</code></td><td>AC7: add an Internal-modules row for <code>biltiq_privacy_server.mint</code> (operator token-mint console-script; the only production <code>jwt.encode</code> caller; app-unreachable) and update the existing <strong>Server JWT verification</strong> row's "no <code>jwt.encode</code> in production" note to point at the carve-out. Same-PR stack rule.</td></tr>
+        <tr><td><code>README.md</code> (repo root)</td><td>AC7: document <code>biltiq-privacy-mint</code> in the Sidecar section — the env-only secret, <code>--sub</code>/<code>--ttl</code>/<code>--claim</code>, the pipe-friendly <code>TOKEN=$(BILTIQ_JWT_SECRET=… biltiq-privacy-mint --sub ops)</code> idiom, and a one-line note that it is an operator/CI convenience, not a server auth surface. Replaces (or annotates) the hand-rolled PyJWT snippet the spec calls out as the footgun.</td></tr>
+        <tr><td><code>CHANGELOG.md</code> (repo root)</td><td>AC7: <code>feat:</code> entry under Unreleased — operator <code>biltiq-privacy-mint</code> console-script; env-only secret; HS256; verify-only runtime preserved (encode isolated to an app-unreachable module). Rolled into <code>[0.1.0]</code> at Ship.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>AC → file traceability</h3>
+    <table>
+      <thead><tr><th>AC</th><th>Design element / file(s)</th></tr></thead>
+      <tbody>
+        <tr><td>AC1 verifiable token</td><td><code>mint.py</code> (<code>_build_payload</code>, <code>jwt.encode</code>, stdout) · <code>test_mint.py</code> (round-trips through <code>auth.verify_token</code>)</td></tr>
+        <tr><td>AC2 secret env-only</td><td><code>mint.py</code> (<code>_read_secret</code> via <code>config._JWT_SECRET_ENV</code>; no <code>--secret</code> action) · <code>test_mint_invariant.py</code> / <code>test_mint.py</code> (parser-action assertion)</td></tr>
+        <tr><td>AC3 fail-fast on missing secret</td><td><code>mint.py</code> (<code>_read_secret</code> → <code>MintError</code> → stderr, non-zero, empty stdout) · <code>test_mint.py</code></td></tr>
+        <tr><td>AC4 sub + ttl, tz-aware</td><td><code>mint.py</code> (<code>--sub</code> required, <code>_positive_int</code>, <code>datetime.now(UTC)</code>) · <code>test_mint.py</code></td></tr>
+        <tr><td>AC5 extensible claims</td><td><code>mint.py</code> (<code>_parse_claims</code>: split-on-first-<code>=</code>, reserved-set reject) · <code>test_mint.py</code></td></tr>
+        <tr><td>AC6 verify-only invariant</td><td><code>app</code>/<code>auth</code>/<code>dependencies</code>/routers untouched; <code>mint.py</code> app-unreachable · <code>test_mint_invariant.py</code></td></tr>
+        <tr><td>AC7 packaging + docs</td><td><code>pyproject.toml</code> scripts, ADR-0007 amend, approved-versions row, stack.md row, README, CHANGELOG</td></tr>
+        <tr><td>AC8 gates green</td><td>strict typing in <code>mint.py</code> (no <code>Any</code>, no unjustified <code>type: ignore</code>); <code>ruff</code> <code>DTZ</code> satisfied by <code>datetime.now(UTC)</code>; ≥ 90% coverage on <code>mint.py</code> · all mint tests</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="data-model">
+    <h2>Data Model / Contract</h2>
+    <p>No persistence, no wire schema, no server contract change. The only contract is the <strong>CLI
+    surface</strong> and the <strong>minted claim shape</strong>, which must match the verify side so tokens
+    round-trip through <code>auth.verify_token</code> unchanged.</p>
+    <h3>Claim payload (identical to <code>conftest._mint_token</code>)</h3>
+    <pre><code>now = datetime.now(UTC)                     # tz-aware UTC (ruff DTZ-clean)
+payload = {
+    "sub": &lt;--sub&gt;,                          # required
+    "iat": now,                              # PyJWT encodes datetime → epoch int
+    "exp": now + timedelta(seconds=&lt;--ttl&gt;), # default ttl 3600s; must be &gt; 0
+    **&lt;validated --claim k=v pairs, string values&gt;,
+}
+token = jwt.encode(payload, secret, algorithm=_MINT_ALGORITHM)   # HS256, single call</code></pre>
+    <h3>CLI surface (design-final)</h3>
+    <table>
+      <thead><tr><th>Flag</th><th>Type / default</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>--sub</code></td><td>str, required</td><td>Sets the <code>sub</code> claim. Missing → argparse usage error (non-zero, stderr).</td></tr>
+        <tr><td><code>--ttl</code></td><td>int (positive), default 3600</td><td>Sets <code>exp = iat + ttl</code> seconds. Non-positive → rejected (stderr, non-zero) via <code>_positive_int</code>.</td></tr>
+        <tr><td><code>--claim</code></td><td>str, repeatable (append)</td><td><code>k=v</code> merged as string value. No <code>=</code> → rejected. <code>k ∈ {sub,iat,exp}</code> → rejected.</td></tr>
+        <tr><td><em>(no <code>--secret</code>)</em></td><td>—</td><td>Secret is read only from <code>BILTIQ_JWT_SECRET</code> (AC2). Unset/empty → rejected (AC3).</td></tr>
+      </tbody>
+    </table>
+    <p><strong>stdout = the token, newline-terminated, nothing else</strong> (AC1). All diagnostics →
+    <strong>stderr</strong>. Exit <code>0</code> on success, non-zero (<code>2</code>) on any error.</p>
+  </section>
+
+  <section id="security-compliance">
+    <h2>Security &amp; Compliance Notes</h2>
+    <p><strong>Compliance mode: <code>on_prem_preferred</code>.</strong> The mint makes no cloud / external
+    AI call — it is a local HMAC-SHA256 signing operation over PyJWT (already an approved local crypto
+    dependency; no new dependency, so no new ADR is triggered — ADR-0007 is <em>amended</em>, not created).
+    The signing-key handling rules:</p>
+    <ul>
+      <li><strong>Secret never in <code>argv</code>.</strong> No <code>--secret</code> flag exists (AC2), so
+      the signing key cannot land in <code>ps</code>, shell history, or a process listing. It is read once
+      from <code>BILTIQ_JWT_SECRET</code> via the shared constant.</li>
+      <li><strong>Secret never logged or printed.</strong> The mint emits no log records; stdout is
+      exclusively the token (AC1); stderr error messages name the env var but never echo its value (AC3).</li>
+      <li><strong>Token is a secret-equivalent.</strong> It goes to stdout by design (the operator captures
+      it into a variable); the README documents that minted tokens are short-lived bearer credentials and
+      should be treated like the secret — not committed, not logged.</li>
+      <li><strong>Algorithm pinned to HS256</strong> via a module-local <code>_MINT_ALGORITHM</code>, with an
+      equality test against <code>auth._ALGORITHMS[0]</code> guarding drift — the mint cannot sign with a
+      weaker/other algorithm, and the verify side stays a single-element allow-list (no alg-confusion surface
+      introduced).</li>
+      <li><strong>Verify-only runtime preserved</strong> — the running server still never reaches
+      <code>jwt.encode</code> (AC6, § Invariant note). The mint is an operator/CI tool, not a new auth
+      surface on the server.</li>
+    </ul>
+    <p><strong>No-PII concern:</strong> the mint handles no document text — only operator-supplied claim
+    strings (<code>sub</code>, optional <code>k=v</code>). It does not touch the detector, the HMAC
+    pseudonymiser, or any privacy path.</p>
+  </section>
+
+  <section id="performance">
+    <h2>Performance Considerations</h2>
+    <p>Negligible and off the request path. The mint is a one-shot process: argparse parse, one
+    <code>datetime.now(UTC)</code>, one HMAC-SHA256 <code>jwt.encode</code> (microseconds), one stdout write.
+    No model load, no network, no server import-graph cost — importing <code>config</code> for one constant
+    and <code>auth</code> for the algorithm scalar is sub-millisecond and side-effect-free (neither does an
+    env read at import). There is no latency budget to defend; the tool exits immediately.</p>
+  </section>
+
+  <section id="rollout">
+    <h2>Rollout Plan</h2>
+    <ol style="padding-left:1.4rem;">
+      <li><strong>Stacked-branch sequencing.</strong> This task imports <code>biltiq_privacy_server</code>,
+      which exists only on the unmerged <code>feature/biltiq-013-fastapi-sidecar</code> branch (PR #14).
+      BILTIQ-013a is branched off that branch and <strong>cannot merge to <code>main</code> until #14
+      merges</strong> — land it as a stacked PR on top of #14, or rebase onto <code>main</code> once #14
+      merges. Plan/Build may proceed now against the feature branch.</li>
+      <li><code>mint.py</code> + <code>test_mint.py</code> — the mint module and its behavioural ACs (the
+      high-risk signing surface; gated by mandatory human review before Build and before merge).</li>
+      <li><code>test_mint_invariant.py</code> — AC6 structural guard (the invariant must be pinned in the same
+      PR that introduces <code>encode</code>).</li>
+      <li><code>pyproject.toml</code> <code>[project.scripts]</code> — register <code>biltiq-privacy-mint</code>;
+      verify the console-script resolves in a clean venv.</li>
+      <li>Docs: ADR-0007 amendment, approved-versions row replacement, stack.md row, README mint section,
+      CHANGELOG entry.</li>
+      <li>Ship gate: full suite green with no network, ≥ 90% coverage on <code>mint.py</code>,
+      <code>mypy --strict</code> clean, <code>ruff check</code> clean (incl. <code>DTZ</code>), banned-vocab /
+      residue gates.</li>
+    </ol>
+    <h3>Rollback</h3>
+    <p>Net-new module + additive script entry + doc edits — pre-publish rollback is reverting the mint files,
+    the one <code>pyproject.toml</code> script line, and the doc amendments; the running server is untouched
+    (no behaviour change, no schema, no data migration). Post-publish, a PyPI version is immutable →
+    <code>yank</code> and ship a fixed patch; never delete-and-reupload.</p>
+  </section>
+
+  <section id="adr-0007">
+    <h2>ADR-0007 amendment (proposed exact wording)</h2>
+    <div class="adr-box">
+      <p><strong>Append to ADR-0007 as a dated amendment (do not rewrite the original decision):</strong></p>
+      <p><strong>Amendment — 2026-06-21 (BILTIQ-013a): operator token-mint carve-out.</strong> The original
+      decision recorded that "production code contains no <code>jwt.encode</code> call — only the test fixture
+      mints tokens." BILTIQ-013a adds a first-class operator helper, the <code>biltiq-privacy-mint</code>
+      console-script (<code>biltiq_privacy_server.mint</code>), which <em>does</em> call
+      <code>jwt.encode</code> to produce a short-lived HS256 token for smoke tests, <code>curl</code> against a
+      fresh deployment, and CI. The verify-only guarantee is amended, not broken, and is now stated precisely:
+      <strong>the request-handling runtime — the <code>biltiq_privacy_server.app:app</code> ASGI graph
+      (routers → <code>dependencies</code> → <code>auth.verify_token</code>) — never reaches
+      <code>jwt.encode</code>. The mint module is the single production <code>jwt.encode</code> caller and is
+      imported by nothing in that graph</strong> (a structural test asserts <code>mint</code> is absent from
+      the imported <code>app</code> module graph, and that <code>encode</code> appears only in
+      <code>mint.py</code>). The secret is read env-only from <code>BILTIQ_JWT_SECRET</code> (no
+      <code>--secret</code> flag — a signing key in <code>argv</code> would leak into <code>ps</code> / shell
+      history); the algorithm is the same single-element HS256 allow-list as the verify side
+      (<code>mint</code> uses a module-local <code>_MINT_ALGORITHM</code> with an equality test pinning it to
+      <code>auth._ALGORITHMS[0]</code>, catching drift at test time without runtime coupling). No new
+      dependency is introduced (PyJWT already present); HS256-only and verify-side pinning are unchanged.</p>
+    </div>
+  </section>
+
+  <section id="approved-versions">
+    <h2>approved-versions.md amendment (proposed exact replacement)</h2>
+    <div class="adr-box">
+      <p><strong>Current Auth-row Notes clause (to replace):</strong></p>
+      <p class="placeholder">"… Production never calls <code>jwt.encode</code> (consumers mint their own
+      tokens); <code>auth.py</code> is the only <code>jwt</code> importer. PEP 561 typed."</p>
+      <p><strong>Replacement clause:</strong></p>
+      <p>"… The request-handling runtime (<code>app:app</code> → routers → <code>dependencies</code> →
+      <code>auth.verify_token</code>) never calls <code>jwt.encode</code>; the operator
+      <code>biltiq-privacy-mint</code> tool (<code>biltiq_privacy_server.mint</code>) does, in a module the
+      app graph never imports (BILTIQ-013a). <code>auth.py</code> remains the only <code>jwt</code> importer on
+      the verify path; <code>mint.py</code> is the only production <code>jwt.encode</code> caller. PEP 561
+      typed."</p>
+    </div>
+  </section>
+
+  <section id="thin-shim-watch">
+    <h2>Duplication / drift risks to flag</h2>
+    <ul>
+      <li><strong>Algorithm literal</strong> lives once in <code>mint.py</code> as
+      <code>_MINT_ALGORITHM = "HS256"</code> and is pinned to the verify side by an equality test
+      (<code>mint._MINT_ALGORITHM == auth._ALGORITHMS[0]</code>); if the verify side ever changes its single
+      allow-listed alg, that test fails until the mint is updated — drift cannot ship silently.</li>
+      <li><strong>Env-var name</strong> must not be re-spelled. <code>mint.py</code> imports
+      <code>config._JWT_SECRET_ENV</code>; a literal <code>"BILTIQ_JWT_SECRET"</code> in <code>mint.py</code>
+      is a drift bug.</li>
+      <li><strong>Claim shape</strong> must stay identical to <code>conftest._mint_token</code> /
+      <code>verify_token</code>'s expectations. If the verify side ever adds a required claim (e.g.
+      <code>aud</code>), the mint and its round-trip test must move together — pinned by AC1's
+      verify-round-trip test.</li>
+      <li><strong>Do not import <code>app</code> from <code>mint</code></strong> (or vice versa). The mint may
+      read constants from <code>config</code>/<code>auth</code>, but importing <code>app</code> would pull the
+      whole runtime graph and an env read into the mint, and any future <code>app → mint</code> import would
+      break AC6 — guarded by <code>test_mint_invariant.py</code>.</li>
+    </ul>
+  </section>
+
+  <section id="change-history">
+    <h2>Change History</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Section</th><th>What Changed</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td>2026-06-21</td><td>all</td><td>Initial architect draft</td><td>BILTIQ-013a</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

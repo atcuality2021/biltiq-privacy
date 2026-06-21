@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reflect: operator token-mint CLI (BILTIQ-013a)</title>
+  <!-- Design tokens: see /DESIGN.md for canonical BiltIQ design system -->
+  <style>
+    :root {
+      --color-shipped:   #16a34a;
+      --color-wip:       #d97706;
+      --color-blocker:   #dc2626;
+      --color-border:    #e5e7eb;
+      --color-bg:        #ffffff;
+      --color-bg-subtle: #f9fafb;
+      --color-text:      #111827;
+      --color-muted:     #6b7280;
+      --color-well:      #16a34a;
+      --color-wrong:     #dc2626;
+      --color-missed:    #7c3aed;
+      --radius:          6px;
+      --max-width:       860px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.6; color: var(--color-text); background: var(--color-bg); padding: 2rem 1rem; }
+    main { max-width: var(--max-width); margin: 0 auto; }
+    header { border-bottom: 2px solid var(--color-border); padding-bottom: 1.25rem; margin-bottom: 2rem; }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+    .meta dt { font-weight: 600; color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta dd { font-size: 0.9rem; }
+    section { margin-bottom: 2rem; }
+    h2 { font-size: 1.1rem; font-weight: 700; padding-left: 0.75rem; margin-bottom: 0.75rem; }
+    h2.well   { border-left: 4px solid var(--color-well);   }
+    h2.wrong  { border-left: 4px solid var(--color-wrong);  }
+    h2.missed { border-left: 4px solid var(--color-missed); }
+    h2.neutral{ border-left: 4px solid var(--color-border); }
+    p, li { margin-bottom: 0.4rem; }
+    ul { padding-left: 1.4rem; }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: var(--color-bg-subtle); padding: 0.1em 0.3em; border-radius: 3px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); }
+    th { background: var(--color-bg-subtle); font-weight: 600; }
+    .badge { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 9999px; }
+    .b-done { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Reflect — BILTIQ-013a: operator token-mint CLI</h1>
+    <dl class="meta">
+      <div><dt>Task</dt><dd>BILTIQ-013a</dd></div>
+      <div><dt>PR</dt><dd><a href="https://github.com/atcuality2021/biltiq-privacy/pull/15">#15</a> (open, stacked on #14, awaiting human review)</dd></div>
+      <div><dt>Risk</dt><dd>HIGH (token signing) — human peer review mandatory</dd></div>
+      <div><dt>Date</dt><dd>2026-06-21</dd></div>
+      <div><dt>Harness</dt><dd>Claude Code, Opus 4.8 (1M)</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <h2 class="neutral">Outcome</h2>
+    <p>Shipped <code>biltiq-privacy-mint</code>, a standalone operator/CI console-script (<code>biltiq_privacy_server.mint:main</code>) that signs a short-lived HS256 bearer token the verify-only sidecar accepts — so operators stop hand-rolling the PyJWT snippet (and stop being tempted to put the signing key on the command line). 2 atomic build steps, one commit each (code + tests + docs per step). Final battery: <strong>22 mint tests, <code>mint.py</code> 100% coverage (12/12 branch)</strong>, full server suite 90 passed (no regression), <code>mypy --strict</code> clean, ruff clean, deprecation-free.</p>
+    <p>All 8 acceptance criteria <span class="badge b-done">DONE</span> — demonstrated live via the registered console-script (AC1–AC5, AC7) and by structural test (AC6) / gate output (AC8).</p>
+  </section>
+
+  <section>
+    <h2 class="well">What went well</h2>
+    <ul>
+      <li><strong>The verify-only invariant was made a <em>test</em>, not a convention.</strong> The load-bearing property — the running server never reaches <code>jwt.encode</code> — is enforced by two complementary checks in <code>test_mint_invariant.py</code>: a source grep (<code>jwt.encode</code> appears only in <code>mint.py</code>) <em>and</em> a fresh-interpreter subprocess import proving <code>app:app</code> never loads <code>mint</code>. Adding the first production <code>jwt.encode</code> caller without weakening the guarantee is the whole point of the task, and it is now regression-proof.</li>
+      <li><strong>Subprocess isolation defeated <code>sys.modules</code> pollution.</strong> <code>test_mint.py</code> imports <code>mint</code> at module load, so an in-process reachability check would be permanently poisoned. Running the app-import probe in a fresh <code>sys.executable</code> is the only way to observe the clean import graph — recognised at design, not discovered as a flaky test.</li>
+      <li><strong>The design's "alternatives considered" killed the runtime-<code>auth</code>-import path early.</strong> Importing <code>auth._ALGORITHMS[0]</code> at runtime would have dragged FastAPI into the CLI's import graph. The chosen module-local <code>_MINT_ALGORITHM = "HS256"</code> pinned to the verify side by an equality test keeps the CLI to <code>argparse</code>+<code>pyjwt</code>+<code>config</code> and leaves shipped <code>auth.py</code> untouched.</li>
+      <li><strong>Env-only secret closed the AP#5 surface by construction.</strong> No <code>--secret</code> flag exists (parser-introspection test asserts it), the key only comes from <code>BILTIQ_JWT_SECRET</code>, and a test asserts the failure message names the var but never echoes a value — so the signing key cannot land in <code>argv</code>/<code>ps</code>/shell history.</li>
+      <li><strong>Atomic-step discipline survived a mid-task context compaction.</strong> Two clean commit boundaries (code+tests, then docs) meant the compaction between Build and Review landed on a green boundary — nothing to reconstruct.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="wrong">What went wrong (caught in self-review / Review / Test)</h2>
+    <ul>
+      <li><strong>AC7 console-script absent at first Test run — packaging-lifecycle gap.</strong> The first per-AC demonstration failed with <code>No such file or directory</code> for <code>biltiq-privacy-mint</code>: the package had been installed editable <em>before</em> the <code>[project.scripts]</code> entry was added, so the binary was never materialized into <code>venv/bin</code>. Not a code defect — the unit tests call <code>mint.main()</code> directly and passed throughout — but it proves the entry-point wiring is a distinct failure surface that in-process tests structurally cannot cover. Fixed by <code>uv pip install -e</code> to regenerate entry points, then re-demonstrated cleanly.</li>
+      <li><strong>Tooling assumption: <code>pip</code> not in the uv-managed venv.</strong> First reinstall attempt used <code>python -m pip</code> → <code>No module named pip</code>. Switched to <code>uv pip install</code>. Minor, but a reminder that this repo's venv is uv-managed with no pip seeded.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="missed">What we missed (slipped past, recurred, or only caught late)</h2>
+    <ul>
+      <li><strong>AC7's "console-script registers" was only exercised at Test, not Review.</strong> Review confirmed the <code>pyproject.toml</code> entry textually but did not attempt an install — so the stale-editable-install gap surfaced one step later than it could have. The cost was low (a reinstall), but a "fresh-install-and-invoke" check belongs in the packaging review slice, not only in Test.</li>
+      <li><strong>The curator-strips-MEMORY.md hazard from BILTIQ-013 is still live.</strong> Not re-hit this task (no manual "Recent decisions" edit was attempted), but the same non-durability applies to any ADR-0007 amendment pointer. Carried forward, not resolved.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="neutral">Process changes proposed (pending Friday review)</h2>
+    <ul>
+      <li><strong>Add a packaging "fresh-install-and-invoke" check to the Ship/Review packaging slice.</strong> Any task that adds or changes a <code>[project.scripts]</code> entry should, in Review, run an editable (re)install in a scratch venv and invoke the new console-script with <code>--help</code> — so console-script registration is verified before Test. This would have caught the AC7 gap one step earlier.</li>
+      <li><strong>Note uv-managed-venv tooling in the repo's test/build docs.</strong> The venv has no <code>pip</code>; gate/install commands should use <code>uv pip</code>. A one-line note in <code>stack.md</code> or the test runbook avoids the <code>No module named pip</code> stumble.</li>
+      <li><strong>MEMORY.md "Recent decisions" durability (carried from BILTIQ-013).</strong> Still worth fixing: source "Recent decisions" from memory-stream events or wrap it in an <code>auto:</code> marker so hand-edited ADR pointers stop being wiped on the next curator run.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="neutral">Acceptance criteria status</h2>
+    <table>
+      <tr><th>AC</th><th>Status</th><th>Evidence</th></tr>
+      <tr><td>AC1 mints verifiable token</td><td><span class="badge b-done">DONE</span></td><td>Live: <code>--sub ops</code> → token round-trips through <code>auth.verify_token</code> (sub=ops); stdout = 1 line, token only</td></tr>
+      <tr><td>AC2 secret env-only</td><td><span class="badge b-done">DONE</span></td><td>Live <code>--help</code>: only <code>--sub</code>/<code>--ttl</code>/<code>--claim</code>; no <code>--secret</code>/<code>--key</code> (+ parser-introspection test)</td></tr>
+      <tr><td>AC3 fail-fast missing secret</td><td><span class="badge b-done">DONE</span></td><td>Live: unset → rc=2, stdout empty, stderr names var, never echoes a value</td></tr>
+      <tr><td>AC4 sub + ttl, tz-aware</td><td><span class="badge b-done">DONE</span></td><td>Live: default exp-iat=3600s; <code>--ttl 1800</code>→1800s; <code>--ttl 0</code>/non-int → rc=2; tz-aware payload test</td></tr>
+      <tr><td>AC5 extensible claims</td><td><span class="badge b-done">DONE</span></td><td>Live: <code>--claim</code> merge, split-on-first-=, reserved sub/iat/exp → rc=2, malformed → rc=2</td></tr>
+      <tr><td>AC6 verify-only invariant</td><td><span class="badge b-done">DONE</span></td><td><code>test_mint_invariant.py</code> 2 passed: <code>jwt.encode</code> isolated to mint.py + app:app fresh-import never loads mint</td></tr>
+      <tr><td>AC7 packaging + docs</td><td><span class="badge b-done">DONE</span></td><td>console-script registers on PATH after editable install; ADR-0007 amended; approved-versions/stack/README/CHANGELOG updated</td></tr>
+      <tr><td>AC8 gates green</td><td><span class="badge b-done">DONE</span></td><td>90 passed, ruff clean, mypy --strict clean, 99% total / mint.py 100% (fail_under=90)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2 class="neutral">Cleanup confirmation (Anti-Pattern #7)</h2>
+    <ul>
+      <li>No <code>*_v2.*</code>, <code>*_new.*</code>, <code>*_old.*</code>, <code>*.bak</code>, <code>*_temp.*</code>, or <code>test_scratch_*</code> files in the 013a diff (12 files, all intended).</li>
+      <li>The PR-body draft lived in <code>/tmp/biltiq-013a-pr-body.md</code> (outside the repo) — not repo residue.</li>
+      <li>The pre-existing <code>M MEMORY.md</code> working-tree change was deliberately kept out of every 013a commit (staged selectively); it is not part of this task.</li>
+      <li>Branch <code>feature/biltiq-013a-mint-cli</code> to be deleted after merge.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="neutral">Tech debt logged</h2>
+    <p><strong>None.</strong> Out-of-scope items (roles enforcement, JSON-typed claims, token revocation, asymmetric/RS256 signing, a <code>biltiq-privacy-server</code> mint subcommand) are recorded in <code>spec.html § Out of Scope</code> as deferred — design boundaries, not debt incurred. The two non-blocking items above are captured as process changes, not code debt.</p>
+  </section>
+
+  <section>
+    <h2 class="neutral">Estimate actuals</h2>
+    <table>
+      <tr><th>Axis</th><th>Estimated</th><th>Actual</th><th>Variance</th></tr>
+      <tr><td>Wall-clock</td><td>S</td><td>S</td><td>on-band</td></tr>
+      <tr><td>Tokens</td><td>S</td><td>S</td><td>on-band</td></tr>
+      <tr><td>Human review (min)</td><td>30 (high-risk: token signing)</td><td>pending (PR just opened)</td><td>—</td></tr>
+    </table>
+    <p>Single continuous session, Think→Ship in order on a stacked branch. The 2-step atomic plan composed cleanly to the S wall-clock band; the only friction (console-script not registered) was a scratch-env reinstall, not rework. Human-review minutes to be filled once the mandatory token-signing peer review completes.</p>
+  </section>
+</main>
+</body>
+</html>
