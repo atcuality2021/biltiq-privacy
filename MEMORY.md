@@ -48,7 +48,7 @@ biltiq-privacy is a reusable polyglot privacy/anonymisation/compliance package p
 - **Active sprint:** Close v0.1.0 release — tag v0.1.0 → PyPI publish → BILTIQ-013 sidecar.
 - **Top 3 tasks in flight:**
   1. **PyPI publish v0.1.0** — BILTIQ-012 merged 2026-06-21; wheel already verified (0 direct-URL deps); needs dev credentials (twine / uv publish / trusted-publishing decision).
-  2. **BILTIQ-013** — FastAPI sidecar — **shipped (PR #14 open, CI green, awaiting mandatory human auth review)**; merge after review, then delete branch. **BILTIQ-013a** (operator mint CLI, PR #15) is stacked on #14 — merge #14 first, then rebase #15 onto main; #15 also needs mandatory human token-signing review.
+  2. **BILTIQ-013 + BILTIQ-013a — shipped & merged to main 2026-06-21.** PR #14 (FastAPI sidecar, verify-only JWT) squash-merged `c42697b`; PR #15 (operator mint CLI `biltiq-privacy-mint`) rebased onto main + squash-merged `e42ef91`. Both human reviews approved (auth + token-signing); both branches deleted.
   3. **`biltiq-gates.yml` fix** — workflow fails in 0s on every push to main; still unticketed. Also unticketed: `RedactionFilter` (`core/log_filter.py`) listed in stack.md but never built — row marked PLANNED.
 - **Top 3 risks:**
   1. **Presidio default global recognisers leak through `build_engine()`** (BILTIQ-002 AC2 caveat — non-Indian entities like UK_NHS, PERSON also fire). Deferred via tech-debt #3 (`india_only=True` flag). Mitigation until then: callers strip non-`IN_*` results client-side.
